@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block heading %}{{ row.block }} {{ row.street_name | title }}{% endblock %}
+{% block content %}
+
+<section class="card">
+  <div class="headline">
+    <div>
+      <h2>{{ row.flat_type | title }}{% if row.storey %}, storey {{ row.storey }}{% endif %}</h2>
+      <p class="sub">{{ row.status }}
+        {%- if row.viewing_date %} · viewing {{ row.viewing_date }}{% endif %}
+        {%- if block and block.town %} · {{ block.town | title }}{% endif %}</p>
+    </div>
+    <span class="chip {{ 'c-hi' if tag == 'below' else 'c-mid' if tag == 'within' else 'c-lo' if tag == 'above' }}">
+      {{ row.asking_price | money }}<small>{{ tag or 'asking' }}</small></span>
+  </div>
+  {{ m.range_bar(estimate, row.asking_price, tag) }}
+  {% if row.url %}<p><a class="link" href="{{ row.url }}" rel="noreferrer">Open the listing</a></p>{% endif %}
+  {% if block %}
+    <p><a class="link"
+      href="{{ url_for('block_profile', block_key=row.block_key, flat_type=row.flat_type) }}">
+      See the whole block</a></p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>How it fits</h2>
+  {{ m.fit_block(fit) }}
+  <p class="muted">Earliest open-market sale: <b>{{ fit.earliest_exit_year }}</b>.</p>
+</section>
+
+<form class="card" method="post">
+  <h2>Details and viewing</h2>
+  <label>Status
+    <select name="status">
+      {% for s in statuses %}
+        <option value="{{ s }}" {{ 'selected' if s == row.status }}>{{ s }}</option>
+      {% endfor %}
+    </select></label>
+  <label>Viewing date<input name="viewing_date" type="date" value="{{ row.viewing_date or '' }}"></label>
+  <label>Listing link<input name="url" type="url" value="{{ row.url or '' }}"></label>
+  <label>Block<input name="block_key" list="blocklist" value="{{ row.block_key or '' }}">
+    <datalist id="blocklist">
+      {% for b in blocks %}<option value="{{ b.block_key }}">{{ b.block }}
+        {{ b.street_name | title }}</option>{% endfor %}
+    </datalist></label>
+  <label>Flat type<input name="flat_type" value="{{ row.flat_type or '' }}"></label>
+  <label>Asking price<input name="asking_price" type="number" step="1000"
+    value="{{ row.asking_price | int if row.asking_price }}"></label>
+  <div class="row">
+    <label>Storey<input name="storey" type="number" value="{{ row.storey or '' }}"></label>
+    <label>Sqm<input name="floor_area_sqm" type="number"
+      value="{{ row.floor_area_sqm | round | int if row.floor_area_sqm }}"></label>
+  </div>
+  <label>Facing<input name="facing" value="{{ row.facing or '' }}" placeholder="north-east"></label>
+  <label class="check"><input type="checkbox" name="corner_unit" value="1"
+    {{ 'checked' if row.corner_unit }}> Corner unit</label>
+  <label class="check"><input type="checkbox" name="eip_checked" value="1"
+    {{ 'checked' if row.eip_checked }}> EIP / SPR quota checked with HDB</label>
+  <label class="check"><input type="checkbox" name="hardcourt_seen" value="1"
+    {{ 'checked' if row.hardcourt_seen }}> Hard court or noise source in sight</label>
+
+  <h3>Viewing checklist</h3>
+  <p class="muted">What the government data cannot tell us.</p>
+  {% for key, question in checklist %}
+    {% set answer = answers.get(key) %}
+    <fieldset class="checkitem">
+      <legend>{{ question }}</legend>
+      <input name="check_{{ key }}" value="{{ answer.answer if answer else '' }}"
+             placeholder="Yes / no / what you saw">
+      <input name="note_{{ key }}" value="{{ answer.note if answer else '' }}"
+             placeholder="Note">
+    </fieldset>
+  {% endfor %}
+
+  <label>Notes<textarea name="notes" rows="4">{{ row.notes or '' }}</textarea></label>
+  <button type="submit">Save</button>
+</form>
+
+<section class="card">
+  <h2>Photos</h2>
+  <div class="photos">
+    {% for p in photos %}
+      <figure>
+        <img src="{{ url_for('listing_photo', listing_id=row.id, filename=p.filename) }}"
+             alt="{{ p.caption or 'viewing photo' }}" loading="lazy">
+        {% if p.caption %}<figcaption>{{ p.caption }}</figcaption>{% endif %}
+      </figure>
+    {% else %}<p class="unk">No photos yet.</p>{% endfor %}
+  </div>
+  <form method="post" action="{{ url_for('upload_photo', listing_id=row.id) }}"
+        enctype="multipart/form-data">
+    <label>Add a photo<input type="file" name="photo" accept="image/*" capture="environment"></label>
+    <label>Caption<input name="caption"></label>
+    <button type="submit">Upload</button>
+  </form>
+</section>
+
+<form class="card danger" method="post" action="{{ url_for('delete_listing', listing_id=row.id) }}"
+      onsubmit="return confirm('Remove this listing from the shortlist?')">
+  <button type="submit">Remove from shortlist</button>
+</form>
+{% endblock %}

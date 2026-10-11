@@ -1,0 +1,55 @@
+# Pinned data.gov.sg resource ids. A failed sync alerts rather than silently
+# switching ids (Risk: "dataset IDs and endpoints change").
+# last_checked is the date a human last confirmed the id resolves.
+last_checked: 2026-10-11
+
+api:
+  # CKAN-style datastore endpoint. Keyless use is rate limited; set
+  # DATAGOV_API_KEY in the environment to raise the limit.
+  datastore_url: https://data.gov.sg/api/action/datastore_search
+  page_size: 10000
+  max_retries: 5
+  timeout_seconds: 60
+
+resale:
+  # Oldest first; later files win on duplicate rows.
+  - id: d_43f493c6c50d54243cc1eab0df142d6a
+    label: resale 2000 - Feb 2012
+  - id: d_2d5ff9ea31397b66239f245f57751537
+    label: resale Mar 2012 - 2014
+  - id: TODO
+    label: resale 2015 - 2016
+    # The PRD links this dataset but not its resource id. Paste the id from
+    # data.gov.sg here; while it reads TODO the sync skips it and says so.
+    confirmed: false
+  - id: d_8b84c4ee58e3cfc0ece0d773c8ca6abc
+    label: resale Jan 2017 onwards
+
+property_info:
+  id: d_17f5382f26140b1fdae0ba2ef6239d2f
+  label: HDB property information (per block)
+
+price_index:
+  id: d_14f63e595975691e7c24a27ae4c07c79
+  label: HDB resale price index (1Q2009 = 100)
+
+town_medians:
+  id: TODO
+  label: Median resale prices by town and flat type (quarterly, from 2007)
+  # The PRD links the dataset page but not its resource id. Until it is filled
+  # in, g_town falls back to town medians computed from the resale
+  # transactions themselves, which cover the same ground from 2000.
+  confirmed: false
+
+rentals:
+  id: d_c9f57187485a850908655db0e8cfe651
+  label: HDB renting out of flats, Jan 2021 onwards
+
+onemap:
+  search_url: https://www.onemap.gov.sg/api/common/elastic/search
+  route_url: https://www.onemap.gov.sg/api/public/routingsvc/route
+  token_url: https://www.onemap.gov.sg/api/auth/post/getToken
+  # OneMap tokens last 3 days. Set ONEMAP_EMAIL + ONEMAP_PASSWORD to have the
+  # sync job mint one, or ONEMAP_TOKEN to supply it directly.
+  tile_url: https://www.onemap.gov.sg/maps/tiles/Default/{z}/{x}/{y}.png
+  attribution: '<img src="https://www.onemap.gov.sg/web-assets/images/logo/om_logo.png" style="height:20px;width:20px;"/> New OneMap | Map data &copy; contributors, <a href="https://www.sla.gov.sg/">Singapore Land Authority</a>'

@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block heading %}Ranked blocks{% endblock %}
+{% block content %}
+
+{% if empty %}
+  <section class="card">
+    <h2>Nothing to rank yet</h2>
+    <p>The store has no block metrics. Run the batch job first:</p>
+    <pre>nhf sync
+nhf build</pre>
+    <p>Until then the app has nothing real to show, and it will not invent
+       anything.</p>
+  </section>
+{% else %}
+
+<details class="card controls">
+  <summary>Weights and filters<small>{{ total }} candidates</small></summary>
+  <form method="get">
+    <fieldset>
+      <legend>What matters, and how much</legend>
+      {% for key, value in weights.items() %}
+        <label class="slider">
+          <span>{{ key | capitalize }}<b>{{ value | int }}</b></span>
+          <input type="range" name="w_{{ key }}" min="0" max="50" step="5" value="{{ value | int }}"
+                 oninput="this.previousElementSibling.querySelector('b').textContent = this.value">
+        </label>
+      {% endfor %}
+    </fieldset>
+    <fieldset>
+      <legend>Narrow the list</legend>
+      <label>Cheapest recent sale at most
+        <input type="number" name="max_price" step="10000"
+               value="{{ filters.max_price | int if filters.max_price }}"
+               placeholder="{{ (cfg.budget * 1.1) | int }}"></label>
+      <label>Flat type
+        <select name="flat_type" multiple size="4">
+          {% for t in flat_types %}
+            <option value="{{ t }}"
+              {{ 'selected' if filters.flat_types and t in filters.flat_types }}>{{ t }}</option>
+          {% endfor %}
+        </select></label>
+      <label>Town
+        <select name="town" multiple size="6">
+          {% for t in towns %}
+            <option value="{{ t }}"
+              {{ 'selected' if filters.towns and t in filters.towns }}>{{ t | title }}</option>
+          {% endfor %}
+        </select></label>
+      <label class="check"><input type="checkbox" name="hide_flagged" value="1"
+        {{ 'checked' if hide_flagged }}> Hide anything with a red flag</label>
+    </fieldset>
+    <button type="submit">Rank</button>
+    <a class="link" href="{{ url_for('index') }}">Reset</a>
+  </form>
+</details>
+
+<p class="muted">Showing {{ candidates | length }} of {{ total }}. Scores are
+  weighted sub-scores on fixed scales; growth is relative to the blocks in budget.</p>
+
+{% for c in candidates %}
+  <article class="card candidate">
+    <a class="rowlink"
+       href="{{ url_for('block_profile', block_key=c.block_key, flat_type=c.flat_type) }}">
+      <div class="headline">
+        <div>
+          <h2>{{ c.block }} {{ c.street_name | title }}</h2>
+          <p class="sub">{{ c.flat_type | title }} · {{ c.town | title }}
+            {%- if c.median_sqm %} · {{ c.median_sqm | num(0) }} sqm{% endif %}</p>
+        </div>
+        {{ m.score_chip(c.rank_score, 'rank') }}
+      </div>
+      <dl class="facts">
+        <div><dt>Median sale</dt><dd>{{ c.median_price_24m | money }}</dd></div>
+        <div><dt>Growth</dt><dd>{{ c.growth_score if c.growth_score is not none else '—' }}</dd></div>
+        <div><dt>Lease at exit</dt><dd>{{ c.lease_years_at_exit | num(0) }} yrs</dd></div>
+        <div><dt>Drive</dt><dd>{{ c.drive_minutes | num(0) }} min</dd></div>
+        <div><dt>MRT</dt><dd>{{ c.nearest_mrt_m | num(0) }} m</dd></div>
+        <div><dt>Sales 24m</dt><dd>{{ c.n_txn_24m }}</dd></div>
+      </dl>
+      <p class="badge {{ 'bad' if c.fit and c.fit.misses }}">{{ c.fit.badge }}</p>
+      {% if c.fit and c.fit.misses %}
+        <ul class="flags">
+          {% for miss in c.fit.misses %}<li>{{ miss.label }}: {{ miss.detail }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+    </a>
+    <details>
+      <summary>How this score was built</summary>
+      <table class="sub-scores">
+        <tr><th>Part</th><th>Value</th><th>Score</th><th>Weight</th></tr>
+        {% for s in c.sub_scores %}
+          <tr class="{{ 'unk' if s.percentile is none }}">
+            <td>{{ s.label }}<small>{{ s.unit }}</small></td>
+            <td>{{ s.value | num(0) if s.value is not none else '—' }}</td>
+            <td>{{ (s.percentile * 100) | round | int if s.percentile is not none else '—' }}</td>
+            <td>{{ s.weight | int }}</td>
+          </tr>
+          {% if s.note %}<tr class="note"><td colspan="4">{{ s.note }}</td></tr>{% endif %}
+        {% endfor %}
+      </table>
+    </details>
+  </article>
+{% endfor %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,52 @@
+{% macro level_class(level) %}{{ {'best': 'ok', 'acceptable': 'mid',
+   'flagged': 'bad', 'unknown': 'unk'}[level] }}{% endmacro %}
+
+{% macro fit_block(fit) %}
+  {% if fit %}
+  <ul class="checks">
+    {% for c in fit.checks %}
+      <li class="{{ level_class(c.level) | trim }}">
+        <b>{{ c.label }}</b> {{ c.detail }}
+        <small>{{ c.source }}</small>
+      </li>
+    {% endfor %}
+  </ul>
+  {% if fit.manual_checks %}
+    <ul class="manual">
+      {% for note in fit.manual_checks %}<li>{{ note }}</li>{% endfor %}
+    </ul>
+  {% endif %}
+  {% endif %}
+{% endmacro %}
+
+{% macro score_chip(value, label) %}
+  <span class="chip {{ 'c-hi' if value and value >= 70 else 'c-mid' if value and value >= 50 else 'c-lo' }}">
+    {{ value if value is not none else '—' }}<small>{{ label }}</small>
+  </span>
+{% endmacro %}
+
+{% macro range_bar(estimate, asking, tag) %}
+  {% if estimate.available %}
+    <div class="rangebar">
+      <div class="scale">
+        <span>{{ estimate.low | money }}</span>
+        <span class="mid">{{ estimate.mid | money }}</span>
+        <span>{{ estimate.high | money }}</span>
+      </div>
+      <div class="track"><div class="band"></div>
+        {% if asking and estimate.high and estimate.low %}
+          {% set span = (estimate.high - estimate.low) or 1 %}
+          {% set pos = ((asking - estimate.low) / span * 100) %}
+          <div class="pin {{ tag }}" style="left: {{ [[pos, -6] | max, 106] | min }}%"
+               title="asking {{ asking | money }}"></div>
+        {% endif %}
+      </div>
+      {% if asking %}
+        <p class="tag {{ tag }}">Asking {{ asking | money }} is
+          <b>{{ tag }}</b> the fair-value range</p>
+      {% endif %}
+    </div>
+  {% else %}
+    <p class="unk">No fair-value range: {{ estimate.notes | join('; ') or 'no comparable sales' }}</p>
+  {% endif %}
+{% endmacro %}

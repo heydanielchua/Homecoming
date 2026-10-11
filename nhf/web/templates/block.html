@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}{{ block.block }} {{ block.street_name | title }}{% endblock %}
+{% block heading %}{{ block.block }} {{ block.street_name | title }}{% endblock %}
+{% block content %}
+
+<section class="card">
+  <div class="headline">
+    <div>
+      <h2>{{ flat_type | title }}</h2>
+      <p class="sub">{{ block.town | title }}
+        {%- if block.max_floor_lvl %} · {{ block.max_floor_lvl }} storeys{% endif %}
+        {%- if block.year_completed %} · completed {{ block.year_completed }}{% endif %}
+        {%- if block.total_dwelling_units %} · {{ block.total_dwelling_units }} units{% endif %}</p>
+    </div>
+    {% if candidate %}{{ m.score_chip(candidate.rank_score, 'rank') }}{% endif %}
+  </div>
+  {% if rank_position %}
+    <p class="muted">Ranked {{ rank_position }} of {{ of_total }} on the current weights.</p>
+  {% endif %}
+  <p class="types">
+    {% for t in flat_types_here %}
+      <a class="pill {{ 'on' if t == flat_type }}"
+         href="{{ url_for('block_profile', block_key=block.block_key, flat_type=t) }}">{{ t | title }}</a>
+    {% endfor %}
+  </p>
+</section>
+
+<section class="card">
+  <h2>Fair value</h2>
+  <form method="get" class="inline">
+    <label>Storey<input type="number" name="storey" min="1" value="{{ storey or '' }}"
+      max="{{ block.max_floor_lvl or 50 }}"></label>
+    <label>Sqm<input type="number" name="sqm" step="1"
+      value="{{ estimate.floor_area_sqm | round | int if estimate.floor_area_sqm }}"></label>
+    <label>Asking<input type="number" name="asking" step="1000" value="{{ asking | int if asking }}"></label>
+    <button type="submit">Value it</button>
+  </form>
+  {{ m.range_bar(estimate, asking, asking_tag) }}
+  <p class="muted">
+    {{ estimate.n_comps }} comparable sale{{ 's' if estimate.n_comps != 1 }}
+    ({{ estimate.scope | replace('_', ' ') }}), adjusted to
+    {{ estimate.as_of_quarter or 'the latest quarter' }} for market, floor and lease.
+    {% if estimate.psm_mid %}Mid is ${{ estimate.psm_mid | round | int }}/sqm.{% endif %}
+  </p>
+  {% if estimate.notes %}<ul class="manual">
+    {% for n in estimate.notes %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}
+  {% if estimate.comps %}
+    <details><summary>The comparables</summary>
+      <table class="data">
+        <tr><th>Month</th><th>Block</th><th>Storey</th><th>Price</th><th>$/sqm</th>
+          <th>Adjusted</th></tr>
+        {% for c in estimate.comps %}
+          <tr><td>{{ c.month | month_name }}</td>
+            <td>{{ c.block_key.split('|')[0] }}</td>
+            <td>{{ c.storey_range }}</td>
+            <td>{{ c.resale_price | money }}</td>
+            <td>{{ c.price_per_sqm | num(0) }}</td>
+            <td>{{ c.adjusted_psm | num(0) }}
+              <small>×{{ c.index_adj | num(2) }} mkt ×{{ c.storey_adj | num(2) }} floor
+                ×{{ c.lease_adj | num(2) }} lease</small></td></tr>
+        {% endfor %}
+      </table>
+    </details>
+  {% endif %}
+</section>
+
+{% if candidate %}
+<section class="card">
+  <h2>Growth</h2>
+  <div class="headline">
+    {{ m.score_chip(candidate.growth_score, 'growth') }}
+    <p class="muted">Projected at exit, {{ cfg.holding_years }} years after buying:
+      <b>{{ candidate.exit_low | money }} – {{ candidate.exit_high | money }}</b>
+      (mid {{ candidate.exit_mid | money }}). Three cases: a downside, a flat
+      market, and the town's own ten-year rate. Never a single forecast.</p>
+  </div>
+  {% if candidate.growth_signals.signals %}
+    <table class="data">
+      <tr><th>Signal</th><th>Value</th><th>Percentile</th><th>Weight</th></tr>
+      {% for s in candidate.growth_signals.signals %}
+        <tr class="{{ 'unk' if not s.available }}">
+          <td>{{ s.label }}<small>{{ s.source }}</small></td>
+          <td>{{ s.value if s.value is not none else '—' }}<small>{{ s.unit }}</small></td>
+          <td>{{ (s.percentile * 100) | round | int if s.percentile is not none else '—' }}</td>
+          <td>{{ s.weight | int }}</td>
+        </tr>
+        {% if s.note %}<tr class="note"><td colspan="4">{{ s.note }}</td></tr>{% endif %}
+      {% endfor %}
+    </table>
+  {% endif %}
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Criteria</h2>
+  {{ m.fit_block(candidate.fit if candidate else None) }}
+  {% if candidate and candidate.fit %}
+    <p class="muted">Earliest we could sell on the open market:
+      <b>{{ candidate.fit.earliest_exit_year }}</b>
+      ({{ cfg.policy['mop']['standard_years'] }}-year MOP from a
+      {{ cfg.household['purchase_year'] }} purchase).</p>
+    {% if candidate.fit.excluded %}
+      <p class="tag above">Excluded: {{ candidate.fit.exclusion_reason }}</p>
+    {% endif %}
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Prices here</h2>
+  <h3>By flat type, last 24 months</h3>
+  <table class="data">
+    <tr><th>Type</th><th>n</th><th>Low</th><th>Mean</th><th>High</th><th>$/sqm</th></tr>
+    {% for r in by_type %}
+      <tr><td>{{ r.flat_type | title }}</td><td>{{ r.n }}</td><td>{{ r.low | money }}</td>
+        <td>{{ r.mean | money }}</td><td>{{ r.high | money }}</td>
+        <td>{{ r.psm | num(0) }}</td></tr>
+    {% else %}<tr><td colspan="6">No sales in the last 24 months.</td></tr>{% endfor %}
+  </table>
+
+  <h3>By storey band, {{ flat_type | title }}</h3>
+  <table class="data">
+    <tr><th>Storeys</th><th>n</th><th>Mean</th><th>$/sqm</th></tr>
+    {% for r in by_storey %}
+      <tr><td>{{ r.storey_range }}</td><td>{{ r.n }}</td><td>{{ r.mean | money }}</td>
+        <td>{{ r.psm | num(0) }}</td></tr>
+    {% else %}<tr><td colspan="4">No sales in the last 24 months.</td></tr>{% endfor %}
+  </table>
+
+  <details><summary>Every sale in the last 24 months</summary>
+    <table class="data">
+      <tr><th>Month</th><th>Type</th><th>Storey</th><th>Sqm</th><th>Price</th><th>Lease</th></tr>
+      {% for t in transactions %}
+        <tr><td>{{ t.month | month_name }}</td><td>{{ t.flat_type | title }}</td>
+          <td>{{ t.storey_range }}</td><td>{{ t.floor_area_sqm | num(0) }}</td>
+          <td>{{ t.resale_price | money }}</td>
+          <td>{{ (t.remaining_lease_months / 12) | num(0) if t.remaining_lease_months }} yrs</td>
+        </tr>
+      {% endfor %}
+    </table>
+  </details>
+</section>
+
+<section class="card">
+  <h2>Trend against its town and the index</h2>
+  <table class="data">
+    <tr><th>Year</th><th>n</th><th>Block $/sqm</th><th>Town $/sqm</th><th>Index</th></tr>
+    {% for r in trend | reverse %}
+      <tr><td>{{ r.year }}</td><td>{{ r.n }}</td><td>{{ r.block_psm | num(0) }}</td>
+        <td>{{ r.town_psm | num(0) }}</td><td>{{ r.index | num(1) }}</td></tr>
+    {% endfor %}
+  </table>
+  {% if candidate and candidate.growth_signals.signals %}
+    {% set momentum = candidate.growth_signals.signals
+         | selectattr('key', 'equalto', 'price_momentum') | first %}
+    {% if momentum and momentum.value is not none %}
+      <p class="muted">This block has grown {{ momentum.value | pct(2) }} a year
+        {{ 'faster' if momentum.value >= 0 else 'slower' }} than the index.</p>
+    {% endif %}
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>MRT nearby</h2>
+  <ul class="plain">
+    {% for s in stations %}
+      <li><b>{{ s.name | title }}</b> {{ s.line }} — {{ s.distance_m }} m
+        {% if s.status != 'open' %}<em>({{ s.status | replace('_', ' ') }},
+          ~{{ s.expected_year }})</em>{% endif %}</li>
+    {% else %}
+      <li class="unk">No stations within 2 km in the store. Existing stations come
+        from an imported LTA list (<code>nhf import-mrt</code>); future ones from
+        <code>config/future_mrt.yml</code>.</li>
+    {% endfor %}
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Retirement rental check</h2>
+  {% if rent.median_rent %}
+    <p>Median whole-flat rent for a {{ flat_type | title }}
+      ({{ rent.scope }}, {{ rent.n }} approvals): <b>{{ rent.median_rent | money }}</b>/month.</p>
+  {% else %}
+    <p class="unk">No rental approvals in the store for this flat type.</p>
+  {% endif %}
+  <p class="muted">We would start letting in {{ rent.let_from_year }}, with about
+    {{ rent.lease_years_at_let | num(0) }} years of lease left. A sanity check that
+    the flat stays rentable, not a yield target.
+    {% if rent.citizens_only %}Only Singapore Citizen owners may rent out a whole
+    flat, after MOP and with HDB approval.{% endif %}</p>
+  {% if rent.quota_note %}<p class="manual">{{ rent.quota_note }}</p>{% endif %}
+</section>
+
+<form class="card" method="post" action="{{ url_for('create_listing') }}">
+  <h2>Add a listing in this block</h2>
+  <input type="hidden" name="block_key" value="{{ block.block_key }}">
+  <input type="hidden" name="flat_type" value="{{ flat_type }}">
+  <label>Listing link<input name="url" type="url" placeholder="PropertyGuru or 99.co"></label>
+  <label>Asking price<input name="asking_price" type="number" step="1000"></label>
+  <label>Storey<input name="storey" type="number" min="1" value="{{ storey or '' }}"></label>
+  <label>Sqm<input name="floor_area_sqm" type="number" step="1"></label>
+  <label class="check"><input type="checkbox" name="corner_unit" value="1"> Corner unit</label>
+  <button type="submit">Save to shortlist</button>
+</form>
+{% endblock %}

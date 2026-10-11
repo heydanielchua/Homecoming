@@ -1,0 +1,37 @@
+# HDB rules that fix our earliest exit and limit who can buy from us.
+# A policy change should be a one-line edit here.
+last_checked: 2026-10-11
+
+mop:
+  standard_years: 5
+  plus_prime_years: 10
+  source: https://www.hdb.gov.sg/residential/buying-a-flat/conditions-after-buying?anchor=mop
+
+plus_prime:
+  # Plus and Prime flats carry a 10-year MOP and can never be rented out
+  # whole, so they are excluded by default: renting out at retirement is the
+  # plan. There is no open dataset of flat classification, so blocks are
+  # listed by hand as we find them.
+  exclude_by_default: true
+  blocks: []                   # entries: "<block>|<STREET NAME>"
+  source: https://www.hdb.gov.sg/business/estate-agents-and-salespersons/renting-out-a-flat-or-bedroom/eligibility
+
+whole_flat_rental:
+  citizens_only: true
+  requires_hdb_approval: true
+  non_citizen_quota_per_block: true    # manual check, no open API
+
+buyer_finance:
+  # Buyers' CPF and loan use depends on lease left vs their age.
+  # TO CONFIRM with HDB before this drives a decision.
+  confirmed: false
+  cpf_full_use_min_lease_years: 20     # lease must cover buyer to age 95
+  no_cpf_below_lease_years: 20
+  note: >
+    Placeholder thresholds. The real rule is that the remaining lease must
+    cover the youngest buyer until age 95 for full CPF use, with a pro-rated
+    amount below that and none under 20 years. Encoded as a flag, not advice.
+
+ethnic_integration_policy:
+  # No open API for a block's quota status; the app asks for a manual check.
+  manual_check_required: true

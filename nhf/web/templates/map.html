@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block heading %}Map{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+{% endblock %}
+{% block content %}
+<div id="map"></div>
+<p class="legend">
+  <span class="dot c-hi"></span>70+ <span class="dot c-mid"></span>50–69
+  <span class="dot c-lo"></span>under 50 <span class="dot station"></span>MRT
+  <span class="dot future"></span>future MRT
+</p>
+<p class="muted" id="mapnote">Coloured by rank score on the current weights.</p>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const params = window.location.search;
+const map = L.map('map').setView([1.3521, 103.8198], 11);
+L.tileLayer({{ onemap_tiles | tojson }}, {
+  detectRetina: true, maxZoom: 18, minZoom: 10,
+  attribution: {{ onemap_attribution | tojson }}
+}).addTo(map);
+
+function colour(score) {
+  if (score === null || score === undefined) return '#8a8f98';
+  if (score >= 70) return '#3ddc97';
+  if (score >= 50) return '#f5c451';
+  return '#f2726f';
+}
+
+fetch('/api/candidates.json' + params).then(r => r.json()).then(rows => {
+  const bounds = [];
+  rows.forEach(row => {
+    const marker = L.circleMarker([row.lat, row.lon], {
+      radius: 7, weight: 1, color: '#11131a', fillColor: colour(row.rank_score),
+      fillOpacity: 0.95
+    }).addTo(map);
+    const flags = row.misses.length
+      ? '<ul><li>' + row.misses.join('</li><li>') + '</li></ul>' : '';
+    marker.bindPopup(
+      '<b>' + row.block + ' ' + row.street + '</b><br>' + row.flat_type +
+      ' · ' + (row.town || '') + '<br>Rank ' + (row.rank_score ?? '—') +
+      ' · growth ' + (row.growth_score ?? '—') +
+      '<br>Median ' + (row.median_price ? '$' + row.median_price.toLocaleString() : '—') +
+      flags + '<br><a href="' + row.url + '">Open block</a>'
+    );
+    bounds.push([row.lat, row.lon]);
+  });
+  if (bounds.length) map.fitBounds(bounds, { padding: [24, 24] });
+  document.getElementById('mapnote').textContent =
+    rows.length + ' blocks with coordinates. Coloured by rank score.';
+});
+
+fetch('/api/stations.json').then(r => r.json()).then(rows => {
+  rows.forEach(s => {
+    const open = s.status === 'open';
+    L.circleMarker([s.lat, s.lon], {
+      radius: 4, weight: open ? 1 : 2, color: open ? '#7aa2f7' : '#c58af9',
+      fillColor: open ? '#7aa2f7' : 'transparent', fillOpacity: 0.9,
+      dashArray: open ? null : '2,3'
+    }).addTo(map).bindPopup(
+      '<b>' + s.name + '</b><br>' + (s.line || '') +
+      (open ? '' : '<br>' + s.status.replace('_', ' ') + ', ~' + s.expected_year)
+    );
+  });
+});
+</script>
+{% endblock %}

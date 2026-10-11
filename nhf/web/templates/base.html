@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1115">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Next Home">
+<title>{% block title %}Next Home Finder{% endblock %}</title>
+<link rel="manifest" href="{{ url_for('manifest') }}">
+<link rel="icon" href="{{ url_for('static', filename='icon.svg') }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='icon.svg') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+{% block head %}{% endblock %}
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-row">
+    <h1>{% block heading %}Next Home Finder{% endblock %}</h1>
+    {% if user and not auth_disabled %}
+      <form method="post" action="{{ url_for('logout') }}">
+        <button class="link" type="submit">Sign out</button>
+      </form>
+    {% endif %}
+  </div>
+  {% set stale = freshness | selectattr('stale') | list %}
+  {% if stale %}
+    <a class="banner warn" href="{{ url_for('data_page') }}">
+      {{ stale | length }} dataset{{ 's' if stale | length > 1 }} older than 45 days —
+      run <code>nhf sync</code>
+    </a>
+  {% elif not freshness %}
+    <a class="banner warn" href="{{ url_for('data_page') }}">
+      No data loaded yet — run <code>nhf sync</code> to fill the store
+    </a>
+  {% endif %}
+  {% if auth_disabled %}
+    <p class="banner">No accounts configured: serving localhost only. Set
+      <code>NHF_USERS</code> before putting this online.</p>
+  {% endif %}
+</header>
+
+{% with messages = get_flashed_messages() %}
+  {% if messages %}<p class="flash">{{ messages | join(' ') }}</p>{% endif %}
+{% endwith %}
+
+<main>{% block content %}{% endblock %}</main>
+
+<nav class="tabbar">
+  <a href="{{ url_for('index') }}" class="{{ 'on' if request.endpoint == 'index' }}">
+    <span>▤</span>Ranked</a>
+  <a href="{{ url_for('map_view') }}" class="{{ 'on' if request.endpoint == 'map_view' }}">
+    <span>◎</span>Map</a>
+  <a href="{{ url_for('listings') }}"
+     class="{{ 'on' if request.endpoint in ('listings', 'listing_detail') }}">
+    <span>★</span>Shortlist</a>
+  <a href="{{ url_for('data_page') }}" class="{{ 'on' if request.endpoint == 'data_page' }}">
+    <span>↻</span>Data</a>
+</nav>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(function () {});
+}
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

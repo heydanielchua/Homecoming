@@ -1,0 +1,15 @@
+# Hand-kept table of announced and under-construction MRT stations.
+# No station-level API was found, so this is maintained by hand from
+# https://www.lta.gov.sg/content/ltagov/en/upcoming_projects/rail_expansion.html
+# Each station needs lat/lon; `nhf geocode-mrt` fills them from OneMap when a
+# station name resolves, otherwise paste coordinates by hand.
+last_checked: 2026-10-11
+
+stations: []
+# Example shape:
+# - name: Bright Hill
+#   line: Cross Island Line 1
+#   status: under_construction      # announced | under_construction
+#   expected_year: 2030
+#   lat: 1.3630
+#   lon: 103.8330

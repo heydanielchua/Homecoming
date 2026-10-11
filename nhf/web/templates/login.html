@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block heading %}Sign in{% endblock %}
+{% block content %}
+<form class="card" method="post">
+  <h2>Next Home Finder</h2>
+  <p class="muted">Just the two of us.</p>
+  {% if error %}<p class="tag above">{{ error }}</p>{% endif %}
+  <label>Name<input name="name" autocomplete="username" autofocus required></label>
+  <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+  <button type="submit">Sign in</button>
+</form>
+{% endblock %}

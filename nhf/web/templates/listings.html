@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block heading %}Shortlist{% endblock %}
+{% block content %}
+
+{% for status in statuses %}
+  {% set group = listings | selectattr('row.status', 'equalto', status) | list %}
+  {% if group %}
+    <h2 class="group">{{ status }} <small>{{ group | length }}</small></h2>
+    {% for item in group %}
+      <article class="card">
+        <a class="rowlink" href="{{ url_for('listing_detail', listing_id=item.row.id) }}">
+          <div class="headline">
+            <div>
+              <h3>{{ item.row.block }} {{ item.row.street_name | title }}</h3>
+              <p class="sub">{{ item.row.flat_type | title }}
+                {%- if item.row.storey %} · storey {{ item.row.storey }}{% endif %}
+                {%- if item.row.floor_area_sqm %} · {{ item.row.floor_area_sqm | num(0) }} sqm{% endif %}
+                {%- if item.row.corner_unit %} · corner{% endif %}</p>
+            </div>
+            <span class="chip {{ 'c-hi' if item.tag == 'below' else 'c-mid' if item.tag == 'within' else 'c-lo' if item.tag == 'above' else '' }}">
+              {{ item.row.asking_price | money }}<small>{{ item.tag or 'asking' }}</small></span>
+          </div>
+          {% if item.estimate.available %}
+            <p class="muted">Fair value {{ item.estimate.low | money }} –
+              {{ item.estimate.high | money }} (mid {{ item.estimate.mid | money }})</p>
+          {% else %}
+            <p class="unk">No fair-value range yet for this unit.</p>
+          {% endif %}
+          {% if item.row.viewing_date %}
+            <p class="muted">Viewing {{ item.row.viewing_date }}</p>
+          {% endif %}
+        </a>
+      </article>
+    {% endfor %}
+  {% endif %}
+{% endfor %}
+
+{% if not listings %}
+  <section class="card"><h2>Nothing saved yet</h2>
+    <p>Paste a listing link below, or add one from a block page. The app judges a
+      listing; it does not crawl for them.</p></section>
+{% endif %}
+
+<form class="card" method="post" action="{{ url_for('create_listing') }}">
+  <h2>Add a listing</h2>
+  <label>Listing link<input name="url" type="url"
+    placeholder="https://www.propertyguru.com.sg/..."></label>
+  <label>Block
+    <input name="block_key" list="blocklist" placeholder="Start typing a street" required>
+    <datalist id="blocklist">
+      {% for b in blocks %}
+        <option value="{{ b.block_key }}">{{ b.block }} {{ b.street_name | title }}
+          ({{ b.town | title }})</option>
+      {% endfor %}
+    </datalist></label>
+  <label>Flat type<input name="flat_type" placeholder="4 ROOM" required></label>
+  <label>Asking price<input name="asking_price" type="number" step="1000" required></label>
+  <div class="row">
+    <label>Storey<input name="storey" type="number" min="1"></label>
+    <label>Sqm<input name="floor_area_sqm" type="number" step="1"></label>
+  </div>
+  <label class="check"><input type="checkbox" name="corner_unit" value="1"> Corner unit</label>
+  <label>Viewing date<input name="viewing_date" type="date"></label>
+  <label>Notes<textarea name="notes" rows="2"></textarea></label>
+  <button type="submit">Save</button>
+</form>
+{% endblock %}

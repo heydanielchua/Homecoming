@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block heading %}Data{% endblock %}
+{% block content %}
+
+<section class="card">
+  <h2>Freshness</h2>
+  <p class="muted">Target: nothing older than 45 days. Config last checked —
+    datasets {{ datasets_checked }}, policy {{ policy_checked }}.</p>
+  <table class="data">
+    <tr><th>Dataset</th><th>Status</th><th>Rows</th><th>Age</th></tr>
+    {% for s in syncs %}
+      <tr class="{{ 'bad' if s.stale or s.status == 'error' else 'mid' if s.status == 'skipped' }}">
+        <td>{{ s.dataset_key }}<small>{{ s.label or '' }}</small></td>
+        <td>{{ s.status }}</td>
+        <td>{{ s.rows }}</td>
+        <td>{{ s.age_days if s.age_days is not none else '—' }} d</td>
+      </tr>
+      {% if s.message %}<tr class="note"><td colspan="4">{{ s.message }}</td></tr>{% endif %}
+    {% else %}
+      <tr><td colspan="4">No sync has run yet. Run <code>nhf sync</code>.</td></tr>
+    {% endfor %}
+  </table>
+</section>
+
+<section class="card">
+  <h2>What is in the store</h2>
+  <dl class="facts">
+    {% for table, n in counts.items() %}
+      <div><dt>{{ table }}</dt><dd>{{ "{:,}".format(n) }}</dd></div>
+    {% endfor %}
+    <div><dt>geocoded blocks</dt>
+      <dd>{{ geocoded.done or 0 }} / {{ geocoded.total or 0 }}</dd></div>
+  </dl>
+  <h3>Drive times</h3>
+  <ul class="plain">
+    {% for c in commute_states %}
+      <li>{{ c.status }}: {{ c.n }} block-office pairs</li>
+    {% else %}<li class="unk">No drive times computed yet.</li>{% endfor %}
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Fitted curves</h2>
+  <p class="muted">Both are fitted from the transactions, not assumed. Eyeball them
+    before trusting a valuation.</p>
+  <h3>Lease factor</h3>
+  <table class="data">
+    <tr><th>Years left</th><th>Factor</th><th>Sales</th></tr>
+    {% for r in lease_curve %}
+      <tr><td>{{ r.lease_band }}–{{ r.lease_band + 5 }}</td>
+        <td>{{ "%.3f" | format(r.factor) }}</td><td>{{ r.n }}</td></tr>
+    {% else %}<tr><td colspan="3">Not fitted yet. Run <code>nhf build</code>.</td></tr>{% endfor %}
+  </table>
+  <h3>Storey premium</h3>
+  <table class="data">
+    <tr><th>Storeys</th><th>Factor</th><th>Sales</th></tr>
+    {% for r in storey_curve %}
+      <tr><td>{{ r.storey_band }}–{{ r.storey_band + 4 }}</td>
+        <td>{{ "%.3f" | format(r.factor) }}</td><td>{{ r.n }}</td></tr>
+    {% else %}<tr><td colspan="3">Not fitted yet.</td></tr>{% endfor %}
+  </table>
+</section>
+
+<section class="card">
+  <h2>Recent sync log</h2>
+  <table class="data">
+    <tr><th>When</th><th>Dataset</th><th>Status</th><th>Rows</th></tr>
+    {% for r in log %}
+      <tr><td>{{ r.finished_at }}</td><td>{{ r.dataset_key }}</td>
+        <td>{{ r.status }}</td><td>{{ r.rows }}</td></tr>
+      {% if r.message %}<tr class="note"><td colspan="4">{{ r.message }}</td></tr>{% endif %}
+    {% else %}<tr><td colspan="4">Empty.</td></tr>{% endfor %}
+  </table>
+</section>
+{% endblock %}

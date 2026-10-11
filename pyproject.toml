@@ -1,0 +1,26 @@
+[project]
+name = "next-home-finder"
+version = "0.1.0"
+description = "Shortlist and score HDB resale flats for our next home, using free government data."
+requires-python = ">=3.11"
+dependencies = [
+  "requests>=2.31",
+  "PyYAML>=6.0",
+  "Flask>=3.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+nhf = "nhf.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["nhf*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

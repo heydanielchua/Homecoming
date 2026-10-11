@@ -1,0 +1,75 @@
+# F1 soft filters and F5 weights. Nothing here hides a unit; a miss shows as a
+# red flag with its reason. Every number is meant to be edited.
+
+household:
+  budget: 600000
+  # "$600k is a soft target, not a hard cap." Up to this much over is
+  # Acceptable; beyond it, Flagged with how far over.
+  budget_over_tolerance_pct: 10
+  holding_period_years: 20
+  purchase_year: 2027          # MOP on our current flat ends Nov 2027
+  min_flat_type_rooms: 3
+  offices:
+    - code: office_a
+      label: Daniel's office
+      postal: "109679"
+    - code: office_b
+      label: Connie's office
+      postal: "098544"
+  max_drive_minutes: 35        # to the farther office, peak
+
+criteria:
+  floor:
+    # High floor = top third of the block, measured against the block's
+    # highest floor from HDB property information.
+    high_floor_fraction: 0.6667
+  location:
+    far_north_towns: [WOODLANDS, SEMBAWANG, YISHUN]
+  hardcourt:
+    min_distance_m: 100        # later phase; confirmed by hand at viewing
+  lease:
+    # Years that must still be left when we leave, after the holding period.
+    min_years_left_at_exit: 60
+  flat_type:
+    flagged: ["1 ROOM", "2 ROOM"]
+
+# F5 weights. They are sliders in the app; these are the defaults.
+weights:
+  price: 25
+  lease: 20
+  growth: 25
+  commute: 15
+  amenities: 15
+
+# Growth-signal weights inside the 0-100 growth score (F4).
+growth_weights:
+  price_momentum: 30
+  catch_up_gap: 20
+  lease_runway: 20
+  new_transport: 20
+  nearby_supply: 10
+  planned_development: 0       # later phase; stays 0 until the layer is in
+
+# F5 sub-scores are measured on fixed scales, not against whatever else is in
+# the list, so a block's rank does not move when a filter changes. `best`
+# scores 1.0, `worst` scores 0, in between is linear.
+rank_scales:
+  price_budget_multiple: {best: 0.85, worst: 1.10}   # of the budget above
+  lease_years_at_exit:   {best: 80, worst: 0}
+  drive_minutes:         {best: 15, worst: 50}
+  mrt_walk_m:            {best: 200, worst: 1000}
+
+fair_value:
+  comp_months: 24              # look-back window for comparable sales
+  min_comps_same_block: 4      # below this, widen to nearby blocks
+  nearby_radius_m: 800
+  low_percentile: 20
+  high_percentile: 80
+
+growth:
+  # g_town cases shown alongside the town's own 10-year rate.
+  downside_annual_growth: -0.01
+  flat_annual_growth: 0.0
+  momentum_years: [5, 10]
+  new_mrt_walk_m: 1000         # beyond this a future station scores 0
+  amenities_mrt_walk_m: 1000
