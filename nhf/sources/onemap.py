@@ -1,10 +1,22 @@
 """OneMap (Singapore Land Authority): geocoding and drive routing.
 
 Address search is open; routing needs a token from a free account and the
-token lasts three days. Set ONEMAP_TOKEN directly, or ONEMAP_EMAIL and
-ONEMAP_PASSWORD to have the client mint one. Without a token the client
-reports `no_token` and the commute column stays empty, so a missing token
-never reads as a short drive.
+token lasts three days.
+
+There are three ways the token can reach a request, and the client supports
+all of them because which one applies depends on where it is running:
+
+* ONEMAP_TOKEN set in the environment — used directly;
+* ONEMAP_EMAIL and ONEMAP_PASSWORD set — a token is minted and cached;
+* neither set — the request goes out with no Authorization header, on the
+  assumption that something in front of the client adds it. A cloud
+  environment that injects the credential as a header works this way: the
+  session is never given the secret to read, which is the point of it.
+
+Only an actual 401 or 403 from OneMap means the credential was missing, so
+that is where the client gives up rather than guessing beforehand. A failed
+route leaves the commute column empty and says why; it never reads as a
+short drive.
 """
 
 from __future__ import annotations
@@ -63,13 +75,20 @@ class OneMapClient:
             time.sleep(wait)
         self._last_call = time.monotonic()
 
-    def token(self) -> str:
-        """A OneMap token, minted from email/password if one is not set."""
+    def token(self, required: bool = True) -> str | None:
+        """A OneMap token, minted from email/password if one is not set.
+
+        With `required=False` a missing credential returns None instead of
+        raising, which is how the client lets a header-injecting proxy supply
+        it: no token here does not mean no token on the wire.
+        """
         if self._token:
             return self._token
         email = os.environ.get("ONEMAP_EMAIL")
         password = os.environ.get("ONEMAP_PASSWORD")
         if not (email and password):
+            if not required:
+                return None
             raise NoTokenError(
                 "set ONEMAP_TOKEN, or ONEMAP_EMAIL and ONEMAP_PASSWORD, to use routing"
             )
@@ -86,12 +105,26 @@ class OneMapClient:
 
     def _get(self, url: str, params: dict[str, Any], auth: bool = False) -> dict[str, Any]:
         headers = {"Accept": "application/json"}
+        supplied_token = False
         if auth:
-            headers["Authorization"] = self.token()
+            token = self.token(required=False)
+            if token:
+                headers["Authorization"] = token
+                supplied_token = True
         self._throttle()
         resp = self.session.get(url, params=params, headers=headers, timeout=self.timeout)
         if resp.status_code in (401, 403) and auth:
-            raise OneMapError(f"OneMap rejected the token ({resp.status_code}); it may have expired")
+            if supplied_token:
+                raise OneMapError(
+                    f"OneMap rejected the token ({resp.status_code}); it may have expired"
+                )
+            raise NoTokenError(
+                f"OneMap wanted credentials ({resp.status_code}) and none were sent. "
+                "Either set ONEMAP_TOKEN (or ONEMAP_EMAIL and ONEMAP_PASSWORD), or, if "
+                "the environment injects an Authorization header, check that it covers "
+                "this host and that the token is sent raw rather than behind a Bearer "
+                "prefix."
+            )
         resp.raise_for_status()
         return resp.json()
 

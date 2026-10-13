@@ -37,6 +37,14 @@ nhf serve                           # http://127.0.0.1:8765
 geocodes about 13k block addresses, so the first run takes a while. Later runs
 only geocode blocks that are new.
 
+**If credentials are injected as headers** — a cloud environment that lets a
+session call an API without seeing the secret — then leave these variables
+unset. Both clients send the request bare and let the header be added in
+front of them, so an unset `DATAGOV_API_KEY` or `ONEMAP_TOKEN` is the correct
+state there, not a broken one. data.gov.sg wants its key as `x-api-key`, and
+OneMap wants the raw token in `Authorization` with no `Bearer` prefix; a 401
+from routing is almost always that prefix.
+
 ### Accounts
 
 With `NHF_USERS` unset the app answers on localhost only. To use it from a
