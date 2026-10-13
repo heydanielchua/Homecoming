@@ -107,6 +107,7 @@ def load_candidates(
     min_rooms: int | None = None,
     towns: list[str] | None = None,
     flat_types: list[str] | None = None,
+    block_keys: list[str] | None = None,
 ) -> list[Candidate]:
     """Every block-and-flat-type that has transacted recently, with its data.
 
@@ -114,6 +115,11 @@ def load_candidates(
     the PRD's question: where has this flat type actually transacted under our
     budget? It is a wide net, not a hard cap — the price criterion is what
     flags a candidate as over budget.
+
+    `block_keys` narrows the load to named blocks, for a caller that wants one
+    block rather than the list. Every sub-score is on a fixed scale and the
+    growth score is read back from the store, so a candidate loaded alone
+    scores exactly as it does loaded with the rest.
     """
     cfg = load_config()
     if max_price is None:
@@ -140,11 +146,19 @@ def load_candidates(
     if flat_types:
         sql += f" AND bm.flat_type IN ({', '.join('?' for _ in flat_types)})"
         params.extend(canon_flat_type(f) for f in flat_types)
+    if block_keys:
+        sql += f" AND bm.block_key IN ({', '.join('?' for _ in block_keys)})"
+        params.extend(block_keys)
 
     rows = conn.execute(sql, params).fetchall()
 
     commutes: dict[str, list[sqlite3.Row]] = {}
-    for row in conn.execute("SELECT * FROM commute"):
+    commute_sql = "SELECT * FROM commute"
+    commute_params: list[Any] = []
+    if block_keys:
+        commute_sql += f" WHERE block_key IN ({', '.join('?' for _ in block_keys)})"
+        commute_params = list(block_keys)
+    for row in conn.execute(commute_sql, commute_params):
         commutes.setdefault(row["block_key"], []).append(row)
     stations = _mrt_stations(conn)
     holding = cfg.holding_years

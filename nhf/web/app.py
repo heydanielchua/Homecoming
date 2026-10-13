@@ -163,14 +163,32 @@ def create_app(db_path: str | Path | None = None, conn: sqlite3.Connection | Non
             abort(404)
 
         weights, _ = read_controls(request.args)
-        candidates = rank(
-            attach_fit(db, load_candidates(db, max_price=None, min_rooms=0)), weights
-        )
+        # The whole list is scored because this page shows where the block
+        # places in it, but only this block's criteria are displayed, and
+        # ranking does not read them: grading all 14,000 cost about 9,000
+        # evaluate() calls per page view, which is most of the render.
+        #
+        # A published page states no rank at all — it would be computed from
+        # whichever weights were in force at build time — so there it loads
+        # this block alone and skips the list entirely.
+        if app.config.get("NHF_STATIC_EXPORT"):
+            candidates = rank(
+                load_candidates(db, max_price=None, min_rooms=0,
+                                block_keys=[block_key]),
+                weights,
+            )
+            rank_position, of_total = None, None
+        else:
+            candidates = rank(load_candidates(db, max_price=None, min_rooms=0), weights)
+            of_total = len(candidates)
         candidate = next(
             (c for c in candidates
              if c.block_key == block_key and c.flat_type == flat_type), None
         )
-        rank_position = (candidates.index(candidate) + 1) if candidate else None
+        if not app.config.get("NHF_STATIC_EXPORT"):
+            rank_position = (candidates.index(candidate) + 1) if candidate else None
+        if candidate is not None:
+            attach_fit(db, [candidate])
 
         storey = request.args.get("storey", type=int)
         sqm = request.args.get("sqm", type=float)
@@ -184,7 +202,7 @@ def create_app(db_path: str | Path | None = None, conn: sqlite3.Connection | Non
             flat_type=flat_type,
             candidate=candidate,
             rank_position=rank_position,
-            of_total=len(candidates),
+            of_total=of_total,
             estimate=estimate,
             asking=asking,
             asking_tag=estimate.tag(asking),

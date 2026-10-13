@@ -101,3 +101,40 @@ def test_candidate_serialises_for_the_api(fitted_db):
     assert data["fit"]["checks"]
     assert data["sub_scores"]
     assert "growth_signals" in data
+
+
+def test_loading_one_block_scores_it_exactly_as_loading_the_list_does(fitted_db):
+    """The block page loads a single block when it is being published.
+
+    That is only safe because four sub-scores are on fixed scales and the
+    growth score is read back from the store, so nothing a candidate scores
+    depends on which other candidates were loaded. If that ever stops being
+    true, this fails.
+    """
+    from nhf.ranking import attach_fit, load_candidates, rank
+
+    everything = rank(load_candidates(fitted_db, max_price=None, min_rooms=0), None)
+    assert everything, "fixture produced no candidates"
+
+    for want in everything[:6]:
+        alone = rank(
+            load_candidates(fitted_db, max_price=None, min_rooms=0,
+                            block_keys=[want.block_key]),
+            None,
+        )
+        got = next(c for c in alone
+                   if (c.block_key, c.flat_type) == (want.block_key, want.flat_type))
+        attach_fit(fitted_db, [got])
+        attach_fit(fitted_db, [want])
+        assert got.to_dict() == want.to_dict()
+
+
+def test_block_keys_filter_returns_only_those_blocks(fitted_db):
+    from nhf.ranking import load_candidates
+
+    everything = load_candidates(fitted_db, max_price=None, min_rooms=0)
+    target = everything[0].block_key
+    narrowed = load_candidates(fitted_db, max_price=None, min_rooms=0,
+                               block_keys=[target])
+    assert narrowed, "the filter should not empty the list"
+    assert {c.block_key for c in narrowed} == {target}

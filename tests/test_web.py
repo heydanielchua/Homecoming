@@ -173,3 +173,42 @@ def test_login_is_required_once_accounts_exist(fitted_db, monkeypatch):
     assert client.get("/").status_code == 200
     client.post("/logout")
     assert client.get("/").status_code == 302
+
+
+BLOCK_URL = "/block/141|TAMPINES ST 42/4 ROOM"
+
+
+def test_served_block_page_states_where_the_block_ranks(client):
+    """The rank is worth showing when the page is rendered on request."""
+    html = client.get(BLOCK_URL).get_data(as_text=True)
+    assert "on the current weights" in html
+
+
+def test_published_block_page_states_no_rank_at_all(client):
+    """A frozen page cannot: the rank is computed from the weights in force
+    at build time, and the total it is out of counts the blocks inside our
+    budget, which is a fact about the budget."""
+    client.application.config["NHF_STATIC_EXPORT"] = True
+    html = client.get(BLOCK_URL).get_data(as_text=True)
+    assert "on the current weights" not in html
+    assert "Ranked on the front page" in html
+
+
+def test_publishing_a_block_page_does_not_change_the_block_numbers(client):
+    """The published page loads the block alone instead of the whole list,
+    which must not alter anything the page says about the block itself."""
+    import re
+
+    served = client.get(BLOCK_URL).get_data(as_text=True)
+    client.application.config["NHF_STATIC_EXPORT"] = True
+    published = client.get(BLOCK_URL).get_data(as_text=True)
+
+    def body(html: str) -> str:
+        main = re.search(r"<main>(.*)</main>", html, re.DOTALL).group(1)
+        # The rank line is the one part meant to differ, and the published
+        # page drops the price criterion on purpose.
+        main = re.sub(r'<p class="muted">\s*Ranked.*?</p>', "", main, flags=re.DOTALL)
+        main = re.sub(r"<li[^>]*>\s*<b>Price</b>.*?</li>", "", main, flags=re.DOTALL)
+        return "".join(main.split())
+
+    assert body(served) and body(served) == body(published)

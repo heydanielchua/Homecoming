@@ -15,7 +15,15 @@
     </div>
     {% if candidate %}{{ m.score_chip(candidate.rank_score, 'rank') }}{% endif %}
   </div>
-  {% if rank_position %}
+  {# A frozen page cannot state a rank. The position is computed from the
+     weights in force when it was rendered, so it contradicts the list the
+     moment a slider moves on the front page, and the total it is out of is
+     the count of blocks inside our budget, which is a fact about the budget.
+     The published copy therefore points back at the list instead. #}
+  {% if static_export %}
+    <p class="muted">Ranked on the front page, where the weights are yours to
+      set; this page carries the block's own numbers.</p>
+  {% elif rank_position %}
     <p class="muted">Ranked {{ rank_position }} of {{ of_total }} on the current weights.</p>
   {% endif %}
   <p class="types">
