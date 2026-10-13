@@ -118,3 +118,97 @@ def test_run_sync_steps_can_be_selected():
     conn = open_db(":memory:")
     results = run_sync(conn, steps=["future_mrt"], client=StubClient({}))
     assert [r["dataset_key"] for r in results] == ["future_mrt"]
+
+
+def _store_with_abbreviated_towns():
+    """Property information abbreviates the town; the resale files spell it out.
+
+    Shaped like the live data: `SB` for Sembawang and `YS` for Yishun on the
+    block rows, full names on the transactions.
+    """
+    conn = open_db(":memory:")
+    conn.executescript(
+        """
+        INSERT INTO resale_txn (month, quarter, town, flat_type, block, street_name,
+                                block_key, resale_price) VALUES
+          ('2024-01','2024-Q1','SEMBAWANG','4 ROOM','463B','SEMBAWANG DR',
+           '463B|SEMBAWANG DR', 500000),
+          ('2024-02','2024-Q1','YISHUN','4 ROOM','888','YISHUN AVE 11',
+           '888|YISHUN AVE 11', 480000);
+        INSERT INTO block (block_key, block, street_name, town) VALUES
+          ('463B|SEMBAWANG DR','463B','SEMBAWANG DR','SB'),
+          ('888|YISHUN AVE 11','888','YISHUN AVE 11','YS'),
+          ('999|SEMBAWANG WAY','999','SEMBAWANG WAY','SB');
+        """
+    )
+    conn.commit()
+    return conn
+
+
+def test_abbreviated_town_codes_are_translated_to_the_spelling_used_elsewhere():
+    conn = _store_with_abbreviated_towns()
+    assert backfill_block_towns(conn) == 3
+    towns = dict(conn.execute("SELECT block_key, town FROM block"))
+    assert towns["463B|SEMBAWANG DR"] == "SEMBAWANG"
+    assert towns["888|YISHUN AVE 11"] == "YISHUN"
+
+
+def test_a_block_with_no_sales_is_translated_by_what_the_others_showed():
+    """The far-north criterion names towns, so a lone coded block still matters."""
+    conn = _store_with_abbreviated_towns()
+    backfill_block_towns(conn)
+    town = conn.execute(
+        "SELECT town FROM block WHERE block_key = '999|SEMBAWANG WAY'"
+    ).fetchone()["town"]
+    assert town == "SEMBAWANG"
+
+
+def test_a_code_with_nothing_to_learn_from_is_left_alone_not_guessed():
+    conn = open_db(":memory:")
+    conn.executescript(
+        """
+        INSERT INTO resale_txn (month, quarter, town, flat_type, block, street_name,
+                                block_key, resale_price) VALUES
+          ('2024-01','2024-Q1','BEDOK','4 ROOM','210','BEDOK NORTH ST 1',
+           '210|BEDOK NORTH ST 1', 500000);
+        INSERT INTO block (block_key, block, street_name, town) VALUES
+          ('210|BEDOK NORTH ST 1','210','BEDOK NORTH ST 1','BD'),
+          ('1|TENGAH GARDEN WALK','1','TENGAH GARDEN WALK','TG');
+        """
+    )
+    conn.commit()
+    backfill_block_towns(conn)
+    # Tengah has no resale sales yet, so there is nothing to translate it with.
+    assert conn.execute(
+        "SELECT town FROM block WHERE block_key = '1|TENGAH GARDEN WALK'"
+    ).fetchone()["town"] == "TG"
+
+
+def test_a_town_already_spelled_out_is_not_touched():
+    conn = _store_with_abbreviated_towns()
+    conn.execute("UPDATE block SET town = 'SEMBAWANG' WHERE town = 'SB'")
+    conn.commit()
+    backfill_block_towns(conn)
+    assert conn.execute(
+        "SELECT COUNT(*) FROM block WHERE town = 'SEMBAWANG'"
+    ).fetchone()[0] == 2
+
+
+def test_the_far_north_flag_fires_once_the_town_is_canonical():
+    from nhf.criteria import evaluate
+
+    conn = _store_with_abbreviated_towns()
+    coded = evaluate(block_key="463B|SEMBAWANG DR", town="SB", flat_type="4 ROOM",
+                     price=500000, price_kind="median recent sale")
+    assert not [c for c in coded.checks
+                if c.key == "location" and c.level == "flagged"], \
+        "the abbreviation is why this silently passed"
+
+    backfill_block_towns(conn)
+    town = conn.execute(
+        "SELECT town FROM block WHERE block_key = '463B|SEMBAWANG DR'"
+    ).fetchone()["town"]
+    fixed = evaluate(block_key="463B|SEMBAWANG DR", town=town, flat_type="4 ROOM",
+                     price=500000, price_kind="median recent sale")
+    assert [c for c in fixed.checks
+            if c.key == "location" and c.level == "flagged"]

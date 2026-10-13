@@ -413,20 +413,87 @@ def compute_commute(
 
 
 def backfill_block_towns(conn: sqlite3.Connection) -> int:
-    """Fill a block's town from its transactions when property info missed it."""
+    """Make every block's town match the spelling the transactions use.
+
+    Two problems with one cause. HDB property information abbreviates the
+    town — `SB`, `YS`, `WL` — while the resale files spell it out, and every
+    comparison in the app is against the spelled-out form: the far-north
+    criterion lists SEMBAWANG, WOODLANDS and YISHUN by name, and the town
+    filter offers whatever the column happens to hold. Filling only the empty
+    towns left 99% of blocks holding a code, so the Woodlands, Sembawang and
+    Yishun blocks silently missed the one flag they exist to raise, and the
+    filter listed each town twice under two spellings.
+
+    The mapping is read out of the blocks that appear in both datasets rather
+    than written down here, so a renamed or newly built town needs no edit.
+    Blocks that have never transacted are translated with that mapping, which
+    is the only evidence available for them.
+    """
+    canonical = {
+        row[0] for row in conn.execute(
+            "SELECT DISTINCT town FROM resale_txn WHERE town IS NOT NULL AND town <> ''"
+        )
+    }
+    if not canonical:
+        return 0
+
+    placeholders = ", ".join("?" for _ in canonical)
+    params = tuple(canonical)
+
+    # What each unrecognised value turns out to mean, by majority vote of the
+    # blocks that carry it and have transactions of their own.
+    learned: dict[str, str] = {}
+    for code, name, _n in conn.execute(
+        f"""
+        SELECT b.town AS code, t.town AS name, COUNT(*) AS n
+        FROM block b JOIN resale_txn t ON t.block_key = b.block_key
+        WHERE b.town IS NOT NULL AND b.town <> ''
+          AND b.town NOT IN ({placeholders})
+        GROUP BY code, name ORDER BY code, n DESC
+        """,
+        params,
+    ):
+        learned.setdefault(code, name)
+
+    changed = 0
     with conn:
+        # A block with transactions is told by its own sales, which is better
+        # evidence than any mapping.
         cur = conn.execute(
-            """
+            f"""
             UPDATE block SET town = (
                 SELECT t.town FROM resale_txn t
                 WHERE t.block_key = block.block_key AND t.town <> ''
                 GROUP BY t.town ORDER BY COUNT(*) DESC LIMIT 1
             )
-            WHERE (town IS NULL OR town = '')
+            WHERE (town IS NULL OR town = '' OR town NOT IN ({placeholders}))
               AND EXISTS (SELECT 1 FROM resale_txn t WHERE t.block_key = block.block_key)
-            """
+            """,
+            params,
         )
-    return cur.rowcount or 0
+        changed += cur.rowcount or 0
+
+        # The rest have no sales to read, so the learned mapping is all there is.
+        for code, name in learned.items():
+            cur = conn.execute(
+                "UPDATE block SET town = ? WHERE town = ?", (name, code)
+            )
+            changed += cur.rowcount or 0
+
+    leftover = [
+        row[0] for row in conn.execute(
+            f"SELECT DISTINCT town FROM block WHERE town IS NOT NULL AND town <> ''"
+            f" AND town NOT IN ({placeholders})",
+            params,
+        )
+    ]
+    if leftover:
+        log.warning(
+            "%s block town value(s) match no town in the transactions and were "
+            "left as they are: %s",
+            len(leftover), ", ".join(sorted(leftover)[:10]),
+        )
+    return changed
 
 
 def add_missing_blocks(conn: sqlite3.Connection) -> int:
