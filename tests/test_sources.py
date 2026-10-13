@@ -153,3 +153,60 @@ def test_rental_row():
         "street_name": "BEDOK NORTH ST 1", "flat_type": "3-ROOM", "monthly_rent": "2400",
     })))
     assert row["flat_type"] == "3 ROOM" and row["monthly_rent"] == 2400.0
+
+
+class OversizedPageSession(FakeSession):
+    """Answers 413 to any page above `serves`, like HDB property information.
+
+    The real dataset carries 25 columns per block and refuses a page of
+    10,000 rows while serving 5,000 happily, which is a property of the row
+    width rather than of the resource id.
+    """
+
+    def __init__(self, records, serves: int):
+        super().__init__(records)
+        self.serves = serves
+        self.refused: list[int] = []
+
+    def get(self, url, params=None, headers=None, timeout=None):
+        limit = int(params.get("limit", 100))
+        if limit > self.serves:
+            self.calls.append(params)
+            self.refused.append(limit)
+            return FakeResponse({"error": "too large"}, status=413)
+        return super().get(url, params=params, headers=headers, timeout=timeout)
+
+
+def test_a_413_halves_the_page_instead_of_retrying_it(monkeypatch):
+    monkeypatch.setattr("nhf.sources.datagov.time.sleep", lambda _s: None)
+    records = [{"i": i} for i in range(1200)]
+    session = OversizedPageSession(records, serves=500)
+    client = DataGovClient(session=session)
+    client.page_size = 2000
+
+    assert list(client.records("d_wide")) == records
+    # 2000 and 1000 are refused once each, never retried at the same size.
+    assert session.refused == [2000, 1000]
+    served = [c["limit"] for c in session.calls if c["limit"] <= 500]
+    assert served and all(limit == 500 for limit in served)
+
+
+def test_the_smaller_page_holds_for_the_rest_of_the_download(monkeypatch):
+    monkeypatch.setattr("nhf.sources.datagov.time.sleep", lambda _s: None)
+    session = OversizedPageSession([{"i": i} for i in range(900)], serves=250)
+    client = DataGovClient(session=session)
+    client.page_size = 1000
+    list(client.records("d_wide"))
+    # One refusal per halving, not one per page.
+    assert session.refused == [1000, 500]
+
+
+def test_a_413_at_the_floor_is_reported_rather_than_looping(monkeypatch):
+    monkeypatch.setattr("nhf.sources.datagov.time.sleep", lambda _s: None)
+    from nhf.sources.datagov import MIN_PAGE_SIZE
+
+    session = OversizedPageSession([{"i": 1}], serves=1)
+    client = DataGovClient(session=session)
+    client.page_size = MIN_PAGE_SIZE
+    with pytest.raises(DataGovError):
+        list(client.records("d_wide"))

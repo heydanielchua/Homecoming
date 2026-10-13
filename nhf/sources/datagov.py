@@ -18,9 +18,21 @@ from ..config import TODO, load_config
 
 log = logging.getLogger(__name__)
 
+# A page below this is not worth asking for: a resource that cannot serve
+# 100 rows at a time is reporting a real failure, not a size problem.
+MIN_PAGE_SIZE = 100
+
 
 class DataGovError(RuntimeError):
     """A sync-stopping failure: a dead resource id, or a rate limit we respected."""
+
+
+class PayloadTooLarge(DataGovError):
+    """The page asked for was too big for the server to serve.
+
+    Not a transient failure: the identical request will fail identically, so
+    the caller halves the page and asks again rather than retrying.
+    """
 
 
 class DataGovClient:
@@ -48,11 +60,18 @@ class DataGovClient:
                 )
                 if resp.status_code == 429:
                     raise DataGovError("rate limited (429)")
+                if resp.status_code == 413:
+                    raise PayloadTooLarge(
+                        f"page of {params.get('limit')} rows is too large for "
+                        f"{params.get('resource_id')}"
+                    )
                 resp.raise_for_status()
                 payload = resp.json()
                 if not payload.get("success", False):
                     raise DataGovError(f"datastore_search returned success=false: {payload}")
                 return payload["result"]
+            except PayloadTooLarge:
+                raise
             except (requests.RequestException, DataGovError, ValueError) as exc:
                 last_error = exc
                 if attempt == self.max_retries:
@@ -72,21 +91,40 @@ class DataGovClient:
         Paging is by offset because the datastore has no cursor. The total is
         re-read each page: if the resource grows mid-download the loop still
         terminates on a short page.
+
+        The page size adapts downwards. One page size cannot suit every
+        resource: the resale files are narrow and serve 10,000 rows happily,
+        while HDB property information carries 25 columns per block and
+        answers 413 to the same request. Rather than pin a number per dataset
+        in config — which would need revisiting every time a dataset gains a
+        column — a rejected page is halved and asked for again, and the
+        smaller size then holds for the rest of the download.
         """
         if not resource_id or resource_id == TODO:
             raise DataGovError("resource id is not set (still TODO in config/datasets.yml)")
 
         offset = 0
         seen = 0
+        budget = self.page_size
         while True:
-            page_size = self.page_size
+            page_size = budget
             if limit is not None:
                 page_size = min(page_size, limit - seen)
                 if page_size <= 0:
                     return
-            result = self._get(
-                {"resource_id": resource_id, "limit": page_size, "offset": offset}
-            )
+            try:
+                result = self._get(
+                    {"resource_id": resource_id, "limit": page_size, "offset": offset}
+                )
+            except PayloadTooLarge:
+                if budget <= MIN_PAGE_SIZE:
+                    raise
+                budget = max(MIN_PAGE_SIZE, budget // 2)
+                log.warning(
+                    "%s refused a page of %s rows; retrying with %s",
+                    resource_id, page_size, budget,
+                )
+                continue
             records = result.get("records", [])
             if not records:
                 return
