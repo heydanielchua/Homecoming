@@ -106,6 +106,9 @@ def create_app(db_path: str | Path | None = None, conn: sqlite3.Connection | Non
             "onemap_tiles": cfg.onemap("tile_url"),
             "onemap_attribution": cfg.onemap("attribution"),
             "statuses": STATUSES,
+            # Set by `nhf export`: the page is going to a static host, where
+            # there is nothing to post to and no session to sign out of.
+            "static_export": app.config.get("NHF_STATIC_EXPORT", False),
         }
 
     # --- auth -------------------------------------------------------------

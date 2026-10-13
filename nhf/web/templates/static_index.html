@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Ranked blocks — Next Home Finder{% endblock %}
+{% block heading %}Ranked blocks{% endblock %}
+{% block content %}
+
+{# The served app re-ranks on the server for every slider move. A static host
+   cannot, so the same arithmetic runs in the browser instead: the sub-scores
+   are on fixed scales, so weighting them is a weighted mean and nothing more.
+   The price sub-score is the one the published data does not carry, because
+   its scale is defined against our budget; type a budget in and the browser
+   computes it locally. #}
+
+<details class="card controls" id="controls">
+  <summary>Weights and filters<small id="count">{{ total }} candidates</small></summary>
+
+  <fieldset>
+    <legend>What matters, and how much</legend>
+    <div id="sliders"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Your budget</legend>
+    <label>Budget
+      <input type="number" id="budget" step="10000" placeholder="not set">
+    </label>
+    <p class="muted" id="budget-note">
+      Not published with the data — kept in this browser only. Until it is set,
+      price scores as unknown and the other weights are re-based, exactly as
+      the app treats any signal with no data.
+    </p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Narrow the list</legend>
+    <label>Cheapest recent sale at most
+      <input type="number" id="max_price" step="10000" placeholder="no limit"></label>
+    <label>Flat type
+      <select id="flat_type" multiple size="4"></select></label>
+    <label>Town
+      <select id="town" multiple size="6"></select></label>
+    <label class="check"><input type="checkbox" id="hide_flagged"> Hide anything
+      with a red flag</label>
+  </fieldset>
+
+  <button type="button" id="reset">Reset</button>
+</details>
+
+<p class="muted" id="summary">Loading the published data…</p>
+
+<div id="list"></div>
+
+<noscript>
+  <section class="card">
+    <h2>This page needs JavaScript</h2>
+    <p>The published copy does the ranking in the browser, because the host
+       serves files and cannot run the scorer. The block pages are plain HTML
+       and work without it.</p>
+  </section>
+</noscript>
+
+<section class="card" id="published-note">
+  <h2>About this copy</h2>
+  <p class="muted" id="meta-note"></p>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='explore.js') }}"></script>
+{% endblock %}

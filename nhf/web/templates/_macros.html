@@ -1,10 +1,13 @@
 {% macro level_class(level) %}{{ {'best': 'ok', 'acceptable': 'mid',
    'flagged': 'bad', 'unknown': 'unk'}[level] }}{% endmacro %}
 
-{% macro fit_block(fit) %}
+{# `hide_keys` is passed in rather than read from the context, because a
+   plain {% import %} does not give a macro the context processor's globals,
+   so a `static_export` test in here would silently never fire. #}
+{% macro fit_block(fit, hide_keys=()) %}
   {% if fit %}
   <ul class="checks">
-    {% for c in fit.checks %}
+    {% for c in fit.checks if c.key not in hide_keys %}
       <li class="{{ level_class(c.level) | trim }}">
         <b>{{ c.label }}</b> {{ c.detail }}
         <small>{{ c.source }}</small>

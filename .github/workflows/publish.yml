@@ -1,0 +1,126 @@
+# Monthly refresh, published to GitHub Pages.
+#
+# This is the crontab line from the README, moved onto a runner: sync the
+# datasets, rebuild the curves and scores, then export the read-only half of
+# the app as files. Nothing is committed — the site is handed to Pages as a
+# build artifact, because committing a rebuilt database every month would
+# grow the repository without limit and git keeps every version for ever.
+#
+# The published copy is public, so the export deliberately leaves out the
+# budget, both offices and the shortlist. See the docstring in nhf/export.py.
+
+name: Publish the ranked list
+
+on:
+  schedule:
+    # 04:15 Singapore time on the 1st, which is 20:15 UTC on the last day of
+    # the previous month. GitHub runs schedules in UTC only.
+    - cron: "15 20 28-31 * *"
+  workflow_dispatch:
+    inputs:
+      skip_sync:
+        description: "Reuse the cached datasets instead of downloading"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# A half-finished deploy is worse than a late one, so let a running publish
+# finish rather than cancelling it mid-way.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # The full sync is roughly a million transactions over a paged API.
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      # Only the 1st of the month is the real run; the 28-31 schedule above
+      # fires on days that are not the last of the month in most months.
+      - name: Is this the last day of the month?
+        id: when
+        run: |
+          if [ "$(date -u -d tomorrow +%d)" = "01" ] || \
+             [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "run=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=no" >> "$GITHUB_OUTPUT"
+            echo "Not the last day of the month; nothing to do."
+          fi
+
+      - name: Tests
+        if: steps.when.outputs.run == 'yes'
+        run: python -m pytest -q
+
+      # The store is rebuildable from the APIs, so a cache miss costs time
+      # and nothing else.
+      - name: Restore the store
+        if: steps.when.outputs.run == 'yes'
+        uses: actions/cache@v4
+        with:
+          path: data/nhf.db
+          key: nhf-store-${{ github.run_id }}
+          restore-keys: nhf-store-
+
+      - name: Sync
+        if: steps.when.outputs.run == 'yes' && !inputs.skip_sync
+        env:
+          # Optional: raises the data.gov.sg rate limit. The sync works
+          # without it, so an unset secret is not a failure.
+          DATAGOV_API_KEY: ${{ secrets.DATAGOV_API_KEY }}
+          # Optional: without these, drive times stay unknown and the app
+          # says so rather than guessing.
+          ONEMAP_EMAIL: ${{ secrets.ONEMAP_EMAIL }}
+          ONEMAP_PASSWORD: ${{ secrets.ONEMAP_PASSWORD }}
+        run: |
+          nhf init
+          nhf sync
+
+      - name: Build
+        if: steps.when.outputs.run == 'yes'
+        run: nhf build
+
+      - name: Show the fitted curves in the log
+        if: steps.when.outputs.run == 'yes'
+        run: nhf fit
+
+      # Informational: the backtest grades the growth weights against
+      # history. A failing grade is the signal to revise the weights, not a
+      # reason to withhold the published list, so it does not fail the job.
+      - name: Backtest
+        if: steps.when.outputs.run == 'yes'
+        continue-on-error: true
+        run: nhf backtest
+
+      - name: Export
+        if: steps.when.outputs.run == 'yes'
+        run: nhf export --out dist
+
+      - name: Check nothing personal is in the export
+        if: steps.when.outputs.run == 'yes'
+        run: python scripts/check_export.py dist
+
+      - name: Upload
+        if: steps.when.outputs.run == 'yes'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Deploy
+        if: steps.when.outputs.run == 'yes'
+        id: deploy
+        uses: actions/deploy-pages@v4

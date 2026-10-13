@@ -321,6 +321,30 @@ def cmd_status(args) -> int:
     return 0
 
 
+def cmd_export(args) -> int:
+    """Write the read-only app out as static files, for a host that serves files."""
+    from .export import export_site
+
+    conn = open_db(args.db)
+    if not conn.execute("SELECT 1 FROM block_metric LIMIT 1").fetchone():
+        _say("no block metrics in the store: run `nhf sync` then `nhf build` first")
+        return 1
+
+    report = export_site(
+        conn, args.out,
+        freeze_blocks=not args.no_blocks,
+        max_pages=args.max_pages,
+        limit=args.limit,
+    )
+    _say(f"wrote {report.candidates} candidates and {report.pages} block page(s) "
+         f"to {report.out_dir} ({report.bytes_written / 1_000_000:.1f} MB)")
+    _say("left out: the budget and its price sub-score, both offices and their "
+         "drive times, and the shortlist")
+    for warning in report.warnings:
+        _say(f"[!!] {warning}")
+    return 0
+
+
 def cmd_serve(args) -> int:
     from .web.app import create_app
     from .web.auth import auth_disabled
@@ -408,6 +432,17 @@ def build_parser() -> argparse.ArgumentParser:
     subs.add_parser("geocode-mrt", help="fill coordinates for future stations"
                     ).set_defaults(func=cmd_geocode_mrt)
     subs.add_parser("status", help="data freshness summary").set_defaults(func=cmd_status)
+
+    export = subs.add_parser(
+        "export", help="write a read-only static copy (for GitHub Pages)")
+    export.add_argument("--out", default="dist", help="output directory")
+    export.add_argument("--no-blocks", action="store_true",
+                        help="skip the per-block pages (much faster)")
+    export.add_argument("--max-pages", type=int,
+                        help="cap on block pages; the rest are listed unlinked")
+    export.add_argument("--limit", type=int,
+                        help="only the top N candidates, for a quick check")
+    export.set_defaults(func=cmd_export)
 
     serve = subs.add_parser("serve", help="run the phone app")
     serve.add_argument("--host", default="127.0.0.1")

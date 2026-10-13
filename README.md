@@ -59,6 +59,46 @@ the shell stays usable in a lift lobby with no signal.
 
 The Data tab shows the age of every dataset and warns past 45 days.
 
+## Publishing the read-only half
+
+`nhf export` renders the browsing half of the app as plain files, for a host
+that serves files and cannot run Python. It works here for one reason: nothing
+calls a government API while you are looking at it, so `sync` and `build` have
+already done everything the pages need.
+
+```bash
+nhf export --out dist          # index, a page per block, the JSON behind them
+python scripts/check_export.py dist
+```
+
+`.github/workflows/publish.yml` runs that monthly and deploys to GitHub Pages.
+Nothing is committed: the site goes up as a build artifact, because committing
+a rebuilt database every month would grow the repository for ever.
+
+Two things are given up, and neither can be undone by a later commit:
+
+- **A free Pages site is public, and has no login.** A password in front of a
+  static file is decoration.
+- **Nothing can be written back**, so the hand-entered shortlist is not
+  exported at all. Run `nhf serve` at home for that.
+
+So the export carries what is derived from public data and nothing that is
+ours. The budget stays in `config/criteria.yml`: each candidate is published
+with its raw numbers and the browser scores them against a budget typed in on
+the phone and kept in that phone's local storage. The price sub-score and the
+price criterion are therefore absent rather than present-and-reversible:
+"$35,000 over budget" gives the budget away by subtraction just as surely as
+printing it. The offices are left out on the same grounds: a drive time to a
+postal code we did not publish is still a statement about where we work.
+`scripts/check_export.py` fails the publish if any of that reappears.
+
+**The repository itself is a separate question.** Pages is free only from a
+public repository, and this repository holds `config/criteria.yml` and
+`docs/PRD.md`. Everything the export withholds is in those two files, so
+publishing from here puts them on the open web regardless of how careful the
+export is. To keep them private, keep this repository private and push only
+`dist/` to a second, public repository that serves Pages.
+
 ## Commands
 
 | Command | What it does |
@@ -72,6 +112,7 @@ The Data tab shows the age of every dataset and warns past 45 days.
 | `nhf geocode`, `nhf commute` | The OneMap steps on their own |
 | `nhf import-mrt stations.geojson`, `nhf geocode-mrt` | Existing and future MRT stations |
 | `nhf status` | Data freshness summary |
+| `nhf export [--out dist]` | Write a read-only static copy, for a host that only serves files |
 | `nhf serve [--host 0.0.0.0]` | The app |
 
 ## How the numbers are made

@@ -94,7 +94,12 @@
 
 <section class="card">
   <h2>Criteria</h2>
-  {{ m.fit_block(candidate.fit if candidate else None) }}
+  {# The price criterion states the budget outright ("within $600,000") or
+     gives the subtraction that recovers it ("$35,000 over budget"), so the
+     published copy drops that row. scripts/check_export.py fails the publish
+     if it ever returns. #}
+  {{ m.fit_block(candidate.fit if candidate else None,
+                 hide_keys=['price'] if static_export else []) }}
   {% if candidate and candidate.fit %}
     <p class="muted">Earliest we could sell on the open market:
       <b>{{ candidate.fit.earliest_exit_year }}</b>
