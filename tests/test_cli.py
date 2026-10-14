@@ -127,3 +127,26 @@ def test_sync_reports_a_failure_with_a_non_zero_exit(tmp_path, capsys, monkeypat
     assert code == 1
     assert "CONNECT tunnel failed" in out
     assert "Nothing was guessed" in out
+
+
+def test_rank_prints_an_unrouted_drive_as_unknown(fitted_db, capsys, monkeypatch, tmp_path):
+    """`or 0` printed a block with no routed drive time as 0.0 minutes from
+    the office — an invented number, made more convincing by sitting in a
+    column of real ones."""
+    from nhf.cli import main
+
+    db = tmp_path / "nhf.db"
+    import shutil, sqlite3
+    target = sqlite3.connect(db)
+    fitted_db.backup(target)
+    target.close()
+    # No commute rows at all, which is the state without OneMap routing.
+    conn = sqlite3.connect(db)
+    conn.execute("DELETE FROM commute")
+    conn.commit()
+    conn.close()
+
+    main(["--db", str(db), "rank", "--top", "3"])
+    out = capsys.readouterr().out
+    assert "—" in out, "an unknown drive time should read as unknown"
+    assert "   0.0" not in out, "an unknown drive time must not read as zero"

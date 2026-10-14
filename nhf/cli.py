@@ -131,12 +131,23 @@ def cmd_rank(args) -> int:
     _say(f"{len(rows)} candidates; top {min(args.top, len(rows))}\n")
     _say(f"{'rank':>5} {'blk':>5} {'street':<22} {'type':<8} {'median':>9} "
          f"{'grw':>4} {'lease':>6} {'drive':>6}  flags")
+    def cell(value, width: int, places: int = 1, comma: bool = False) -> str:
+        """An unknown number reads as unknown, not as zero.
+
+        `or 0` printed a block with no routed drive time as 0.0 minutes from
+        the office — the one thing this app is supposed never to do, and the
+        more convincing for sitting in a column of real numbers.
+        """
+        if value is None:
+            return f"{'—':>{width}}"
+        return f"{value:>{width},.{places}f}" if comma else f"{value:>{width}.{places}f}"
+
     for c in rows[:args.top]:
         flags = "; ".join(m.detail for m in (c.fit.misses if c.fit else []))
-        _say(f"{c.rank_score or 0:>5.1f} {c.block:>5} {c.street_name[:22].title():<22} "
-             f"{c.flat_type:<8} {c.median_price_24m or 0:>9,.0f} "
-             f"{c.growth_score or 0:>4.0f} {c.lease_years_at_exit or 0:>6.1f} "
-             f"{c.drive_minutes or 0:>6.1f}  {flags}")
+        _say(f"{cell(c.rank_score, 5)} {c.block:>5} {c.street_name[:22].title():<22} "
+             f"{c.flat_type:<8} {cell(c.median_price_24m, 9, 0, comma=True)} "
+             f"{cell(c.growth_score, 4, 0)} {cell(c.lease_years_at_exit, 6)} "
+             f"{cell(c.drive_minutes, 6)}  {flags}")
     return 0
 
 
