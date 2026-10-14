@@ -1,185 +1,290 @@
-# Next Home Finder — PRD
+# Listing Check — PRD
 
-Oct 11, 2026 · @Daniel Chua
+Rewritten 14 Oct 2026. Supersedes the previous PRD entirely; the old one
+described a ranked shortlist of every HDB block, which is not what we want.
 
-## Summary
+## What this is
 
-A personal, phone-first web app that shortlists HDB resale flats at or under $600k and scores each on value, livability and growth potential, using only free government data. It replaces scattered portal browsing and spreadsheet maths with one ranked, explainable list for the two of us.
+A private website for the two of us. Paste a link from PropertyGuru or
+99.co, add the asking price and which floor, and it reports everything the
+government knows about that flat. One listing at a time.
 
-**Problem.** Listing portals show asking prices, not what blocks actually transact or rent for. Comparing lease left, past prices, rent and commute across towns is manual and slow.
+**The problem.** The portals show what a seller is asking. They do not show
+what flats in that block actually sold for, what they rent for, how much
+lease is left, what is about to be built next door, or whether the flat bakes
+in the afternoon sun. Working that out per listing takes an evening.
 
-**Goals**
+**What it is not.** Not a ranked list of blocks to view — we browse the
+portals already, and the gap is judging a specific flat. Not a price
+forecast. Not a growth score (see *Why there is no growth score*).
 
-1. Find every block where a target flat type has transacted under $600k in the last 12 months.
-2. Show a fair-value range per block, so we know when an asking price is high.
-3. Score each block's growth potential: price momentum, lease runway, upcoming MRT and planned development nearby.
-4. Rank candidates on our own weighted criteria (price, lease, growth, commute, amenities).
-5. Track a shortlist of specific listings and viewings in one place.
+## How it works
 
-## Users and assumptions
-
-Two users: Daniel, the main applicant and owner, and his wife Connie, the essential occupier. Both are Singapore Citizens. One household, no public sign-up.
-
-**Context.** Our current HDB flat finishes its MOP in November 2027; we list it then and buy right after. The purchase is funded by Daniel's share of the sale proceeds, his CPF OA and a bank loan. We both work in the south, near postal codes 109679 and 098544, and drive about 30 minutes today.
-
-**Working assumptions** (confirm or change):
-
-- Target is an **HDB resale flat, 3-room or larger**. Any flat type works if the price fits.
-- **$600k is a soft target**, not a hard cap. Units above it still show, flagged by how far over.
-- This is our **home for about 20 years**. After that we retire overseas and rent the whole flat out, so the default holding period is 20 years.
-- "Growth" means the flat holding or gaining value over those 20 years, net of lease decay, and still being rentable when we leave.
-- No children planned, so schools carry no weight.
-- Built with Claude Code; used mainly on our phones, day to day.
-
-## Scope
-
-The MVP answers one question: which blocks should we be viewing, and what should we pay there?
-
-| Phase | In | Why |
-| --- | --- | --- |
-| MVP | HDB resale prices, block heights, price index, geocoding, drive time to both offices, top-floor detection, criteria flags, growth score, map + ranked list, shortlist | Covers price, floor, commute and growth with free government data |
-| Later | Hardcourt proximity, Master Plan land-use signal, retirement rent estimate, price-trend alerts, sale-proceeds calculator for our current flat | Each adds a data layer or a rule set |
-| Out | Schools, scraping listing portals, price forecasts presented as fact, mortgage advice, multi-user accounts | Not needed, terms-of-use risk, false precision, regulated advice |
-
-Listings themselves are entered by hand (paste a PropertyGuru or 99.co link plus asking price). The app judges a listing; it does not crawl for them.
-
-## Features
-
-**F1. Criteria as soft filters.** No unit is hidden for missing a criterion. Each unit shows a fit badge, and any miss is listed in red with the reason, such as "Far north" or "$35k over budget".
-
-| Criterion | Best | Acceptable | Flagged | How it's known |
-| --- | --- | --- | --- | --- |
-| Price | At or under $600k | Up to 10% over (adjustable) | More than that | Fair value or asking price |
-| Flat type | Any 3-room or larger |  | 1- or 2-room | Resale data |
-| Floor | Top floor | High floor: top third of the block (adjustable) | Lower floors | Storey band vs block's highest floor |
-| Unit position | Corner unit | Non-corner |  | Ticked by hand per listing |
-| Location | Outside the far north |  | Woodlands, Sembawang, Yishun | Town field |
-| Commute | Shortest peak drive | Up to 35 min to the farther office (adjustable) | Longer | OneMap drive routing to 109679 and 098544 |
-| Hardcourt | None nearby |  | Basketball or hard court within 100 m (adjustable) | OpenStreetMap, confirmed by hand at viewing |
-| Lease | 60+ years left after our 20 years (adjustable) |  | Less | Lease start in resale data |
-
-**F2. Block profile.** One page per block: last 24 months of resale transactions, median and range by flat type and storey band, price per sqm, lease left, price trend against its town and the national index, nearest existing and upcoming MRT, and amenities.
-
-**F3. Fair-value estimate.** For a given unit (type, storey, sqm), show a low / mid / high range from comparable transactions in the same and nearby blocks, adjusted for lease left. An asking price is tagged below, within or above range.
-
-**F4. Growth score.** Per block: a 0–100 score built from the signals in the Growth model, each shown with its value and source, plus a projected value range at the end of our holding period.
-
-**F5. Weighted ranking.** We set weights (for example price 25, lease 20, growth 25, commute 15, amenities 15). Every score shows its inputs, so a rank is never a black box.
-
-**F6. Map view.** Candidate blocks on a OneMap base map, coloured by score, with MRT stations shown.
-
-**F7. Shortlist and viewings.** Save a listing from the phone (link, asking price, block, floor, notes, photos), log a viewing date, and mark a status: Watching, Viewed, Offered, Dropped. A viewing checklist covers what government data can't: corner unit, facing, view, and any hardcourt or noise source within sight.
-
-**F8. Data freshness.** Each dataset shows its last-sync date; a scheduled job refreshes resale and rental data monthly.
-
-## Growth model
-
-An HDB flat's value moves with the whole market, gains from location upgrades, and loses ground as its lease runs down. The app scores each block on signals visible in government data and shows a value range, never a single forecast price.
-
-```latex
-\text{Growth score} = \sum_i w_i \cdot \text{percentile}(s_i) \quad \text{over all blocks in budget}
+```
+paste a link  →  resolve the block  →  show the report
+                                    →  save it  →  compare saved units
 ```
 
-```latex
-\text{Value at exit} \approx \text{fair value today} \times (1 + g_{\text{town}})^{N} \times \frac{\text{lease factor at exit}}{\text{lease factor today}}
-```
+1. The URL carries the block and street. Both portals put it in the path:
+   `99.co/.../669c-jurong-west-street-64-hdb-<id>` and
+   `propertyguru.com.sg/listing/hdb-for-sale-266b-punggol-way-<id>`.
+2. That resolves against HDB's own spelling. If it cannot be resolved, the
+   site says so and asks for the block and street — it never guesses.
+3. Everything else is precomputed per block, so the report is a lookup.
 
-Signals, each normalised to a percentile so they can be weighted:
+Nothing is scraped. The page is never fetched; only the link text is read.
 
-| Signal | Measured as | Source |
-| --- | --- | --- |
-| Price momentum | 5- and 10-year annual growth of the block's or street's price per sqm, and the town's, against the HDB Resale Price Index | Resale transactions, town medians, price index |
-| Catch-up gap | Block price per sqm below its town median for the same flat type and lease band | Resale transactions |
-| Lease runway | Years left at purchase and at the end of the holding period; flagged when the exit buyer's CPF or loan use would be restricted (rule to confirm) | Resale transactions (lease start) |
-| New transport | Walking distance to an MRT station announced or under construction, weighted by expected opening year | LTA upcoming rail projects (hand-kept table) + OneMap |
-| Planned development | Master Plan land use within 1 km that is new commercial, business, park or rezoned residential | URA Master Plan layer |
-| Nearby supply | Flats in the same town reaching MOP over the next 3 years, which adds resale supply | HDB block completion years (to verify) |
+## What the report says
 
-Defaults: N = 20 years; g\_town = the town's 10-year annual growth, shown alongside a 0% case and a downside case. The lease factor is a lookup table of value by years left, fitted from resale data, so it reflects observed lease decay rather than an assumed curve.
+**Money.** Recent sales in that exact block, a fair-value range from
+comparable sales adjusted for floor and lease, and where the asking price
+sits against it. Price per sqm against the block's own median and its town's.
+How many sales the judgement rests on, so a thin block reads as thin.
 
-**Backtest before trusting it.** Score every block using only data up to 2019, then check whether high scorers outperformed by 2024. If they did not, the weights change before the score is used for a real decision.
+**Trend.** What the block has actually done — median price per sqm by
+quarter, against its town and the national index. Mix-adjusted, because the
+raw medians move with whichever floors happened to sell and reading that as
+movement is the single easiest mistake to make here.
 
-**Retirement rental check.** At year 20 we plan to rent the whole flat out from overseas. For each block the app shows today's median whole-flat rent for that flat type, and the lease that would be left when renting starts. This is a sanity check that the flat stays rentable, not a yield target.
+**Rent.** Median whole-flat rent for that flat type nearby, because the plan
+is to rent it out eventually.
 
-## Data sources
+**View and what could block it.** What stands around the block and how tall,
+against the floor being considered — HDB publishes the real storey count for
+every block, so this is fact, not inference. Then what could *still* go up:
+undeveloped or redevelopable land within a few hundred metres, what it is
+zoned for, and a height band estimated from its plot ratio.
 
-Free government sources cover the whole MVP; OneMap and URA need a free account. All data.gov.sg datasets are free for personal or commercial use under the Singapore Open Data Licence.
+**Sun.** Which way the flat faces against where the afternoon sun actually
+comes from. Singapore sits a degree north of the equator, so the sun passes
+close to overhead at noon and the heat problem is the low western sun from
+about 4pm — which is why "west sun" is the complaint here and "south sun" is
+not. The useful part is the combination: a tall block to the west ruins the
+view and saves the afternoons.
 
-| Source | What it gives | Access | Used for |
-| --- | --- | --- | --- |
-| [HDB resale flat prices, Jan 2017 onwards](https://data.gov.sg/datasets/d_8b84c4ee58e3cfc0ece0d773c8ca6abc/view) (data.gov.sg) | Every resale transaction: month, town, flat type, block, street, storey range, floor area, flat model, lease start, remaining lease, price | `datastore_search` API; open, an API key raises rate limits | Comps, momentum, catch-up gap, lease factor |
-| Older resale datasets ([2000–Feb 2012](https://data.gov.sg/datasets/d_43f493c6c50d54243cc1eab0df142d6a/view), [Mar 2012–2014](https://data.gov.sg/datasets/d_2d5ff9ea31397b66239f245f57751537/view), 2015–2016) | Same fields, earlier years | Same API | Long-run momentum, backtest |
-| [HDB Property Information](https://data.gov.sg/dataset/hdb-property-information) (id `d_17f5382f26140b1fdae0ba2ef6239d2f`) | Per block: highest floor, year completed, unit mix by flat type (\~13.3k blocks) | Same API | Top-floor detection, nearby supply reaching MOP |
-| [HDB Resale Price Index](https://data.gov.sg/datasets/d_14f63e595975691e7c24a27ae4c07c79/view) (1Q2009 = 100) | Quarterly market-wide index from 1990 | Same API | Growth relative to the market |
-| [Median resale prices by town and flat type](https://data.gov.sg/dataset/median-resale-prices-for-registered-applications-by-town-and-flat-type) | Quarterly town medians from 2007 | Same API | Town growth rate g\_town |
-| [HDB renting out of flats, Jan 2021 onwards](https://data.gov.sg/collections/166/view) (id `d_c9f57187485a850908655db0e8cfe651`) | Approved whole-flat rentals by block and flat type; owner-declared | Same API | Retirement rental check |
-| [OneMap](https://www.onemap.gov.sg) (Singapore Land Authority) | Address search and geocoding, drive and transit routing, base map | Search is open; routing needs a token from a free account (3-day validity) | Geocode blocks, drive time to 109679 and 098544, map |
-| [LTA upcoming rail projects](https://www.lta.gov.sg/content/ltagov/en/upcoming_projects/rail_expansion/cross_island_line.html) | Announced lines and stations, such as the Cross Island Line phases | Web pages; no station-level API found | Hand-kept table of future stations |
-| [URA Master Plan 2019 land use layer](https://data.gov.sg/datasets/d_90d86daa5bfaa371668b84fa5f01424f/view) | Land-use polygons with plot ratio, as GeoJSON | Download | Planned development signal (later) |
-| OpenStreetMap (not government) | Mapped sports pitches, including basketball courts | Free Overpass API | Hardcourt flag (later); no government dataset of hardcourts was found |
+**Nearby.** Nearest MRT exit (an exit, not a station centroid — you walk to
+an exit), nearest bus stop, nearest hawker centre and how many stalls,
+nearest park and how big, nearest primary school and how many sit within
+1 km, and the playgrounds, fitness corners and courts in walking distance.
 
-Notes for the build:
+**Rain.** Where the area ranks for wetness against the rest of the island.
 
-- Resale prices are indicative and exclude transfers between relatives; use medians per block and storey band, not single records.
-- Neither HDB dataset has coordinates; geocode each unique block address once through OneMap search and cache it.
-- The 2019 Master Plan layer is partly superseded by the 2025 Draft Master Plan; check data.gov.sg for a newer layer before building that signal.
-- data.gov.sg rate limits now apply to keyless use; register for a key and bulk-download monthly, rather than query live per page view.
+## Comparing saved units
+
+Saved units compare in a table with **units as columns and attributes as
+rows**. Two to five flats against about twenty-five attributes would be an
+unreadable twenty-five-column table the other way round; transposed it is
+tall and narrow and each row compares one thing. Rows group into collapsible
+sections — money, trend, lease, rent, view and sun, nearby, weather — and
+each row marks the better value so the table is scanned rather than read.
+
+**Only the inputs are saved**, never the report: the link, block, asking
+price, floor, facing, and any note. The report is recomputed on open, so a
+unit saved in January shows today's figures rather than January's.
+
+## What we type
+
+Four things, and the report says plainly which parts depend on each:
+
+| Field | Why it cannot be looked up |
+| --- | --- |
+| The link | Carries the block and street |
+| Asking price | Not in any dataset; only the seller knows it |
+| Floor | The listing's storey is not published anywhere |
+| Facing | HDB does not publish unit orientation |
+| Destination postcode (optional) | For drive time, if wanted; blank hides those rows |
+
+Leave the floor out and the view and sun rows read "unknown". They do not
+guess.
+
+## How sure each number is
+
+Every figure carries its confidence, because mixing these is how a tool
+starts lying:
+
+- **Fact** — it sold for $473,000; the next block is 16 storeys; the hawker
+  centre is 324 m away.
+- **Worked out** — the fair-value range, the sun angle, distance to a park's
+  edge.
+- **Estimated** — a height band from a plot ratio. Shown as a range, with
+  the ratio it came from.
+- **Unknown, and why** — never a blank, never a zero.
 
 ## Architecture
 
-A small, single-user stack: a monthly batch job pulls everything into one local database, and the app reads only from that database, so no page view waits on a government API.
+A static website. No login, no sign-up, no server, no runtime database.
 
-&#91;embedded content: data pipeline · 4 sources, 1 store, 1 app\]
+The site holds nothing about us — no budget, no offices, no stored
+shortlist — so there is nothing to put a password in front of. Removing the
+login is what makes it static, and being static is what makes it free to
+host.
 
-Suggested stack, built with Claude Code: Python for the sync job and scoring, SQLite as the store, and a mobile-first web app (installable to the phone's home screen) with the OneMap base map. It runs on a small cloud instance behind a login for the two of us, so it works on our phones anywhere, including at viewings.
+```
+monthly batch job  →  SQLite  →  one small JSON per block  →  static host
+                                        ↓
+                                  browser: look up the pasted block,
+                                  apply the typed price/floor/facing,
+                                  save to browser storage
+```
 
-## Policy constraints
+9,222 blocks have sold in the last 24 months. Precomputing one report per
+block means the browser downloads only the block asked about.
 
-Growth only counts if we can sell when we want to, so the app encodes the rules that fix our earliest exit and limit who can buy from us.
+**Saved units live in the browser that saved them.** That is the cost of
+having no login: one list per device, and sharing a unit means sending a
+link that carries its details. If that becomes annoying, the fix is a server
+and a password, and that is a decision to make then, not to build for now.
 
-| Rule | Effect in the app |
+## Data sources
+
+Every id below has been fetched and parsed. Nothing here is expected to
+work; it has worked.
+
+| Source | Id | What it gives |
+| --- | --- | --- |
+| HDB resale, 2000–Feb 2012 | `d_43f493c6c50d54243cc1eab0df142d6a` | Sales, comparables, trend |
+| HDB resale, Mar 2012–2014 | `d_2d5ff9ea31397b66239f245f57751537` | ″ |
+| HDB resale, 2017 onwards | `d_8b84c4ee58e3cfc0ece0d773c8ca6abc` | ″ |
+| HDB property information | `d_17f5382f26140b1fdae0ba2ef6239d2f` | Storey count per block — the view calculation |
+| HDB resale price index | `d_14f63e595975691e7c24a27ae4c07c79` | Adjusting to today; trend benchmark |
+| HDB renting out of flats | `d_c9f57187485a850908655db0e8cfe651` | Rent |
+| URA Master Plan 2019 land use | `d_90d86daa5bfaa371668b84fa5f01424f` | Zoning, plot ratio, height band |
+| NEA hawker centres | `d_4a086da0a5553be1d89383cd90d07ecd` | Hawker centres, stall counts |
+| NParks parks and nature reserves | `d_77d7ec97be83d44f61b85454f844382f` | Park boundaries and areas |
+| NParks park facilities | `d_14d807e20158338fd578c2913953516e` | Playgrounds, fitness, BBQ, courts |
+| LTA MRT station exits | `d_b39d3a0871985372d7e1637193335da5` | 613 exits |
+| LTA bus stops | `d_3f172c6feb3f4f92a2f47d93eed2908a` | 5,205 stop locations |
+| MOE school directory | `d_688b934f82c1059ed0a6993d2a829089` | 337 schools; no coordinates, so geocoded |
+| ECDA pre-school locations | `d_61eefab99958fd70e6aab17320a71f1c` | Pre-schools |
+| NEA historical rainfall, per year | 9 ids in `datasets.yml` | Rainfall ranking, by sampling |
+| OneMap (SLA) | — | Geocoding, routing, map tiles. **No token needed** |
+
+The 2015–2016 resale file has no published resource id, so those two years
+are absent. It does not affect anything here.
+
+## What this does not do
+
+Stated so it is never quietly promised:
+
+- **Dog runs.** The park facilities layer has a `DOG-AREA` class with three
+  entries for the whole country against a real number in the dozens. A
+  "nearest dog park" would be wrong almost everywhere.
+- **Basketball courts and hardcourts.** Not in government data. Park
+  facilities has 16 multipurpose courts; SportsFields@SG is school halls and
+  tennis courts last updated in 2014. OpenStreetMap has them properly and is
+  the way in if this matters later.
+- **Which buses stop where.** Stop locations are free; the services calling
+  at each need LTA DataMall and an account key. On hold.
+- **Whether a road floods.** No historical dataset exists. PUB's "Flood
+  Prone Areas" is four rows of national hectares per year, and its flood
+  alerts are live-only. The one route is to start recording the live alerts
+  now and have a history in a year.
+- **Exact permitted heights.** URA publishes plot ratio, not height. The
+  band is inferred.
+- **Scraping the portals.** Against their terms, and unnecessary — the link
+  text carries what is needed.
+
+## Why there is no growth score
+
+The previous PRD put a 0–100 growth score at the centre and made passing a
+backtest a success metric. It was built and it failed. Scored on data to
+2019 and graded on 2019–2024:
+
+```
+quintile   median score   realised growth
+       1           30.1           8.90%
+       5           67.1           8.88%
+```
+
+Top quintile −0.02 points against the bottom: no separation at all. Taken
+apart, price momentum — the heaviest weight — predicted **backwards**,
+monotonically, by 1.55 points. Catch-up gap (+1.25) and lease runway (+0.87)
+worked; momentum cancelled them.
+
+A weighting of 0 / 60 / 40 across momentum, catch-up and lease runway did
+separate, by +1.62 points and monotonically. But a score that needs the
+evidence of a backtest to be believed does not belong at the top of a page
+where a trend line and a fair-value range say something true. So: no score.
+The trend is shown instead, and the reader draws the conclusion.
+
+## Notes for whoever builds this
+
+Things that cost a day each to discover:
+
+- **data.gov.sg has no working search.** `query=`, `q=`, `search=`,
+  `keyword=`, `name=`, `title=` and `agencies=` are all accepted and all
+  ignored; the catalogue comes back alphabetical whatever you ask.
+  `api-open` has no catalogue route at all. `data/datagov_catalogue.csv`
+  mirrors all 4,655 datasets; finding one is a local grep.
+- **Geospatial datasets are not in the datastore.** `datastore_search`
+  returns an empty response for a GeoJSON dataset. They come from
+  `api-open.data.gov.sg/v1/public/api/datasets/{id}/poll-download`, which
+  hands back a presigned S3 link valid for an hour. That host needs to be
+  allowed by the network policy.
+- **Deep pagination times out.** On a seven-million-row table, `offset=0`
+  with `limit=10000` answers in 0.4 s; `offset=140000` with the same limit
+  returns 502 after 30 s. Smaller pages work at depth. There is no
+  `datastore_search_sql`, so aggregation cannot be pushed to the server.
+- **Rainfall is sampled, not exhausted.** A year is 7,044,646 rows and about
+  704 pages, which is hours. Every page interleaves ~60 of the 89 stations,
+  so a sample of pages gives a fair cross-station comparison. That yields a
+  *relative* ranking, not an annual total in millimetres.
+- **`GPR` is a string, and mostly not a number.** `LND` on 52% of parcels
+  (landed housing — which is a confident answer about height), `EVA` on 11%
+  (not yet evaluated — which is not), `NA` on 7%. About 30% carry a ratio.
+  `GPR_B_MN`, URA's own band field, is set on 52 parcels out of 113,212.
+- **Block numbers are not unique.** `266B` is both `266B|COMPASSVALE BOW`
+  and `266B|PUNGGOL WAY`. The street is load-bearing.
+- **Portal and HDB street names differ.** Portals write `JURONG WEST STREET
+  64`; HDB writes `JURONG WEST ST 64`. Also `AVENUE/AVE`, `DRIVE/DR`,
+  `CRESCENT/CRES`, `CENTRAL/CTRL`, `BUKIT/BT`, `JALAN/JLN`, `GARDENS/GDNS`.
+- **OneMap needs no token** for anything used here. Geocoding, drive routing
+  and map tiles all answer without one; the previous code refused to try.
+- **The land use layer cannot be committed.** 174 MB, and GitHub blocks
+  files over 100 MB. Pin the id, fetch at build time, derive, discard.
+
+## What is already built
+
+| | |
 | --- | --- |
-| A resale purchase starts a new [5-year MOP](https://www.hdb.gov.sg/residential/buying-a-flat/conditions-after-buying?anchor=mop) before the flat can be sold on the open market | Earliest exit date shown per candidate |
-| Plus and Prime flats carry a 10-year MOP and [can never be rented out whole](https://www.hdb.gov.sg/business/estate-agents-and-salespersons/renting-out-a-flat-or-bedroom/eligibility) | Excluded by default, since renting out at retirement is the plan |
-| Only Singapore Citizen owners can rent out a whole flat, after MOP and with HDB approval; a non-citizen tenant quota applies per block | Retirement rental check notes the quota as a manual check |
-| Buyers' CPF and loan use depends on lease left versus their age | Lease flag in F1 and the Growth model (exact thresholds to confirm with HDB) |
-| Ethnic Integration Policy and SPR quotas can limit eligible buyers in a block | Manual check field per shortlisted block; no open API for quota status |
+| HDB resale transactions | 663,226 rows, 2000-01 to 2026-10 |
+| Rental records | 210,967 |
+| Blocks geocoded | 10,863 of 10,969; 106 addresses did not match |
+| Block storey counts | 10,817 |
+| URA land use parcels | 113,212, with plot ratios parsed |
+| Hawker centres | 129, six under construction |
+| Parks | 462, with boundaries and areas |
+| Park facilities | 1,716 useful of 14,754 |
+| data.gov.sg catalogue | 4,655 datasets indexed |
+| Fitted lease and storey curves | Yes — the lease curve understates decay; see the note where it is fitted |
 
-Rules are kept in one config file with a last-checked date, so a policy change is a one-line edit.
+Still to load: MRT exits, bus stops, schools (geocode from postcodes),
+pre-schools, rainfall sample.
 
-## Success metrics
+## Build order
 
-The app succeeds if it gets us to a confident offer faster and stops us overpaying.
+Each step leaves something usable.
 
-- We view no more than 10 flats before making an offer, all of them from the app's top 20.
-- Every offer we make sits inside the app's fair-value range.
-- The growth score passes the backtest: the top quintile of 2019 scores beat the bottom quintile on 2019–2024 price growth.
-- Data is never more than 45 days old.
+1. **Resolve a link.** Paste a URL, get the right block, or an honest
+   failure. Everything depends on this being right.
+2. **The money report.** Sales, fair value, asking-price verdict, rent.
+3. **The trend.** Mix-adjusted quarterly series against town and index.
+4. **Nearby.** MRT exits, bus stops, schools, hawker, parks, facilities.
+5. **View and sun.** Neighbour heights against floor; zoning and height band
+   for what could still be built; sun exposure net of shading.
+6. **Save and compare.** Browser storage, the transposed table.
+7. **Rain.** Sampled station ranking.
+8. **Later.** Flood-alert collection; hardcourts from OpenStreetMap; bus
+   services if the DataMall key is set up.
 
-## Milestones
+## Open questions
 
-Each phase ends with something we can use, so the project is worth it even if it stops early.
-
-1. **Data spine.** Download all resale datasets, block property data, the price index and town medians; geocode every block; a notebook answers "which top-floor units fit $600k".
-2. **Commute and criteria.** Drive time from every block to both offices; fit badges and red flags for every criterion in F1.
-3. **Fair value.** Comparable-sales range per unit, with a top-floor adjustment; lease factor table; asking-price tag.
-4. **Growth score + backtest.** Momentum, catch-up, lease runway and new-MRT signals; backtest passes or weights are revised.
-5. **Phone app.** Mobile-first ranked list, block profile, map and weight sliders, hosted online behind a login, built with Claude Code.
-6. **Shortlist.** Listings, viewing checklist, statuses and notes, in use for real viewings well before November 2027.
-7. **Later.** Hardcourt flag, Master Plan signal, retirement rent estimate, alerts, sale-proceeds calculator.
-
-## Risks and open questions
-
-**Risks**
-
-- Past growth may not repeat; the score ranks relative prospects, not future prices.
-- Government dataset IDs and endpoints change; pin IDs in config and alert on a failed sync.
-- Monthly data lags the live market by weeks, so fast-moving towns may look cheaper than they are.
-
-**Open questions**
-
-- [ ] How much bank loan will Daniel's income alone support, and does that change the $600k target?
-- [ ] Is "far north" exactly Woodlands, Sembawang and Yishun, or wider?
-- [ ] Is "top third of the block" the right definition of high floor?
-- [ ] How far from a hardcourt is far enough: 100 m, or out of sight and earshot?
-- [ ] Is there a newer Master Plan land-use layer than 2019 on data.gov.sg?
+- [ ] Is a per-device saved list acceptable long term, or is a shared list
+      worth a server and a password?
+- [ ] Should drive time stay as an optional typed destination, or go?
+- [ ] Is "within 1 km of a primary school" the right band, given it is
+      resale value we care about rather than our own use?
+- [ ] Is there a Master Plan land use layer newer than 2019? An
+      "Amendment to Master Plan 2025 Building Layer"
+      (`d_15dd877587e74558f4ca31e7b3fdcc09`) exists, so the 2019 zoning may
+      be stale.
