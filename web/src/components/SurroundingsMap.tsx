@@ -334,8 +334,11 @@ export function SurroundingsMap({
 
       {failed ? (
         <p className="hint">
-          The basemap did not load, so the pins have nothing under them. The
-          distances in the rows above do not depend on it.
+          The basemap did not load. The tiles come from onemap.gov.sg, and
+          something between this page and it refused them — a sandboxed
+          preview, an extension, or a network that blocks the host. The pins
+          are still in the right places and the distances above never depended
+          on the basemap.
         </p>
       ) : null}
 
