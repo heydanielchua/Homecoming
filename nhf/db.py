@@ -82,12 +82,35 @@ def upsert_many(
     columns: Iterable[str],
     rows: Iterable[tuple],
     conflict: str = "IGNORE",
+    key: str | None = None,
+    update: Iterable[str] | None = None,
 ) -> int:
+    """Insert rows, with a choice about what a conflict means.
+
+    `conflict` is the blunt instrument: IGNORE keeps what is there, REPLACE
+    overwrites the whole row.
+
+    `key` and `update` are the careful one, and the difference matters where a
+    table holds columns from two sources. `block` carries HDB's property
+    information *and* the coordinates OneMap took hours to find; REPLACE on a
+    re-download deletes the row and re-inserts it with only the property
+    columns set, which silently discarded every geocode and made the next
+    sync re-geocode all eleven thousand blocks. Naming the columns to update
+    leaves the rest alone.
+    """
     cols = list(columns)
-    sql = (
-        f"INSERT OR {conflict} INTO {table} ({', '.join(cols)}) "
-        f"VALUES ({', '.join('?' for _ in cols)})"
-    )
+    placeholders = ", ".join("?" for _ in cols)
+    if key and update:
+        assignments = ", ".join(f"{c} = excluded.{c}" for c in update)
+        sql = (
+            f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders}) "
+            f"ON CONFLICT({key}) DO UPDATE SET {assignments}"
+        )
+    else:
+        sql = (
+            f"INSERT OR {conflict} INTO {table} ({', '.join(cols)}) "
+            f"VALUES ({placeholders})"
+        )
     cur = conn.executemany(sql, rows)
     return cur.rowcount or 0
 

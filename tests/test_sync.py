@@ -212,3 +212,104 @@ def test_the_far_north_flag_fires_once_the_town_is_canonical():
                      price=500000, price_kind="median recent sale")
     assert [c for c in fixed.checks
             if c.key == "location" and c.level == "flagged"]
+
+
+class TestABlockKeepsItsCoordinates:
+    """The monthly sync must not undo the geocoding.
+
+    `block` holds two things from two places: what HDB publishes about a
+    block, which the sync refreshes every month, and the coordinates OneMap
+    took hours to find. An `INSERT OR REPLACE` deletes the row and re-inserts
+    it with only the published columns set, so a refresh threw away every
+    geocode and the next step spent two hours finding them again. Nothing
+    failed and nothing was logged; the only symptom was a sync that never got
+    faster.
+    """
+
+    def _conn(self):
+        from nhf.db import open_db
+
+        return open_db(":memory:")
+
+    def test_a_refresh_updates_hdbs_columns(self):
+        from nhf.db import upsert_many
+        from nhf.sources.hdb import BLOCK_COLUMNS
+
+        conn = self._conn()
+        row = ("1|X RD", "1", "X RD", "TOWN", 12, 1990, "Y", 100,
+               0, 0, 30, 50, 20, 0, 0)
+        upsert_many(conn, "block", BLOCK_COLUMNS, [row])
+        taller = ("1|X RD", "1", "X RD", "TOWN", 16, 1990, "Y", 100,
+                  0, 0, 30, 50, 20, 0, 0)
+        upsert_many(
+            conn, "block", BLOCK_COLUMNS, [taller], key="block_key",
+            update=[c for c in BLOCK_COLUMNS if c != "block_key"],
+        )
+        assert conn.execute(
+            "SELECT max_floor_lvl FROM block").fetchone()["max_floor_lvl"] == 16
+
+    def test_a_refresh_leaves_the_geocode_alone(self):
+        from nhf.db import upsert_many
+        from nhf.sources.hdb import BLOCK_COLUMNS
+
+        conn = self._conn()
+        row = ("1|X RD", "1", "X RD", "TOWN", 12, 1990, "Y", 100,
+               0, 0, 30, 50, 20, 0, 0)
+        upsert_many(conn, "block", BLOCK_COLUMNS, [row])
+        conn.execute(
+            "UPDATE block SET lat = 1.3, lon = 103.8, postal = '640001',"
+            " geocode_source = 'onemap', geocoded_at = '2026-10-01'"
+            " WHERE block_key = '1|X RD'"
+        )
+        upsert_many(
+            conn, "block", BLOCK_COLUMNS, [row], key="block_key",
+            update=[c for c in BLOCK_COLUMNS if c != "block_key"],
+        )
+        kept = conn.execute(
+            "SELECT lat, lon, postal, geocoded_at FROM block").fetchone()
+        assert kept["lat"] == 1.3 and kept["lon"] == 103.8
+        assert kept["postal"] == "640001"
+        assert kept["geocoded_at"] == "2026-10-01"
+
+    def test_replace_is_what_used_to_lose_it(self):
+        """Kept as the counter-example, so the fix is not mistaken for a
+        no-op by whoever reads this next."""
+        from nhf.db import upsert_many
+        from nhf.sources.hdb import BLOCK_COLUMNS
+
+        conn = self._conn()
+        row = ("1|X RD", "1", "X RD", "TOWN", 12, 1990, "Y", 100,
+               0, 0, 30, 50, 20, 0, 0)
+        upsert_many(conn, "block", BLOCK_COLUMNS, [row])
+        conn.execute("UPDATE block SET lat = 1.3 WHERE block_key = '1|X RD'")
+        upsert_many(conn, "block", BLOCK_COLUMNS, [row], conflict="REPLACE")
+        assert conn.execute("SELECT lat FROM block").fetchone()["lat"] is None
+
+    def test_the_sync_step_uses_the_careful_upsert(self, monkeypatch):
+        """Against the real step, not just the helper."""
+        from nhf.config import load_config
+        from nhf.sources.hdb import BLOCK_COLUMNS
+        from nhf.sync import SyncReporter, sync_blocks
+
+        conn = self._conn()
+        record = {
+            "blk_no": "1", "street": "X RD", "bldg_contract_town": "TOWN",
+            "max_floor_lvl": "12", "year_completed": "1990", "residential": "Y",
+            "total_dwelling_units": "100", "4room_sold": "50",
+        }
+
+        class FakeClient:
+            def records(self, resource_id, limit=None):
+                return iter([record])
+
+        reporter = SyncReporter(conn)
+        sync_blocks(conn, FakeClient(), reporter, load_config())
+        conn.execute("UPDATE block SET lat = 1.3, lon = 103.8")
+
+        record["max_floor_lvl"] = "16"
+        sync_blocks(conn, FakeClient(), reporter, load_config())
+        after = conn.execute(
+            "SELECT max_floor_lvl, lat FROM block").fetchone()
+        assert after["max_floor_lvl"] == 16, "the refresh must still refresh"
+        assert after["lat"] == 1.3, "and must not cost two hours of geocoding"
+        assert len(BLOCK_COLUMNS) > 1

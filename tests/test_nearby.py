@@ -11,7 +11,13 @@ from __future__ import annotations
 
 import pytest
 
-from nhf.nearby import SCHOOL_BAND_M, WALKING_M, nearby_for, rain_for
+from nhf.nearby import (
+    MIN_RAIN_READINGS,
+    SCHOOL_BAND_M,
+    WALKING_M,
+    nearby_for,
+    rain_for,
+)
 
 BLOCK = "501|TAMPINES ST 42"
 
@@ -141,6 +147,43 @@ class TestRain:
         )
         # 5000/200000 = 0.025 mm per reading, against Tampines' 0.06.
         assert rain_for(full_db, 1.3480, 103.7000).rank == 3
+
+    def test_a_thinly_sampled_gauge_is_not_ranked_as_the_driest_place(self, full_db):
+        """The sample catches gauges unevenly. Three real stations came back
+        with 33 to 48 readings and 0.0 mm between them, which would rank them
+        the driest places in Singapore on two hours of weather."""
+        full_db.execute(
+            "INSERT INTO rainfall_station (station_id, name, lat, lon, year,"
+            " total_mm, readings, source)"
+            " VALUES ('S999', 'Barely Sampled', 1.3530, 103.9460, 2024, 0.0, 33, 'fixture')"
+        )
+        rain = rain_for(full_db, 1.3530, 103.9460)
+        # The thin gauge is nearest, and is still not the answer.
+        assert rain.station != 'Barely Sampled'
+        assert rain.rank is not None
+
+    def test_a_well_sampled_gauge_with_no_rain_is_still_ranked(self, full_db):
+        """Dry is a real answer; unsampled is not. The threshold has to tell
+        them apart rather than dropping every zero."""
+        full_db.execute(
+            "INSERT INTO rainfall_station (station_id, name, lat, lon, year,"
+            " total_mm, readings, source)"
+            " VALUES ('S998', 'Genuinely Dry', 1.3530, 103.9460, 2024, 0.0, 30000, 'fixture')"
+        )
+        rain = rain_for(full_db, 1.3530, 103.9460)
+        assert rain.station == 'Genuinely Dry'
+        assert rain.rank == rain.of          # the driest of them all
+
+    def test_a_year_sampled_too_thinly_to_rank_says_so(self, db):
+        """Rather than ranking one gauge against itself."""
+        db.execute(
+            "INSERT INTO rainfall_station (station_id, name, lat, lon, year,"
+            " total_mm, readings, source)"
+            " VALUES ('S997', 'Thin', 1.35, 103.82, 2024, 1.0, 10, 'fixture')"
+        )
+        rain = rain_for(db, 1.35, 103.82)
+        assert rain.rank is None
+        assert "sampled too thinly" in rain.unknown
 
     def test_no_sample_loaded_says_how_to_load_it(self, db):
         rain = rain_for(db, 1.35, 103.82)

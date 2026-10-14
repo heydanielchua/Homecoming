@@ -242,7 +242,10 @@ def build_site(
     keys = reportable_blocks(conn, months)
     if limit:
         keys = keys[:limit]
-    wanted = set(keys)
+    # Filled in as reports are written, not before. The index says which
+    # blocks have a report, and a block whose report failed to build must not
+    # be advertised as having one — that would be a link to a 404.
+    written: set[str] = set()
 
     # -- the shared files -------------------------------------------------
     report.bytes_written += _write(out / "meta.json", builder.meta_payload())
@@ -259,6 +262,7 @@ def build_site(
         payload["town_slug"] = slugify(payload["town"]) if payload["town"] else None
         report.bytes_written += _write(out / "blocks" / f"{slug}.json", payload)
         report.reports_written += 1
+        written.add(key)
         if payload["town"]:
             towns.add(payload["town"])
         if report.reports_written % 500 == 0:
@@ -273,7 +277,7 @@ def build_site(
         report.towns_written += 1
 
     # -- the sharded alias index ------------------------------------------
-    for number, payload in index_payloads(conn, wanted):
+    for number, payload in index_payloads(conn, written):
         report.bytes_written += _write(out / "index" / f"{number}.json", payload)
         report.index_files += 1
         report.blocks_indexed += len(payload["streets"])

@@ -80,6 +80,8 @@ def _load_resource(
     mapper_args: tuple = (),
     limit: int | None = None,
     conflict: str = "IGNORE",
+    key: str | None = None,
+    update: list[str] | None = None,
 ) -> int:
     started = _now()
     resource_id = entry.get("id")
@@ -105,7 +107,8 @@ def _load_resource(
         return 0
 
     with conn:
-        upsert_many(conn, table, columns, rows, conflict=conflict)
+        upsert_many(conn, table, columns, rows, conflict=conflict,
+                    key=key, update=update)
     reporter.record(
         dataset_key, "ok", rows=len(rows), resource_id=resource_id, label=label,
         started_at=started,
@@ -126,9 +129,20 @@ def sync_resale(conn, client, reporter, cfg: Config, limit: int | None = None) -
 
 
 def sync_blocks(conn, client, reporter, cfg: Config, limit: int | None = None) -> int:
+    """Load HDB property information, keeping the coordinates already found.
+
+    The update is column by column rather than a REPLACE. The `block` table
+    holds two things: what HDB publishes, which this step refreshes, and the
+    coordinates OneMap took hours to find, which it must not touch. A REPLACE
+    deletes the row and re-inserts it with only the published columns set, so
+    every monthly sync quietly threw away eleven thousand geocodes and the
+    next step spent two hours finding them again.
+    """
     return _load_resource(
         conn, client, reporter, "property_info", cfg.datasets["property_info"],
-        "block", hdb.BLOCK_COLUMNS, hdb.block_row, limit=limit, conflict="REPLACE",
+        "block", hdb.BLOCK_COLUMNS, hdb.block_row, limit=limit,
+        key="block_key",
+        update=[c for c in hdb.BLOCK_COLUMNS if c != "block_key"],
     )
 
 
@@ -446,13 +460,25 @@ def sync_amenities(
 
     from .sources import amenity
 
+    import time
+
+    from .sources.ura import RATE_LIMIT_WAIT_SECONDS
+
     total = 0
     session = session or requests.Session()
     cache = Path("data")
+    first = True
 
     for entry in cfg.datasets.get("amenities") or []:
         started = _now()
         key, resource_id, label = entry.get("key"), entry.get("id"), entry.get("label")
+
+        # One request every ten seconds is what this endpoint allows. The
+        # retry inside `download_url` recovers from being refused; pacing the
+        # layers means usually not being refused in the first place.
+        if not first and not (paths or {}).get(key):
+            time.sleep(RATE_LIMIT_WAIT_SECONDS)
+        first = False
 
         if not resource_id or resource_id == TODO:
             reporter.record(

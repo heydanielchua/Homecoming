@@ -1,265 +1,362 @@
-# Next Home Finder
+# Listing Check
 
-A personal, phone-first web app that shortlists HDB resale flats and scores each
-on value, livability and growth potential, using only free government data.
-One ranked, explainable list instead of scattered portal browsing and
-spreadsheet maths.
+A private website for the two of us. Paste a link from PropertyGuru or 99.co,
+add the asking price and which floor, and it reports everything the government
+knows about that flat. One listing at a time.
 
 The product brief this is built from is [`docs/PRD.md`](docs/PRD.md).
 
 ```
-data.gov.sg ─┐
-OneMap      ─┼──►  nhf sync  ──►  SQLite  ──►  nhf build  ──►  phone app
-LTA (by hand)┘      (monthly)      one file    (scores)        (reads only)
+paste a link  →  resolve the block  →  show the report
+                                    →  save it  →  compare saved units
 ```
 
-Nothing in the app calls a government API while you are looking at it, and
-nothing is invented to fill a gap: a dataset that did not download, a drive
-time that was never routed and a signal with no data source all read as
-unknown, with the reason attached.
+The portals show what a seller is asking. They do not show what flats in that
+block actually sold for, what they rent for, how much lease is left, what is
+about to be built next door, or whether the flat bakes in the afternoon sun.
+Working that out per listing takes an evening.
+
+## How it works
+
+```
+monthly batch job  →  SQLite  →  one small JSON per block  →  static host
+                                        ↓
+                                  browser: look up the pasted block,
+                                  apply the typed price/floor/facing,
+                                  save to browser storage
+```
+
+A static website. No login, no sign-up, no server, no runtime database. The
+site holds nothing about us — no budget, no offices, no stored shortlist — so
+there is nothing to put a password in front of, and being static is what makes
+it free to host.
+
+Nothing is scraped. A listing page is never fetched; only the text of the link
+is read.
 
 ## Getting started
 
 ```bash
 python3 -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"
+(cd web && npm install)
 
 export DATAGOV_API_KEY=...          # optional, raises the rate limit
-export ONEMAP_EMAIL=... ONEMAP_PASSWORD=...   # free account, for routing
 
 nhf init                            # create data/nhf.db
 nhf sync                            # download everything (slow the first time)
-nhf build                           # fit the curves, compute metrics and scores
-nhf serve                           # http://127.0.0.1:8765
+nhf sync --step land_use            # 174 MB, only when URA revises the plan
+nhf sync --step rainfall            # a sampled year of gauge readings
+nhf build --curves-only             # fit the lease and storey curves
+./scripts/build_site.sh dist        # the page, then the data beside it
+
+python3 -m http.server --directory dist 8765
 ```
 
-`nhf sync` downloads roughly a million resale transactions back to 2000 and
-geocodes about 13k block addresses, so the first run takes a while. Later runs
-only geocode blocks that are new.
-
-### Accounts
-
-With `NHF_USERS` unset the app answers on localhost only. To use it from a
-phone, make an entry for each of us and put it online behind HTTPS:
-
-```bash
-nhf hash-password daniel
-export NHF_USERS='daniel:scrypt:...,connie:scrypt:...'
-export NHF_SECRET_KEY="$(python3 -c 'import os;print(os.urandom(32).hex())')"
-```
-
-Then open it on the phone and add it to the home screen: it is installable, and
-the shell stays usable in a lift lobby with no signal.
+`nhf sync` downloads about 663,000 resale transactions back to 2000 and
+geocodes roughly 11,000 block addresses through OneMap, so the first run takes
+a couple of hours. Later runs only geocode blocks that are new.
 
 ### Monthly refresh
 
 ```cron
-15 4 1 * *  cd /srv/nhf && .venv/bin/nhf sync && .venv/bin/nhf build
+15 4 1 * *  cd /srv/listing-check && .venv/bin/nhf sync && .venv/bin/nhf build --curves-only \
+            && ./scripts/build_site.sh dist
 ```
 
-The Data tab shows the age of every dataset and warns past 45 days.
+The page shows how old the data is and says so plainly past 45 days.
 
-## Publishing the read-only half
+## Trying it from the terminal
 
-`nhf export` renders the browsing half of the app as plain files, for a host
-that serves files and cannot run Python. It works here for one reason: nothing
-calls a government API while you are looking at it, so `sync` and `build` have
-already done everything the pages need.
+The whole report is available without the site, which is also how a change to
+the maths gets checked before it is published:
 
 ```bash
-nhf export --out dist          # index, a page per block, the JSON behind them
-python scripts/check_export.py dist
+nhf resolve 'https://www.99.co/singapore/sale/property/669c-jurong-west-street-64-hdb-eSeF'
+nhf report '669C|JURONG WEST ST 64' --storey 12 --facing W --asking 620000
+nhf report 'https://www.propertyguru.com.sg/listing/hdb-for-sale-266b-punggol-way-1' --json
 ```
 
-`.github/workflows/publish.yml` runs that monthly and deploys to GitHub Pages.
-Nothing is committed: the site goes up as a build artifact, because committing
-a rebuilt database every month would grow the repository for ever.
+## Resolving a link
 
-Two things are given up, and neither can be undone by a later commit:
+Everything hangs off this, so it is built to fail honestly rather than to
+always answer. Both portals put the address in the URL path:
 
-- **A free Pages site is public, and has no login.** A password in front of a
-  static file is decoration.
-- **Nothing can be written back**, so the hand-entered shortlist is not
-  exported at all. Run `nhf serve` at home for that.
+```
+99.co/singapore/sale/property/669c-jurong-west-street-64-hdb-eSeF
+propertyguru.com.sg/listing/hdb-for-sale-266b-punggol-way-25099211
+```
 
-So the export carries what is derived from public data and nothing that is
-ours. The budget stays in `config/criteria.yml`: each candidate is published
-with its raw numbers and the browser scores them against a budget typed in on
-the phone and kept in that phone's local storage. The price sub-score and the
-price criterion are therefore absent rather than present-and-reversible:
-"$35,000 over budget" gives the budget away by subtraction just as surely as
-printing it. The offices are left out on the same grounds: a drive time to a
-postal code we did not publish is still a statement about where we work.
-`scripts/check_export.py` fails the publish if any of that reappears.
+Two things make it harder than reading the slug. **Portal and HDB spell
+streets differently** — the portals write `JURONG WEST STREET 64` and HDB
+writes `JURONG WEST ST 64`, and the same goes for AVENUE/AVE, DRIVE/DR,
+CRESCENT/CRES, CENTRAL/CTRL, BUKIT/BT, JALAN/JLN. And **block numbers are not
+unique**: `266B` is both `266B|COMPASSVALE BOW` and `266B|PUNGGOL WAY`, so the
+street is load-bearing and a block number on its own is a question.
 
-**The repository itself is a separate question.** Pages is free only from a
-public repository, and this repository holds `config/criteria.yml` and
-`docs/PRD.md`. Everything the export withholds is in those two files, so
-publishing from here puts them on the open web regardless of how careful the
-export is. To keep them private, keep this repository private and push only
-`dist/` to a second, public repository that serves Pages.
+The approach is an alias index rather than a parser clever enough to be
+trusted. Every block is written out under every spelling a portal might
+plausibly use, the pasted link is reduced to the same shape, and resolution is
+an exact dictionary lookup. That inverts where the uncertainty sits: a guess at
+expanding an abbreviation cannot produce a *wrong* block, only an alias no
+block claims — which is a miss rather than a lie. Against the real data that is
+26,501 aliases over 10,817 blocks with no collisions.
 
-## Commands
+Two traps the real street list contains, both of which a tidy-looking
+abbreviation table would have walked into. `ST` is STREET in 166 street names
+and SAINT in two (`ST GEORGE'S RD`, `ST GEORGE'S LANE`), and the position does
+not settle it, since `UPP CROSS ST` ends with the STREET sense — so both are
+indexed and the one nobody links to is never looked up. And `RIS` appears in
+15 street names, every one of them `PASIR RIS`; reading it as an abbreviation
+of RISE would mint a street nobody lives on.
 
-| Command | What it does |
-| --- | --- |
-| `nhf sync [--step resale] [--limit N]` | Download the datasets, geocode blocks, route drive times |
-| `nhf build` | Fit the lease and storey curves, compute per-block metrics and growth scores |
-| `nhf fit` | Print the fitted curves, to eyeball before trusting a valuation |
-| `nhf rank [--top 20] [--town ...]` | The ranked list, in the terminal |
-| `nhf value "101\|ANG MO KIO AVE 3" "4 ROOM" --storey 12 --asking 620000` | Fair value for one unit, and where an asking price sits |
-| `nhf backtest [--as-of 2019-12] [--weight catch_up_gap=0]` | Grade the growth score against what actually happened |
-| `nhf geocode`, `nhf commute` | The OneMap steps on their own |
-| `nhf import-mrt stations.geojson`, `nhf geocode-mrt` | Existing and future MRT stations |
-| `nhf status` | Data freshness summary |
-| `nhf export [--out dist]` | Write a read-only static copy, for a host that only serves files |
-| `nhf serve [--host 0.0.0.0]` | The app |
+## How sure each number is
+
+Every figure carries its confidence, because mixing these is how a tool starts
+lying:
+
+- **Fact** — it sold for $473,000; the next block is 16 storeys; the hawker
+  centre is 324 m away.
+- **Worked out** — the fair-value range, the sun angle, distance to a park's
+  edge.
+- **Estimated** — a height band from a plot ratio. Shown as a range, with the
+  ratio it came from.
+- **Unknown, and why** — never a blank, never a zero. A layer that has not been
+  loaded says so; it does not report "no hawker centre nearby".
 
 ## How the numbers are made
 
-**Fair value (F3).** Comparable sales in the same block over the last 24 months,
-widened to blocks within 800 m when a block is too thin. Each comparable is
-adjusted three ways before the range is taken — to today's market with the HDB
-Resale Price Index, to the target floor with a fitted storey premium, and to the
-target lease with a fitted lease curve — and the 20th / 50th / 80th percentiles
-become low / mid / high. Every adjustment is shown per comparable on the block
-page.
+**Fair value, per storey band.** Comparable sales in the same block over the
+last 24 months, widened to blocks within 800 m when a block is too thin. Each
+comparable is adjusted three ways before the range is taken — to today's market
+with the HDB Resale Price Index, to the target floor with a fitted storey
+premium, and to the target lease with a fitted lease curve — and the 20th /
+50th / 80th percentiles become low / mid / high.
+
+It is precomputed **per five-floor band** rather than per floor, and that is
+not a rounding. The storey premium is *fitted* in five-floor bands, so a band
+is exactly as fine as the evidence goes; one value per band is the whole
+answer. That is what lets the browser apply a typed floor without redoing the
+valuation, which keeps the arithmetic in one language.
 
 **The fitted curves.** Lease decay and the storey premium are read out of the
 transactions rather than assumed: each sale's price per sqm is divided by the
 median for its town, flat type and quarter, which removes location and the
 market cycle, and the median of what is left inside each band becomes the
-factor. Two guards matter. Cohorts with fewer than eight sales are dropped,
-because a cohort of one makes every ratio exactly 1.0 and flattens the curve.
-And the lease curve is forced to be monotone, since a shorter lease is never
-worth more per sqm than a longer one.
+factor. Cohorts with fewer than eight sales are dropped, because a cohort of
+one makes every ratio exactly 1.0 and flattens the curve, and the lease curve
+is forced monotone since a shorter lease is never worth more per sqm.
 
 The lease curve understates true decay, and the code says so where it is
 fitted: HDB towns were built in waves, so lease length is partly collinear with
 town, and dividing by a town cohort removes some of the lease signal along with
 the location signal. It is a floor on observed decay. `nhf fit` prints it.
 
-**Growth score (F4).** Five signals — price momentum against the index,
-catch-up gap to the town median, lease runway at exit, walking distance to an
-announced or under-construction station weighted by how soon it opens, and
-flats in the town reaching MOP over the next three years. Each is turned into a
-percentile across the blocks in budget, then weighted. A signal with no data
-contributes nothing and the weights are re-based on what is available, so a
-missing signal lowers confidence instead of quietly lowering the score. Every
-signal is stored with its value, its percentile and its source.
+**The trend is mix-adjusted, and indexed.** Each quarterly point is a trailing
+year, drawn only where that year holds three sales, with every sale divided by
+its own storey and lease factors. Without that, a block that happened to sell
+two high floors in one window and two low ones in the next looks like it fell
+ten per cent and recovered — and reading that as movement is the single easiest
+mistake to make with this data.
 
-Momentum is measured on storey- and lease-adjusted prices. Raw medians made it
-predict the *opposite* of what happened next on test data: a block that
-happened to sell two high floors in one window looked like a riser and then
-regressed. Mix adjustment is what makes the signal mean anything.
+The chart puts the block, its town and the national index on **one axis by
+indexing all three to 100** at their first shared quarter. Dollars per square
+metre and an index on a 2009 base are different scales, and a two-axis chart
+would let whoever drew it decide which line looked higher.
 
-**Value at exit.** `fair value today × (1 + g) ^ 20 × lease factor at exit /
-lease factor today`, for three cases of `g`: a downside, a flat market, and the
-town's own ten-year rate. A range, never a forecast price.
+**View and sun.** HDB publishes `max_floor_lvl` for every block, so what stands
+around a block and how tall is fact, not inference. What blocks a *view* is
+another flat above your eye line; what shades the *sun* is the roof above it,
+and the two are a storey apart — comparing eyes with roofs reports a blocked
+view from half the flats on an estate.
 
-**Ranking (F5).** Price, lease, growth, commute and amenities, weighted by
-sliders. Four of the five are scored on fixed scales from
-`config/criteria.yml`, so a block's rank does not move when a filter changes
-and a 3-room flat does not win the price column for being a 3-room flat. Only
-growth is relative, as the PRD defines it. The price scale plateaus below 85%
-of budget — under that, the difference stops mattering — and ties break on the
-cheaper flat.
+Where the sun is comes from the NOAA solar position algorithm, checked against
+the sky rather than against itself: 65.2° at the December solstice, 67.9° at
+the June one, sunset swinging from 247° in December to 293° in June. Singapore
+sits 1.35° north, so the midday sun is nearly overhead all year and the heat
+problem is the low western sun from about four o'clock. In hours of low
+afternoon sun a year, an unobstructed face gets:
 
-**Criteria (F1).** Nothing is hidden for missing a criterion. Each one grades
-Best, Acceptable or Flagged with the reason in words: "Far north (Woodlands)",
-"$35,000 over budget", "only 42 years left after our 20".
+| E, SE, NE | N | S | SW, NW | W |
+| --- | --- | --- | --- | --- |
+| 0 | 94 | 97 | 470 | 667 |
 
-**The backtest.** `nhf backtest` scores every block on data up to a cutoff,
-then grades the quintiles on what happened afterwards. Two things keep it
-honest. The future-MRT and supply signals are switched off, because today's
-station list and today's completion years are hindsight. And the outcome is
-measured from windows strictly after the cutoff: when the outcome shared sales
-with the window the score had seen, the same noise sat in the score's numerator
-and the outcome's denominator, which manufactured a confident negative
-correlation out of nothing.
+which is "west sun" in numbers. The useful part is the combination: a tall
+block to the west ruins the view and saves the afternoons.
 
-Expect it to fail at first. That is the point — the PRD says the weights change
-before the score is used for a real decision, and `--weight signal=N` is how to
-try another set against history.
+**What could still be built.** URA publishes zoning and gross plot ratio, and
+no height at all — `GPR_B_MN`, their own band field, is filled in on 52 parcels
+out of 113,212. A ratio is turned into storeys by reading it off the blocks
+already built at that ratio: the band is the 10th to 90th percentile of their
+storey counts, with the number of blocks it rests on attached. Where that fit
+is unavailable there is a documented fallback dividing the ratio by a plausible
+range of site coverage, and it says which it used.
 
-## Finding a dataset id
+`LND` and `EVA` are kept apart, because they are not the same kind of blank:
+landed housing settles the question (two or three storeys, and it cannot grow
+into a view), while "to be evaluated" is an admission that nobody has decided.
+Collapsing both into unknown would throw away the better half of a layer where
+LND is 52% of parcels.
 
-data.gov.sg has no working search. `query=`, `q=`, `search=`, `keyword=`,
-`name=`, `title=` and `agencies=` are all accepted and all ignored — the API
-returns the catalogue alphabetically whatever you ask it — and `api-open` has
-no catalogue route at all. That is why two resource ids in `datasets.yml` sat
-on `TODO` for so long: there was no way to look one up.
+**Rain is a rank, not a total.** A year of five-minute readings is 6.4 million
+rows and data.gov.sg has no server-side aggregation, so the gauges are sampled:
+pages spread across the year, each carrying about 60 of the 89 stations, so
+every gauge is sampled alike. That supports the comparison between them and
+nothing finer.
 
-So the catalogue is mirrored here instead. `data/datagov_catalogue.csv` holds
-all 4,655 datasets as `id, name, agency, format, lastUpdatedAt`, and finding
-one is a local grep:
+## Comparing saved units
 
-```bash
-grep -i hawker data/datagov_catalogue.csv
-python scripts/refresh_catalogue.py        # re-crawl, ~466 requests, under a minute
+Saved units compare in a table with **units as columns and attributes as
+rows**. Two to five flats against about twenty-five attributes would be an
+unreadable twenty-five-column table the other way round; transposed it is tall
+and narrow and each row compares one thing. Rows group into collapsible
+sections and each row marks the better value, so the table is scanned rather
+than read. There is no overall winner and no score — see below.
+
+**Only the inputs are saved**, never the report: the link, block, asking price,
+floor, facing and any note. The report is recomputed on open, so a unit saved
+in January shows today's figures rather than January's.
+
+Saved units live in the browser that saved them. That is the cost of having no
+login: one list per device, and sharing a unit means sending a link that
+carries its details, which the "Copy share link" button does. If that becomes
+annoying, the fix is a server and a password, and that is a decision to make
+then.
+
+## Why there is no growth score
+
+An earlier version of this put a 0–100 growth score at the centre and made
+passing a backtest a success metric. It was built and it failed. Scored on data
+to 2019 and graded on 2019–2024:
+
+```
+quintile   median score   realised growth
+       1           30.1           8.90%
+       5           67.1           8.88%
 ```
 
-## Configuration
+No separation at all. Taken apart, price momentum — the heaviest weight —
+predicted *backwards*, monotonically. A weighting of 0 / 60 / 40 across
+momentum, catch-up and lease runway did separate, by +1.62 points and
+monotonically, but a score that needs the evidence of a backtest to be believed
+does not belong at the top of a page where a trend line and a fair-value range
+say something true. So: no score. The trend is shown instead.
 
-Everything tunable is in `config/`, with a `last_checked` date where a date
-matters:
+The code that produced it — `nhf/growth.py`, `nhf/ranking.py`,
+`nhf/backtest.py`, the Flask app in `nhf/web/` and `nhf export` — is still in
+the tree and still passes its tests, but nothing in the site uses it. It is the
+superseded product, kept for the evidence rather than for the feature.
 
-- `criteria.yml` — budget and tolerance, holding period, offices, every
-  criterion threshold, the ranking weights and scales, fair-value parameters.
-- `policy.yml` — MOP, Plus and Prime exclusion, whole-flat rental rules, the
-  buyer CPF and loan thresholds. A policy change is a one-line edit.
-- `datasets.yml` — pinned data.gov.sg resource ids and the OneMap endpoints.
-- `future_mrt.yml` — the hand-kept LTA table; no station-level API was found.
+## What this does not do
 
-Three things in there are deliberately marked unconfirmed rather than guessed:
+Stated so it is never quietly promised:
 
-- **Two resource ids read `TODO`** — the 2015–2016 resale file and HDB's own
-  median-price dataset. The PRD links both pages but not their ids. `nhf sync`
-  reports them as skipped and falls back to town medians computed from the
-  transactions, which cover the same ground from 2000.
-- **`buyer_finance` thresholds are placeholders** (`confirmed: false`). The real
-  rule is that the remaining lease must cover the youngest buyer to age 95 for
-  full CPF use. It shows as a flag and a manual check, never as advice.
-- **`future_mrt.yml` is empty.** Until stations are added by hand the
-  new-transport signal scores nothing and says so on the block page. Add them
-  from the LTA rail expansion pages and run `nhf geocode-mrt`.
+- **Dog runs.** The park facilities layer has a `DOG-AREA` class with three
+  entries for the whole country against a real number in the dozens.
+- **Which buses stop where.** Stop locations are free; the services calling at
+  each need LTA DataMall and an account key.
+- **Whether a road floods.** No historical dataset exists. PUB's flood alerts
+  are live-only; the one route in is to start recording them now.
+- **Exact permitted heights.** URA publishes plot ratio, not height.
+- **Scraping the portals.** Against their terms, and unnecessary.
+
+## Commands
+
+| Command | What it does |
+| --- | --- |
+| `nhf sync [--step resale] [--limit N]` | Download the datasets, geocode blocks and schools |
+| `nhf build [--curves-only]` | Fit the lease and storey curves; `--curves-only` skips the superseded metrics and score |
+| `nhf fit` | Print the fitted curves, to eyeball before trusting a valuation |
+| `nhf resolve <url>` | Turn a pasted link into a block, or fail with a reason |
+| `nhf report <url or block key> [--storey 12] [--facing W] [--asking 620000]` | The whole report in the terminal |
+| `nhf site [--out dist/data]` | Render the site's data: one JSON file per block |
+| `nhf status` | Data freshness summary |
+| `nhf geocode [--blocks] [--schools]` | The OneMap steps on their own |
+
+`nhf rank`, `nhf value`, `nhf backtest`, `nhf export` and `nhf serve` belong to
+the superseded ranked-list product.
 
 ## Data sources
 
-| Source | Used for |
+Every id has been fetched and parsed. Nothing here is expected to work; it has
+worked.
+
+| Source | What it gives |
 | --- | --- |
-| HDB resale flat prices, 2000 onwards (4 datasets) | Comparables, momentum, catch-up gap, the lease curve, the backtest |
-| HDB Property Information | Top-floor detection, unit mix, blocks reaching MOP |
-| HDB Resale Price Index (1Q2009 = 100) | Adjusting comparables to today, growth against the market |
-| Median resale prices by town and flat type | `g_town` (derived from transactions until the id is filled in) |
-| HDB renting out of flats, 2021 onwards | The retirement rental check |
-| OneMap (SLA) | Geocoding every block, drive time to both offices, the base map |
-| LTA upcoming rail projects | Future stations, kept by hand |
-| URA Master Plan 2019 land use | Planned-development signal — later phase, weight 0 |
-| OpenStreetMap | Hardcourt flag — later phase |
+| HDB resale prices, 2000 onwards (3 files) | Sales, comparables, the trend, the fitted curves |
+| HDB property information | Storey count per block — the view calculation |
+| HDB resale price index | Adjusting to today; the trend benchmark |
+| HDB renting out of flats | Rent |
+| URA Master Plan 2019 land use | Zoning, plot ratio, height band |
+| NEA hawker centres | Hawker centres and stall counts |
+| NParks parks and park facilities | Park boundaries, playgrounds, fitness corners, courts |
+| LTA MRT station exits | 613 exits — an exit, not a station centroid |
+| LTA bus stops | 5,205 stop locations |
+| MOE school directory | 337 schools, geocoded from their postal codes |
+| ECDA pre-school locations | 2,290 centres |
+| NEA historical rainfall | The wetness ranking, by sampling |
+| OneMap (SLA) | Geocoding, and the one optional drive time. No token needed |
 
-Resale prices are indicative and exclude transfers between relatives, so the
-app works in medians per block and storey band, never single records.
+The 2015–2016 resale file has no published resource id, so those two years are
+absent. It does not affect anything here.
 
-## What is not built
+## Notes for whoever works on this next
 
-Out of scope by choice: schools, scraping listing portals, forecasts presented
-as fact, mortgage advice, multi-user accounts. Listings are entered by hand —
-paste a link and an asking price, and the app judges it.
+Things that cost a day each to discover:
 
-Later phases, in the PRD and not yet here: the hardcourt flag from
-OpenStreetMap, the URA Master Plan signal, a retirement rent estimate rather
-than today's median, price-trend alerts, and a sale-proceeds calculator for our
-current flat.
+- **data.gov.sg has no working search.** `query=`, `q=`, `search=`, `keyword=`,
+  `name=`, `title=` and `agencies=` are all accepted and all ignored.
+  `data/datagov_catalogue.csv` mirrors all 4,655 datasets; finding one is a
+  local grep. `python scripts/refresh_catalogue.py` re-crawls it.
+- **Geospatial datasets are not in the datastore.** `datastore_search` returns
+  an empty response for a GeoJSON dataset; they come from
+  `api-open.data.gov.sg/.../poll-download`, which hands back a presigned link.
+- **Deep pagination times out at large page sizes, not at depth.** `offset=0`
+  with `limit=10000` answers in 0.4 s and `offset=140000` with the same limit
+  returns 502 — but `offset=3000000` with `limit=1000` answers in six seconds,
+  which is what makes the rainfall sampling possible.
+- **Some layers are KML converted to GeoJSON.** ECDA's pre-schools put every
+  attribute inside one HTML table in a `Description` string, and `Name` is
+  "kml_1".
+- **OneMap needs no token** for anything used here, and sends
+  `Access-Control-Allow-Origin: *`, so the browser can call it directly.
+- **The land use layer cannot be committed.** 174 MB, and GitHub blocks files
+  over 100 MB. Pin the id, fetch at build time, derive, discard.
 
 ## Tests
 
 ```bash
 python3 -m pytest
+(cd web && npm test && npm run typecheck)
 ```
 
 The fixtures in `tests/conftest.py` are generated, not real: the live datasets
 are far too large to check in. They are built with a known lease decay, a known
 storey premium, a deliberately cheap block and a deliberately fast-growing one,
 so the fit and the scoring can be checked against the right answer rather than
-just for running without error. The app never loads them.
+just for running without error.
+
+`tests/golden/` is the other half of that. Three pieces of arithmetic have to
+live in both Python and TypeScript, because the floor and the facing are typed
+into the browser and the block data is in the batch job: link resolution, the
+view geometry, and the sun. Python writes the expected answers with
+`python -m tests.make_golden`, and both suites are tested against the same
+file — so a change to one side without the other fails a test instead of
+producing two plausible numbers. Run it after changing `nhf/sun.py`,
+`nhf/view.py` or `nhf/listing.py`, and commit the result.
+
+## Publishing
+
+`./scripts/build_site.sh dist` writes the page and then the data beside it, in
+that order — Vite empties its output directory, so the data has to go in after.
+Everything in `dist/` is static files; any host that serves files will do.
+
+**A free GitHub Pages site is public, and has no login.** Everything the site
+publishes is derived from public government data and none of it is ours, so
+that is survivable — but this repository holds `docs/PRD.md` and
+`config/criteria.yml`, which are. To keep those private, keep this repository
+private and push only `dist/` to a second, public repository.
+
+`nhf site` runs its own check over the output and fails the build if a field
+from the superseded product reappears or a block report grows a key nobody
+meant to publish.

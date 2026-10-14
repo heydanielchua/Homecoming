@@ -75,9 +75,19 @@ def cmd_build(args) -> int:
         ("lease_factor", "fitted lease decay curve", lambda: fit_lease_factors(conn)),
         ("storey_premium", "fitted storey premium curve",
          lambda: fit_storey_premiums(conn)),
-        ("block_metric", "per-block aggregates", lambda: compute_block_metrics(conn)),
-        ("block_score", "growth scores and exit values", lambda: score_all(conn)),
     ]
+    # The per-block aggregates and the growth score belong to the superseded
+    # ranked-list product; `nhf site` reads neither. They stay on by default so
+    # `nhf rank`, `nhf export` and `nhf serve` keep working, and `--curves-only`
+    # skips them — which is most of the monthly job's time, since scoring walks
+    # every block in budget.
+    if not args.curves_only:
+        steps += [
+            ("block_metric", "per-block aggregates",
+             lambda: compute_block_metrics(conn)),
+            ("block_score", "growth scores and exit values",
+             lambda: score_all(conn)),
+        ]
 
     failed = 0
     for key, label, run in steps:
@@ -564,8 +574,12 @@ def build_parser() -> argparse.ArgumentParser:
     sync.add_argument("--limit", type=int, help="stop after N records per dataset")
     sync.set_defaults(func=cmd_sync)
 
-    subs.add_parser("build", help="fit curves, compute metrics and scores"
-                    ).set_defaults(func=cmd_build)
+    build = subs.add_parser("build", help="fit curves, compute metrics and scores")
+    build.add_argument(
+        "--curves-only", action="store_true", dest="curves_only",
+        help="fit the lease and storey curves and stop — all `nhf site` needs",
+    )
+    build.set_defaults(func=cmd_build)
     subs.add_parser("fit", help="print the fitted lease and storey curves"
                     ).set_defaults(func=cmd_fit)
 

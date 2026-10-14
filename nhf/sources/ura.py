@@ -39,6 +39,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from dataclasses import dataclass
 from typing import Any, Iterator
 
@@ -68,19 +69,52 @@ class UraError(RuntimeError):
     """The layer could not be fetched or made sense of."""
 
 
-def download_url(dataset_id: str, session) -> str:
-    """Ask data.gov.sg for a presigned link to the file."""
-    resp = session.get(POLL_DOWNLOAD.format(id=dataset_id), timeout=60)
-    if not resp.ok:
-        raise UraError(
-            f"poll-download for {dataset_id} returned {resp.status_code}. "
-            "api-open.data.gov.sg is a separate host from the datastore API; "
-            "if this is a connection failure the network policy may not allow it."
-        )
-    url = (resp.json().get("data") or {}).get("url")
-    if not url:
-        raise UraError(f"no download url in the response for {dataset_id}")
-    return url
+# api-open.data.gov.sg rate-limits this endpoint far more tightly than the
+# datastore does — two requests in a row is enough to be refused — and it says
+# so in the body: "try again in 10 seconds". Six geospatial layers fetched back
+# to back therefore loaded the first two and failed the rest, which looked like
+# a network policy problem and was not. Waiting is the whole fix.
+RATE_LIMIT_WAIT_SECONDS = 12.0
+MAX_ATTEMPTS = 5
+
+
+def download_url(dataset_id: str, session, sleep=time.sleep) -> str:
+    """Ask data.gov.sg for a presigned link to the file.
+
+    Retries a rate limit rather than failing the layer. `sleep` is injectable
+    so a test can exercise the retry without waiting a minute for it.
+    """
+    last_status = None
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        resp = session.get(POLL_DOWNLOAD.format(id=dataset_id), timeout=60)
+        if resp.status_code == 429:
+            last_status = 429
+            if attempt < MAX_ATTEMPTS:
+                wait = RATE_LIMIT_WAIT_SECONDS * attempt
+                log.info(
+                    "%s: rate limited by api-open.data.gov.sg, waiting %.0fs "
+                    "(attempt %s of %s)",
+                    dataset_id, wait, attempt, MAX_ATTEMPTS,
+                )
+                sleep(wait)
+                continue
+            break
+        if not resp.ok:
+            raise UraError(
+                f"poll-download for {dataset_id} returned {resp.status_code}. "
+                "api-open.data.gov.sg is a separate host from the datastore API; "
+                "if this is a connection failure the network policy may not allow it."
+            )
+        url = (resp.json().get("data") or {}).get("url")
+        if not url:
+            raise UraError(f"no download url in the response for {dataset_id}")
+        return url
+
+    raise UraError(
+        f"poll-download for {dataset_id} was rate limited {MAX_ATTEMPTS} times "
+        f"(last status {last_status}). This endpoint allows roughly one request "
+        "every ten seconds, so fetch the layers further apart."
+    )
 
 
 def parse_gpr(raw: Any) -> tuple[float | None, str | None]:

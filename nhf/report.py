@@ -429,9 +429,10 @@ class ReportBuilder:
             ]
 
         values = rents("block_key = ? AND flat_type = ?", (block_key, flat_type))
+        in_block = len(values)
         scope, note = "block", f"this block's own approvals over {RENT_MONTHS} months"
 
-        if len(values) < RENT_MIN_SAMPLE:
+        if in_block < RENT_MIN_SAMPLE:
             keys = self._nearby_keys(block_key, RENT_NEARBY_RADIUS_M)
             if keys:
                 placeholders = ", ".join("?" for _ in keys)
@@ -442,9 +443,9 @@ class ReportBuilder:
                 if len(widened) > len(values):
                     values, scope = widened, "nearby"
                     note = (
-                        f"only {len(rents('block_key = ? AND flat_type = ?', (block_key, flat_type)))}"
-                        f" approval(s) in this block, so widened to blocks within "
-                        f"{int(RENT_NEARBY_RADIUS_M)} m"
+                        f"only {in_block} approval"
+                        f"{'' if in_block == 1 else 's'} in this block, so "
+                        f"widened to blocks within {int(RENT_NEARBY_RADIUS_M)} m"
                     )
         if len(values) < RENT_MIN_SAMPLE and town:
             town_values = rents("town = ? AND flat_type = ?", (town, flat_type))

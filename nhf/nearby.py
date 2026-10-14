@@ -270,6 +270,18 @@ def nearby_for(
 
 
 # --- rainfall ------------------------------------------------------------
+# A gauge needs this many sampled readings before it is ranked.
+#
+# The sample catches stations unevenly — a year is 6.4 million readings and 40
+# pages of it is 40,000, and while most gauges land in nearly every page a few
+# appear in only one or two. Three of them came back with 33 to 48 readings
+# and 0.0 mm between them, which ranked them the driest places in Singapore on
+# the strength of two hours of weather. The median gauge gets 643 readings, so
+# this threshold drops the handful that are really unsampled and keeps every
+# gauge that was actually measured.
+MIN_RAIN_READINGS = 200
+
+
 @dataclass
 class Rain:
     """Where this part of the island sits for wetness.
@@ -326,11 +338,17 @@ def rain_for(
 
     stations = conn.execute(
         "SELECT station_id, name, lat, lon, total_mm, readings FROM rainfall_station"
-        " WHERE year = ? AND readings > 0 AND lat IS NOT NULL",
-        (year,),
+        " WHERE year = ? AND readings >= ? AND lat IS NOT NULL",
+        (year, MIN_RAIN_READINGS),
     ).fetchall()
     if not stations:
-        return Rain(year=year, unknown=f"no usable gauge readings for {year}")
+        thin = conn.execute(
+            "SELECT COUNT(*) FROM rainfall_station WHERE year = ?", (year,)
+        ).fetchone()[0]
+        return Rain(year=year, unknown=(
+            f"no gauge has {MIN_RAIN_READINGS} sampled readings for {year}"
+            + (f" ({thin} gauge(s) were sampled too thinly to rank)" if thin else "")
+        ))
 
     rates = sorted(
         ((s["total_mm"] / s["readings"], s["station_id"]) for s in stations),
