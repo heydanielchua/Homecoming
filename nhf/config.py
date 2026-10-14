@@ -19,6 +19,12 @@ CONFIG_DIR = Path(os.environ.get("NHF_CONFIG_DIR", REPO_ROOT / "config"))
 DATA_DIR = Path(os.environ.get("NHF_DATA_DIR", REPO_ROOT / "data"))
 DB_PATH = Path(os.environ.get("NHF_DB", DATA_DIR / "nhf.db"))
 
+# Downloads land here and nowhere else. Keeping them beside the database
+# put a 174 MB GeoJSON in `data/`, which a `git add -A` then committed and
+# GitHub refused — it blocks files over 100 MB. One ignored directory is
+# easier to keep right than a list of extensions.
+CACHE_DIR = Path(os.environ.get("NHF_CACHE_DIR", DATA_DIR / "cache"))
+
 TODO = "TODO"
 
 

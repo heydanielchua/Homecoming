@@ -7,6 +7,11 @@ data/*.db-journal
 data/*.db-wal
 data/*.db-shm
 data/cache/
+# Belt and braces for the cache directory above. The URA land use layer is
+# 174 MB and GitHub refuses a push carrying anything over 100, so a stray
+# download must never be committable even if it lands in the wrong place.
+data/*.geojson
+data/*.json
 .env
 *.egg-info/
 

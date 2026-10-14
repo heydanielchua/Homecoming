@@ -15,7 +15,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any, Callable, Iterable
 
-from .config import TODO, Config, load_config
+from .config import CACHE_DIR, TODO, Config, load_config
 from .db import upsert_many
 from .norm import clean
 from .sources import hdb
@@ -361,6 +361,7 @@ def sync_land_use(
     cfg: Config,
     path: str | None = None,
     session=None,
+    keep_download: bool = False,
 ) -> int:
     """Fetch and store the URA Master Plan land use parcels.
 
@@ -386,17 +387,13 @@ def sync_land_use(
         return 0
 
     local = path
+    downloaded = False
     try:
         if not local:
             session = session or requests.Session()
-            url = ura.download_url(resource_id, session)
-            local = str(Path(cfg.datasets.get("cache_dir") or "data") / f"{resource_id}.geojson")
-            Path(local).parent.mkdir(parents=True, exist_ok=True)
-            with session.get(url, stream=True, timeout=900) as resp:
-                resp.raise_for_status()
-                with open(local, "wb") as fh:
-                    for chunk in resp.iter_content(chunk_size=1 << 20):
-                        fh.write(chunk)
+            local = str(_fetch_geojson(
+                resource_id, CACHE_DIR / f"{resource_id}.geojson", session))
+            downloaded = True
 
         rows = list(ura.stream_parcels(local, source=label or resource_id))
     except Exception as exc:                     # network, disk, or bad JSON
@@ -405,6 +402,13 @@ def sync_land_use(
             started_at=started, message=str(exc),
         )
         return 0
+    finally:
+        # Fetch at build time, derive, discard — the PRD's own instruction.
+        # 174 MB is the one download worth deleting the moment it has been
+        # read, and only the copy this step downloaded: a file handed in with
+        # `path` belongs to the caller.
+        if downloaded and keep_download is False and local:
+            Path(local).unlink(missing_ok=True)
 
     if not rows:
         reporter.record(
@@ -434,7 +438,9 @@ def _fetch_geojson(resource_id: str, dest: Path, session) -> str:
     """Download a GeoJSON layer via the file route, not the datastore.
 
     The datastore returns nothing for a geospatial dataset; these come from
-    api-open.data.gov.sg, which hands back a presigned link.
+    api-open.data.gov.sg, which hands back a presigned link. `dest` is under
+    the ignored cache directory, because one of these layers is 174 MB and
+    GitHub rejects a push carrying a file over 100.
     """
     from .sources import ura
 
@@ -466,7 +472,7 @@ def sync_amenities(
 
     total = 0
     session = session or requests.Session()
-    cache = Path("data")
+    cache = CACHE_DIR
     first = True
 
     for entry in cfg.datasets.get("amenities") or []:
