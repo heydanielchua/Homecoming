@@ -4,47 +4,74 @@
  * and the components bring the keyboard behaviour and the ARIA wiring without
  * bringing a look to fight.
  *
- * The chart colours are the validated three-slot categorical palette — blue,
- * orange, aqua — with their own steps for the dark surface rather than an
- * automatic flip. Aqua sits below 3:1 on the light surface, so the trend
- * carries visible end labels and a table view, which is the relief that
- * allows it.
+ * The look follows the MediFlow reference: neutral greys carrying the page,
+ * near-black ink, generous rounding, and one loud accent. Separation comes
+ * from surface tone and soft shadow rather than borders, which is why almost
+ * nothing here draws a line around itself.
+ *
+ * The accent is brand, not meaning. Lime says "this is the thing to press";
+ * it never encodes a value, never appears in the chart, and never stands in
+ * for the status colours, which have to keep meaning good and bad. The one
+ * place the brand and a status meet is the mint fill on a good verdict, and
+ * that carries a word as well as a colour.
+ *
+ * The chart colours are the validated three-slot categorical palette - blue,
+ * orange, aqua - revalidated against these surfaces rather than inherited on
+ * faith. Aqua sits below 3:1 on the light surface, so the trend carries
+ * visible end labels and a table view, which is the relief that allows it.
  */
 
 :root {
   color-scheme: light dark;
 
-  /* Surfaces and ink. */
-  --surface-1: #fcfcfb;
-  --surface-page: #f9f9f7;
-  --surface-sunken: #f2f2ee;
-  --text-primary: #0b0b0b;
-  --text-secondary: #52514e;
-  --text-muted: #898781;
-  --gridline: #e1e0d9;
-  --axis: #c3c2b7;
-  --border: rgba(11, 11, 11, 0.1);
-  --border-strong: rgba(11, 11, 11, 0.22);
+  /* Surfaces and ink. The page is the grey; a card is the white that lifts
+     off it. There is no third step in the reference and there is none here. */
+  --surface-1: #ffffff;
+  --surface-page: #f0f0f0;
+  --surface-sunken: #e7e7e7;
+  --text-primary: #010101;
+  --text-secondary: #656565;
+  --text-muted: #8e8e8e;
+  --gridline: #e2e2e2;
+  --axis: #c8c8c8;
+  --border: rgba(1, 1, 1, 0.07);
+  --border-strong: rgba(1, 1, 1, 0.16);
 
-  /* Categorical slots 1-3: block, town, national. */
+  /* Brand. Lime is for action and identity only - see the note at the top.
+     Mint is its quiet half, used as a fill behind dark text. */
+  --accent: #d6ff4e;
+  --accent-ink: #010101;
+  --accent-hover: #c8f53a;
+  --accent-soft: #bbf1ad;
+
+  /* Categorical slots 1-3: block, town, national. Validated against
+     #ffffff (light) and #171717 (dark) with the skill's validator. */
   --series-1: #2a78d6;
   --series-2: #eb6834;
   --series-3: #1baf7a;
 
-  /* Status. Never reused for a series. */
+  /* Status. Never reused for a series, never replaced by the accent. */
   --good: #0ca30c;
-  --good-text: #006300;
+  --good-text: #1f6b1f;
   --warning: #fab219;
   --serious: #ec835a;
   --critical: #d03b3b;
 
-  --focus: #2a78d6;
+  /* Near-black, not lime: a lime ring on a white card is under 1.5:1. */
+  --focus: #010101;
 
-  --radius: 10px;
-  --radius-sm: 6px;
+  --radius: 20px;
+  --radius-sm: 12px;
+  --radius-pill: 999px;
   --gutter: 16px;
 
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Two shadows doing different jobs: a hairline to seat the card on the
+     grey, and a wide soft one to lift it. */
+  --shadow-card: 0 1px 2px rgba(1, 1, 1, 0.04), 0 10px 28px rgba(1, 1, 1, 0.05);
+  --shadow-raised: 0 2px 6px rgba(1, 1, 1, 0.06), 0 18px 40px rgba(1, 1, 1, 0.09);
+
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, system-ui,
+    'Segoe UI', sans-serif;
   font-size: 16px;
   line-height: 1.5;
 }
@@ -52,41 +79,53 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
-    --surface-1: #1a1a19;
-    --surface-page: #0d0d0d;
-    --surface-sunken: #222221;
-    --text-primary: #f0efec;
-    --text-secondary: #c3c2b7;
-    --text-muted: #898781;
-    --gridline: #2c2c2a;
-    --axis: #383835;
-    --border: rgba(255, 255, 255, 0.1);
-    --border-strong: rgba(255, 255, 255, 0.24);
+    --surface-1: #171717;
+    --surface-page: #0a0a0a;
+    --surface-sunken: #212121;
+    --text-primary: #f2f2f2;
+    --text-secondary: #a5a5a5;
+    --text-muted: #7c7c7c;
+    --gridline: #2a2a2a;
+    --axis: #3a3a3a;
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.2);
+    --accent: #d6ff4e;
+    --accent-ink: #010101;
+    --accent-hover: #e2ff72;
+    --accent-soft: #2f4a22;
     --series-1: #3987e5;
     --series-2: #d95926;
     --series-3: #199e70;
-    --good-text: #0ca30c;
-    --focus: #3987e5;
+    --good-text: #7ddc7d;
+    --focus: #ffffff;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 10px 28px rgba(0, 0, 0, 0.45);
+    --shadow-raised: 0 2px 6px rgba(0, 0, 0, 0.55), 0 18px 40px rgba(0, 0, 0, 0.5);
   }
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --surface-1: #1a1a19;
-  --surface-page: #0d0d0d;
-  --surface-sunken: #222221;
-  --text-primary: #f0efec;
-  --text-secondary: #c3c2b7;
-  --text-muted: #898781;
-  --gridline: #2c2c2a;
-  --axis: #383835;
-  --border: rgba(255, 255, 255, 0.1);
-  --border-strong: rgba(255, 255, 255, 0.24);
+  --surface-1: #171717;
+  --surface-page: #0a0a0a;
+  --surface-sunken: #212121;
+  --text-primary: #f2f2f2;
+  --text-secondary: #a5a5a5;
+  --text-muted: #7c7c7c;
+  --gridline: #2a2a2a;
+  --axis: #3a3a3a;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.2);
+  --accent: #d6ff4e;
+  --accent-ink: #010101;
+  --accent-hover: #e2ff72;
+  --accent-soft: #2f4a22;
   --series-1: #3987e5;
   --series-2: #d95926;
   --series-3: #199e70;
-  --good-text: #0ca30c;
-  --focus: #3987e5;
+  --good-text: #7ddc7d;
+  --focus: #ffffff;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 10px 28px rgba(0, 0, 0, 0.45);
+  --shadow-raised: 0 2px 6px rgba(0, 0, 0, 0.55), 0 18px 40px rgba(0, 0, 0, 0.5);
 }
 
 * {
@@ -123,15 +162,18 @@ h1,
 h2,
 h3 {
   margin: 0;
-  font-weight: 600;
-  line-height: 1.25;
+  /* The reference sets headings in Medium and lets size carry the hierarchy.
+     At 600 on a near-black ink the page starts to shout. */
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
 }
 
 h1 {
-  font-size: 1.35rem;
+  font-size: 1.75rem;
 }
 h2 {
-  font-size: 1.05rem;
+  font-size: 1.15rem;
 }
 h3 {
   font-size: 0.95rem;
@@ -142,7 +184,10 @@ p {
 }
 
 a {
-  color: var(--series-1);
+  /* Not the accent: lime on white is under 1.5:1. Not the series blue
+     either, which now means "this block" on every chart. */
+  color: var(--text-primary);
+  text-underline-offset: 2px;
 }
 
 button {
@@ -171,14 +216,15 @@ button {
 
 .card {
   background: var(--surface-1);
-  border: 1px solid var(--border);
+  border: none;
   border-radius: var(--radius);
-  padding: 16px;
+  padding: 20px;
   margin-top: 16px;
+  box-shadow: var(--shadow-card);
 }
 
 .card--tight {
-  padding: 12px 16px;
+  padding: 14px 18px;
 }
 
 .row {
@@ -236,12 +282,21 @@ button {
 
 .input {
   width: 100%;
-  padding: 9px 11px;
+  padding: 12px 14px;
   font-size: 0.95rem;
   color: var(--text-primary);
-  background: var(--surface-1);
-  border: 1px solid var(--border-strong);
+  background: var(--surface-sunken);
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
+  transition: border-color 120ms ease;
+}
+
+.input::placeholder {
+  color: var(--text-muted);
+}
+
+.input:hover {
+  border-color: var(--border);
 }
 
 .input:focus-visible {
@@ -268,18 +323,19 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 9px 14px;
+  padding: 11px 18px;
   font-size: 0.9rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
-  background: var(--surface-1);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  border: none;
+  border-radius: var(--radius-pill);
   cursor: pointer;
+  transition: background 120ms ease;
 }
 
 .button:hover:not(:disabled) {
-  background: var(--surface-sunken);
+  background: var(--border-strong);
 }
 
 .button:disabled {
@@ -287,23 +343,22 @@ button {
   cursor: not-allowed;
 }
 
+/* The one lime thing on the page, which is the point of it. Black ink on
+   lime is 14:1; white would be 1.4 and unreadable. */
 .button--primary {
-  color: var(--surface-1);
-  background: var(--series-1);
-  border-color: transparent;
+  color: var(--accent-ink);
+  background: var(--accent);
 }
 
 .button--primary:hover:not(:disabled) {
-  filter: brightness(1.08);
-  background: var(--series-1);
+  background: var(--accent-hover);
 }
 
 .button--quiet {
-  border-color: transparent;
   background: transparent;
   color: var(--text-secondary);
   font-weight: 500;
-  padding: 6px 8px;
+  padding: 8px 12px;
 }
 
 .button--quiet:hover:not(:disabled) {
@@ -314,38 +369,86 @@ button {
   color: var(--critical);
 }
 
+.row--top {
+  align-items: flex-start;
+}
+
+/* --- the compass ------------------------------------------------------- */
+/* Eight equal circles, four to a line. The reference puts its secondary
+   actions in round buttons of one size, and eight compass points are the one
+   place in this page where that shape is literally right. */
+.compass {
+  display: grid;
+  grid-template-columns: repeat(4, 38px);
+  gap: 6px;
+}
+
+.compass-point {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--surface-sunken);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.compass-point:hover {
+  background: var(--border-strong);
+}
+
+.compass-point[data-pressed] {
+  color: var(--accent-ink);
+  background: var(--accent);
+  font-weight: 600;
+}
+
 /* --- tabs -------------------------------------------------------------- */
 .tabs {
   margin-top: 18px;
 }
 
+/* The reference marks the active item by filling it, not by underlining it.
+   The sliding indicator becomes the fill itself, so the movement survives. */
 .tablist {
   position: relative;
-  display: flex;
+  display: inline-flex;
   gap: 2px;
-  border-bottom: 1px solid var(--border);
+  padding: 4px;
+  background: var(--surface-sunken);
+  border-radius: var(--radius-pill);
 }
 
 .tab {
-  padding: 9px 14px;
+  position: relative;
+  z-index: 1;
+  padding: 8px 16px;
   font-size: 0.92rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-secondary);
   background: none;
   border: none;
+  border-radius: var(--radius-pill);
   cursor: pointer;
 }
 
 .tab[data-selected] {
-  color: var(--text-primary);
+  color: var(--surface-1);
 }
 
 .tab-indicator {
   position: absolute;
-  bottom: -1px;
+  z-index: 0;
+  top: 4px;
+  bottom: 4px;
   left: 0;
-  height: 2px;
-  background: var(--series-1);
+  background: var(--text-primary);
+  border-radius: var(--radius-pill);
   width: var(--active-tab-width);
   translate: var(--active-tab-left) 0;
   transition: translate 160ms ease, width 160ms ease;
@@ -354,10 +457,21 @@ button {
 /* --- accordion --------------------------------------------------------- */
 .accordion {
   margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
+/* Each section is its own white card on the grey, the way the reference
+   stacks its panels. It is not only a look: the chart lives in here, and on
+   the page grey two of its three lines fall under 3:1, where on white only
+   one does. */
 .accordion-item {
-  border-bottom: 1px solid var(--border);
+  background: var(--surface-1);
+  border: none;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: 4px 20px;
 }
 
 .accordion-trigger {
@@ -366,9 +480,10 @@ button {
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  padding: 13px 2px;
-  font-size: 1rem;
-  font-weight: 600;
+  padding: 16px 0;
+  font-size: 1.05rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
   text-align: left;
   color: var(--text-primary);
   background: none;
@@ -377,7 +492,7 @@ button {
 }
 
 .accordion-trigger:hover {
-  color: var(--series-1);
+  color: var(--text-secondary);
 }
 
 .accordion-summary {
@@ -420,23 +535,27 @@ button {
 }
 
 .figure {
-  padding: 10px 12px;
+  padding: 14px 16px;
   background: var(--surface-sunken);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
 }
 
 .figure-label {
   display: flex;
   align-items: center;
-  gap: 6px;
+  /* The pill cannot shrink and the label can, so when a long label meets a
+     long pill the pill drops to its own line rather than out of the tile. */
+  flex-wrap: wrap;
+  gap: 4px 6px;
   font-size: 0.78rem;
   color: var(--text-secondary);
 }
 
 .figure-value {
-  margin-top: 2px;
-  font-size: 1.22rem;
-  font-weight: 600;
+  margin-top: 4px;
+  font-size: 1.3rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
   /* Proportional figures: tabular-nums makes a standalone number look loose. */
   color: var(--text-primary);
 }
@@ -456,17 +575,24 @@ button {
 /* --- confidence markers ------------------------------------------------ */
 .conf {
   display: inline-flex;
+  /* "WORKED OUT" is two words and must never become two lines: it sits beside
+     a label that is already wrapping, and a broken pill reads as two pills. */
+  white-space: nowrap;
   align-items: center;
   gap: 4px;
-  padding: 1px 6px 1px 5px;
+  padding: 2px 8px 2px 7px;
   font-size: 0.68rem;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.02em;
   text-transform: uppercase;
   color: var(--text-secondary);
   background: var(--surface-1);
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
+  border: none;
+  /* A hairline rather than a border: these pills sit on a sunken tile in the
+     figures and on a plain white card inline, and white-on-white vanishes.
+     Inset, so it costs no layout. */
+  box-shadow: inset 0 0 0 1px var(--border);
+  border-radius: var(--radius-pill);
   cursor: help;
 }
 
@@ -500,9 +626,9 @@ button {
   flex-wrap: wrap;
   align-items: baseline;
   gap: 6px 10px;
-  padding: 11px 13px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
+  padding: 14px 18px;
+  border-radius: var(--radius);
+  border: none;
   background: var(--surface-sunken);
 }
 
@@ -510,8 +636,14 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-weight: 700;
+  font-weight: 600;
   font-size: 0.95rem;
+}
+
+/* The mint tile the reference uses for a good number. The flag keeps its
+   word, so this is reinforcement and not the message. */
+.verdict--below {
+  background: var(--accent-soft);
 }
 
 .verdict--below .verdict-flag {

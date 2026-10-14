@@ -135,7 +135,7 @@ export function UnitForm({
         </div>
       ) : null}
 
-      <div className="row">
+      <div className="row row--top">
         <Field.Root className="field field--narrow">
           <Field.Label className="label">Asking price</Field.Label>
           <Field.Control
@@ -178,24 +178,13 @@ export function UnitForm({
             onValueChange={(value) =>
               set('facing', (value[0] as Facing | undefined) ?? null)
             }
-            className="row"
-            style={{ gap: 4 }}
+            className="compass"
           >
             {FACINGS.map((point) => (
               <Toggle
                 key={point}
                 value={point}
-                className="button button--quiet"
-                style={{
-                  minWidth: 38,
-                  justifyContent: 'center',
-                  border: '1px solid var(--border)',
-                  fontWeight: inputs.facing === point ? 700 : 500,
-                  background:
-                    inputs.facing === point
-                      ? 'var(--surface-sunken)'
-                      : 'transparent',
-                }}
+                className="compass-point"
                 aria-label={point}
               >
                 {point}
@@ -206,7 +195,7 @@ export function UnitForm({
         </div>
       </div>
 
-      <div className="row">
+      <div className="row row--top">
         {flatTypes.length > 0 ? (
           <div className="field field--narrow">
             <Select.Root
