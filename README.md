@@ -182,6 +182,23 @@ Expect it to fail at first. That is the point — the PRD says the weights chang
 before the score is used for a real decision, and `--weight signal=N` is how to
 try another set against history.
 
+## Finding a dataset id
+
+data.gov.sg has no working search. `query=`, `q=`, `search=`, `keyword=`,
+`name=`, `title=` and `agencies=` are all accepted and all ignored — the API
+returns the catalogue alphabetically whatever you ask it — and `api-open` has
+no catalogue route at all. That is why two resource ids in `datasets.yml` sat
+on `TODO` for so long: there was no way to look one up.
+
+So the catalogue is mirrored here instead. `data/datagov_catalogue.csv` holds
+all 4,655 datasets as `id, name, agency, format, lastUpdatedAt`, and finding
+one is a local grep:
+
+```bash
+grep -i hawker data/datagov_catalogue.csv
+python scripts/refresh_catalogue.py        # re-crawl, ~466 requests, under a minute
+```
+
 ## Configuration
 
 Everything tunable is in `config/`, with a `last_checked` date where a date
