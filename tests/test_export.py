@@ -244,3 +244,17 @@ def test_offline_shell_caches_what_the_stylesheet_imports(exported):
     shell = (out / "static" / "sw.js").read_text()
     for ref in imported:
         assert ref.split("/")[-1] in shell, f"{ref} is imported but not cached"
+
+
+def test_no_stylesheet_imports_a_file_that_is_not_there(exported):
+    """Vendoring by hand missed root.css's own @import of responsive.css: the
+    tokens it defines silently never loaded, and nothing failed."""
+    import re
+
+    _, out = exported
+    css_files = list((out / "static").rglob("*.css"))
+    assert css_files, "no stylesheets were exported"
+    for path in css_files:
+        for ref in re.findall(r'@import\s+"([^"]+)"', path.read_text()):
+            target = (path.parent / ref).resolve()
+            assert target.exists(), f"{path.name} imports missing {ref}"

@@ -75,8 +75,10 @@ body {
 .topbar {
   position: sticky; top: 0; z-index: 20;
   padding: max(0.6rem, env(safe-area-inset-top)) 1rem 0.6rem;
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: blur(10px);
+  /* Opaque. Translucency here let the page scroll visibly through the bar
+     wherever backdrop-filter does not apply, and a header you can read the
+     list through looks broken rather than deliberate. */
+  background: var(--bg);
   border-bottom: 1px solid var(--line);
 }
 .topbar-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
@@ -106,6 +108,10 @@ a { color: var(--accent); }
 .banner { display: block; margin: 0.5rem 0 0; padding: 0.5rem 0.7rem; border-radius: 10px;
   background: color-mix(in srgb, var(--mid) 18%, var(--card)); color: var(--text);
   font-size: 0.84rem; text-decoration: none; border: 1px solid color-mix(in srgb, var(--mid) 35%, var(--line)); }
+.banner.info {
+  background: var(--sgds-surface-raised, var(--card));
+  border-color: var(--line); color: var(--text);
+}
 .flash { margin: 1rem 1rem 0; padding: 0.6rem 0.8rem; border-radius: 10px;
   background: color-mix(in srgb, var(--ok) 16%, var(--card)); font-size: 0.88rem; }
 
@@ -163,27 +169,47 @@ table tr.bad td { color: var(--bad); }
 table tr.mid td { color: var(--mid); }
 
 details { margin-top: 0.6rem; }
-summary { cursor: pointer; font-size: 0.88rem; font-weight: 600; color: var(--accent);
-  display: flex; justify-content: space-between; gap: 0.5rem;
-  /* Laying summary out as a flex box removes the disclosure triangle in
-     Chrome and Safari, so these read as bold text with nothing to say they
-     open. The marker is replaced rather than mourned. */
-  list-style: none; align-items: center; min-height: 2.75rem; }
+/* Built to match the design system's accordion header
+   (src/components/Accordion/accordion-item.css): the label takes the default
+   text colour rather than the accent — it is a heading that opens, not a
+   link — and the caret in the subtle colour, plus a hover tint, is what says
+   it is interactive. Laying summary out as a flex box also removes the
+   disclosure triangle in Chrome and Safari, so the caret is not optional. */
+summary {
+  cursor: pointer; display: flex; align-items: center;
+  justify-content: space-between; gap: var(--sgds-gap-md, 0.5rem);
+  color: var(--sgds-color-default, var(--text));
+  /* The component on master names these --sgds-font-size-subtitle-md and
+     --sgds-line-height-xs, which 3.29.0 does not ship: it carries the
+     numeric scale only. Same values, names that actually resolve here. */
+  font-size: var(--sgds-font-size-14, 0.88rem);
+  font-weight: var(--sgds-font-weight-semibold, 600);
+  line-height: var(--sgds-line-height-20, 1.4);
+  list-style: none; min-height: 2.75rem;
+  border-radius: var(--sgds-border-radius-sm, 4px);
+}
 summary::-webkit-details-marker { display: none; }
+summary:hover { background: var(--sgds-bg-translucent-subtle, transparent); }
 summary::after {
   content: ""; flex: none; width: 0.5rem; height: 0.5rem; margin-left: auto;
-  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  border-right: 2px solid var(--sgds-color-subtle, var(--muted));
+  border-bottom: 2px solid var(--sgds-color-subtle, var(--muted));
   transform: rotate(45deg) translate(-0.1rem, -0.1rem);
 }
 details[open] > summary::after { transform: rotate(-135deg) translate(-0.15rem, -0.15rem); }
 @media (prefers-reduced-motion: no-preference) {
-  summary::after { transition: transform 0.15s ease; }
+  summary::after {
+    transition: transform var(--sgds-motion-duration-standard, 0.15s) ease-in-out;
+  }
 }
 summary small { display: inline; }
 .controls summary { font-size: 0.95rem; }
 
 form label { display: block; margin: 0.6rem 0; font-size: 0.82rem; color: var(--muted); }
 form label.check, form label.slider { color: var(--text); }
+form label.check {
+  display: flex; align-items: center; gap: 0.6rem; min-height: 2.75rem;
+}
 input, select, textarea, button {
   font: inherit; width: 100%; margin-top: 0.2rem; padding: 0.6rem 0.7rem;
   background: var(--bg); color: var(--text); border: 1px solid var(--line);
@@ -193,7 +219,22 @@ input[type="checkbox"] { width: auto; min-height: 0; margin-right: 0.5rem; verti
 input[type="range"] { padding: 0; accent-color: var(--accent); }
 button { background: var(--accent); color: var(--on-accent); border: none;
   font-weight: var(--sgds-font-weight-semibold, 650); cursor: pointer; margin-top: 0.8rem; }
+button:hover { background: var(--sgds-primary-surface-emphasis, var(--accent)); }
 .card.danger button { background: var(--bad); }
+/* A secondary action keeps the weight of the primary fill for the primary
+   action. The design system's outline variant, in the one place this app
+   needs it. */
+/* The design system's outline / brand variant. */
+button.secondary {
+  background: var(--sgds-bg-transparent, transparent);
+  color: var(--sgds-primary-color-default, var(--accent));
+  border: var(--sgds-border-width-1, 1px) solid
+          var(--sgds-primary-border-color-default, var(--accent));
+  font-weight: var(--sgds-font-weight-semibold, 600);
+}
+button.secondary:hover {
+  background: var(--sgds-primary-bg-translucent, transparent);
+}
 .link { width: auto; min-height: 0; }
 fieldset { border: 1px solid var(--line); border-radius: 10px; padding: 0.4rem 0.8rem 0.8rem; margin: 0.8rem 0; }
 legend { color: var(--muted); font-size: 0.78rem; padding: 0 0.3rem; }
@@ -281,8 +322,7 @@ h2.group { margin: 0.5rem 0 -0.4rem; font-size: 0.8rem; text-transform: uppercas
 .tabbar {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 30;
   display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
-  background: color-mix(in srgb, var(--card) 94%, transparent);
-  backdrop-filter: blur(12px);
+  background: var(--card);
   border-top: 1px solid var(--line);
   padding-bottom: env(safe-area-inset-bottom);
 }
