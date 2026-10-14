@@ -11,11 +11,14 @@ from __future__ import annotations
 
 import pytest
 
+from nhf.geo import haversine_m
 from nhf.nearby import (
+    MAP_LIMITS,
     MIN_RAIN_READINGS,
     SCHOOL_BAND_M,
     WALKING_M,
     nearby_for,
+    nearest_point_on_box,
     rain_for,
 )
 
@@ -192,6 +195,102 @@ class TestRain:
 
     def test_a_block_with_no_geocode_has_no_gauge(self, db):
         assert "no geocode" in rain_for(db, None, None).unknown
+
+
+class TestMapPoints:
+    """What the map is allowed to draw.
+
+    The map is the one place a wrong number becomes a wrong *place*, which
+    reads as certainty. So these pin down the two things that would make it
+    lie: a point without a real geocode, and a point invented from the
+    compass bearing the text rows use.
+    """
+
+    def test_every_point_carries_a_real_coordinate(self, full_db):
+        near = nearby_for(full_db, BLOCK)
+        assert near.points
+        for place in near.points:
+            assert place.lat is not None and place.lon is not None
+
+    def test_a_point_sits_where_the_amenity_is_not_where_its_compass_says(
+        self, full_db
+    ):
+        """The text rows round a bearing to one of eight compass points. If
+        the map ever derived a position from that instead of reading the
+        geocode, a thing due north-east by 30 degrees would move. The bus
+        stop is the check: its stored coordinate is the one that comes back.
+        """
+        near = nearby_for(full_db, BLOCK)
+        stop = next(p for p in near.points if p.kind == "bus_stop")
+        stored = full_db.execute(
+            "SELECT lat, lon FROM amenity WHERE kind = 'bus_stop' AND name = ?",
+            (stop.name,),
+        ).fetchone()
+        assert stop.lat == pytest.approx(stored["lat"], abs=1e-9)
+        assert stop.lon == pytest.approx(stored["lon"], abs=1e-9)
+
+    def test_a_marker_sits_where_its_own_distance_says_it_is(self, full_db):
+        """The one that caught a real bug.
+
+        A park is measured to its edge, because that is what you walk to, but
+        its stored coordinate is the centroid of the whole shape. Drawing the
+        centroid put Kallang Riverside Park 1,298 m away on the map while the
+        row beside it said 796 m — and the map then zoomed out far enough to
+        fit the mistake, which is how it was noticed.
+
+        So: every marker must agree with the distance printed next to it.
+        """
+        near = nearby_for(full_db, BLOCK)
+        block = full_db.execute(
+            "SELECT lat, lon FROM block WHERE block_key = ?", (BLOCK,)
+        ).fetchone()
+        for place in near.points:
+            drawn = haversine_m(block["lat"], block["lon"], place.lat, place.lon)
+            assert drawn == pytest.approx(place.distance_m, abs=1.0), (
+                f"{place.kind} {place.name!r} is drawn {drawn:.0f} m away "
+                f"but reports {place.distance_m:.0f} m"
+            )
+
+    def test_the_nearest_point_on_a_box_is_the_clamp(self):
+        box = (1.30, 1.32, 103.80, 103.82)
+        # Outside on two sides: both clamp.
+        assert nearest_point_on_box(1.25, 103.75, *box) == (1.30, 103.80)
+        # Beyond one edge only: the other coordinate is kept.
+        assert nearest_point_on_box(1.31, 103.90, *box) == (1.31, 103.82)
+        # Inside: the place itself, which is a distance of zero.
+        assert nearest_point_on_box(1.31, 103.81, *box) == (1.31, 103.81)
+
+    def test_a_shape_with_no_box_is_left_without_a_clamp(self):
+        assert nearest_point_on_box(1.31, 103.81, None, 1.32, 103.80, 103.82) == (
+            None,
+            None,
+        )
+
+    def test_each_kind_is_capped_so_one_layer_cannot_bury_the_rest(self, full_db):
+        near = nearby_for(full_db, BLOCK)
+        counts: dict[str, int] = {}
+        for place in near.points:
+            counts[place.kind] = counts.get(place.kind, 0) + 1
+        for kind, count in counts.items():
+            assert count <= MAP_LIMITS[kind], f"{kind} is over its cap"
+
+    def test_the_points_come_out_nearest_first(self, full_db):
+        near = nearby_for(full_db, BLOCK)
+        distances = [p.distance_m for p in near.points]
+        assert distances == sorted(distances)
+
+    def test_the_serialised_point_is_small_and_rounded(self, full_db):
+        near = nearby_for(full_db, BLOCK)
+        point = near.points[0].as_point()
+        assert set(point) <= {"kind", "name", "lat", "lon", "distance_m", "subtype"}
+        # Six places is 0.1 m here, which is finer than the sources are.
+        assert len(str(point["lat"]).split(".")[-1]) <= 6
+        assert isinstance(point["distance_m"], int)
+
+    def test_a_block_with_no_geocode_draws_nothing(self, db):
+        """Rather than drawing the island's centre and calling it the block."""
+        near = nearby_for(db, BLOCK)
+        assert near.points == []
 
 
 def test_the_school_band_is_the_one_the_prd_asks_for():

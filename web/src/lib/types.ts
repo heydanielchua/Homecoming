@@ -169,6 +169,27 @@ export interface Place {
   to_edge?: boolean;
 }
 
+/** One thing the map draws, at the coordinate the source geocoded it to. */
+export interface MapPoint {
+  kind: PointKind;
+  name: string | null;
+  lat: number;
+  lon: number;
+  distance_m: number;
+  subtype?: string;
+}
+
+export const POINT_KINDS = [
+  'mrt_exit',
+  'bus_stop',
+  'school',
+  'hawker_centre',
+  'preschool',
+  'park',
+] as const;
+
+export type PointKind = (typeof POINT_KINDS)[number];
+
 export interface Nearby {
   mrt_exit: Place | null;
   mrt_station: string | null;
@@ -181,6 +202,7 @@ export interface Nearby {
   preschools_within_walk: number | null;
   facilities: Record<string, number>;
   nearest_facility: Record<string, Place>;
+  points: MapPoint[];
   missing: string[];
 }
 

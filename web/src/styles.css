@@ -259,19 +259,93 @@ button {
 }
 
 /* --- fields ------------------------------------------------------------ */
+/* --- form rows ---------------------------------------------------------
+ *
+ * Three subgrid rows: label, control, hint. Every field in a row spans the
+ * same three, so the labels sit on one line, the inputs on one line and the
+ * hints on one line — whatever any of them does about wrapping.
+ *
+ * This is the whole fix. Laying fields out as independent flex columns means
+ * a two-line label ("Destination postcode") pushes its own input down and
+ * nothing else's, and a long hint drags the next field's baseline out of
+ * true. Bottom-aligning swaps which end is ragged. Subgrid is the only one of
+ * the three where the rows are actually shared.
+ */
+.row--link,
+.row--address,
+.row--fields {
+  display: grid;
+  grid-template-rows: auto auto auto;
+  align-items: start;
+  gap: 6px 16px;
+}
+
+.row--fields {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.row--link {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.row--address {
+  grid-template-columns: minmax(0, 7rem) minmax(0, 1fr) auto;
+}
+
 .field {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
+  display: grid;
+  grid-row: span 3;
+  grid-template-rows: subgrid;
+  gap: 6px;
   min-width: 0;
 }
 
-.field--grow {
-  flex: 1 1 260px;
+.field--wide {
+  grid-column: span 1;
 }
 
-.field--narrow {
-  flex: 0 1 130px;
+/* The control row is as tall as the tallest control in it — the compass is
+   two rows of circles — and a stretched text input in that row becomes an
+   80px-high box with one line in it. The controls keep their own height and
+   sit at the top of the row they share. */
+.field > .input,
+.field > .compass {
+  align-self: start;
+}
+
+/* The button belongs on the control line, beside the input it submits — not
+   at the bottom of the tallest thing in the row. The column has to be named
+   as well as the row: grid auto-placement fills the first free cell on line
+   2, which is column 1, and the button lands in front of its own input. */
+/* The alternative route is a .button too, so it has to be excluded by name:
+   without this it lands in the same cell as the submit button, underneath
+   it, where it cannot be clicked at all. */
+.row--link > .button:not(.row--link-alt) {
+  grid-row: 2;
+  grid-column: 2;
+  align-self: stretch;
+}
+
+.row--address > .button {
+  grid-row: 2;
+  grid-column: 3;
+  align-self: stretch;
+}
+
+/* On the hint line, under the button it is the alternative to. */
+.row--link-alt {
+  grid-row: 3;
+  grid-column: 2;
+  justify-self: start;
+  padding: 0;
+  font-size: 0.82rem;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.row--link-alt:hover:not(:disabled) {
+  background: transparent;
+  color: var(--text-primary);
 }
 
 .label {
@@ -654,6 +728,192 @@ button {
 }
 .verdict--within .verdict-flag {
   color: var(--text-primary);
+}
+
+/* --- the surroundings map --------------------------------------------- */
+/* The six marker slots are the validated categorical palette, assigned to a
+   kind in fixed order. They are not the series colours' job and not the
+   status colours' job, but they come off the same ramps, so a reader who has
+   learned the chart's blue is not told something different here. */
+.map-block {
+  --pin-1: #2a78d6;
+  --pin-2: #eb6834;
+  --pin-3: #1baf7a;
+  --pin-4: #eda100;
+  --pin-5: #e87ba4;
+  --pin-6: #6250d6;
+  margin-top: 4px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .map-block {
+    --pin-1: #3987e5;
+    --pin-2: #d95926;
+    --pin-3: #199e70;
+    --pin-4: #c98500;
+    --pin-5: #d55181;
+    --pin-6: #9085e9;
+  }
+}
+
+:root[data-theme='dark'] .map-block {
+  --pin-1: #3987e5;
+  --pin-2: #d95926;
+  --pin-3: #199e70;
+  --pin-4: #c98500;
+  --pin-5: #d55181;
+  --pin-6: #9085e9;
+}
+
+.map-canvas {
+  height: 340px;
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+  /* Leaflet's panes carry their own stacking; this keeps them under Base UI's
+     portalled popups rather than over them. */
+  isolation: isolate;
+  z-index: 0;
+}
+
+.map-pin-wrap {
+  background: none;
+  border: none;
+}
+
+/* The ring is what makes a pin legible: the tile underneath is whatever
+   OneMap drew there, so contrast against it cannot be assumed. */
+.map-pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  color: #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--surface-1), 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.map-pin--1 { background: var(--pin-1); }
+.map-pin--2 { background: var(--pin-2); }
+.map-pin--3 { background: var(--pin-3); }
+.map-pin--4 { background: var(--pin-4); color: #1a1200; }
+.map-pin--5 { background: var(--pin-5); color: #2a0d18; }
+.map-pin--6 { background: var(--pin-6); }
+
+/* The block itself is not one of the kinds - it is where you are standing,
+   so it gets the ink and a bigger ring rather than a sixth hue. */
+.map-pin--here {
+  width: 18px;
+  height: 18px;
+  background: var(--text-primary);
+  box-shadow: 0 0 0 3px var(--surface-1), 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+.map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.map-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px 5px 5px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: var(--surface-sunken);
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+
+.map-key-pin {
+  width: 18px;
+  height: 18px;
+  font-size: 10px;
+  box-shadow: none;
+}
+
+/* Off is stated by more than the fade: the button keeps its pressed state for
+   a screen reader, and the label is struck through for everyone else. */
+.map-key--off {
+  color: var(--text-muted);
+}
+
+.map-key--off .map-key-pin {
+  background: var(--text-muted);
+}
+
+.map-key--off {
+  text-decoration: line-through;
+}
+
+.map-list {
+  margin-top: 10px;
+  font-size: 0.85rem;
+}
+
+.map-list summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.map-list ul {
+  margin: 8px 0 0;
+  padding-left: 1.1rem;
+  color: var(--text-secondary);
+}
+
+.map-list-kind {
+  color: var(--text-muted);
+}
+
+/* Leaflet's own chrome, in the page's colours rather than its defaults. */
+.leaflet-container {
+  font: inherit;
+  font-size: 0.8rem;
+  background: var(--surface-sunken);
+}
+
+.leaflet-control-attribution {
+  background: var(--surface-1) !important;
+  color: var(--text-muted) !important;
+  border-radius: var(--radius-pill) 0 0 0;
+  padding: 2px 8px;
+}
+
+.leaflet-control-attribution a {
+  color: var(--text-secondary);
+}
+
+.leaflet-bar a {
+  background: var(--surface-1);
+  color: var(--text-primary);
+  border-bottom-color: var(--border);
+}
+
+.leaflet-bar a:hover {
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+}
+
+.leaflet-tooltip {
+  background: var(--text-primary);
+  color: var(--surface-1);
+  border: none;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card);
+  font-weight: 500;
+}
+
+.leaflet-tooltip-top::before {
+  border-top-color: var(--text-primary);
 }
 
 /* --- tables ------------------------------------------------------------ */

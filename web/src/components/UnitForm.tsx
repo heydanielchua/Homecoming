@@ -45,6 +45,7 @@ interface Props {
   busy: boolean;
   /** Set when the link could not be resolved, so the fallback fields show. */
   needsAddress: boolean;
+  onUseAddress: () => void;
   block: string;
   street: string;
   onAddressChange: (block: string, street: string) => void;
@@ -58,6 +59,7 @@ export function UnitForm({
   flatTypes,
   busy,
   needsAddress,
+  onUseAddress,
   block,
   street,
   onAddressChange,
@@ -74,8 +76,8 @@ export function UnitForm({
         onSubmit();
       }}
     >
-      <div className="row">
-        <Field.Root className="field field--grow">
+      <div className="row--link">
+        <Field.Root className="field">
           <Field.Label className="label">Listing link</Field.Label>
           <Field.Control
             className="input"
@@ -98,11 +100,21 @@ export function UnitForm({
         >
           {busy ? 'Looking…' : 'Check it'}
         </button>
+
+        {needsAddress ? null : (
+          <button
+            type="button"
+            className="button button--quiet row--link-alt"
+            onClick={onUseAddress}
+          >
+            or by block and street
+          </button>
+        )}
       </div>
 
       {needsAddress ? (
-        <div className="row" role="group" aria-label="Block and street">
-          <Field.Root className="field field--narrow">
+        <div className="row--address" role="group" aria-label="Block and street">
+          <Field.Root className="field">
             <Field.Label className="label">Block</Field.Label>
             <Field.Control
               className="input"
@@ -111,7 +123,7 @@ export function UnitForm({
               onChange={(event) => onAddressChange(event.target.value, street)}
             />
           </Field.Root>
-          <Field.Root className="field field--grow">
+          <Field.Root className="field field--wide">
             <Field.Label className="label">Street</Field.Label>
             <Field.Control
               className="input"
@@ -135,8 +147,8 @@ export function UnitForm({
         </div>
       ) : null}
 
-      <div className="row row--top">
-        <Field.Root className="field field--narrow">
+      <div className="row--fields">
+        <Field.Root className="field">
           <Field.Label className="label">Asking price</Field.Label>
           <Field.Control
             className="input"
@@ -152,7 +164,7 @@ export function UnitForm({
           </Field.Description>
         </Field.Root>
 
-        <Field.Root className="field field--narrow">
+        <Field.Root className="field">
           <Field.Label className="label">Floor</Field.Label>
           <Field.Control
             className="input"
@@ -168,7 +180,7 @@ export function UnitForm({
           </Field.Description>
         </Field.Root>
 
-        <div className="field field--narrow">
+        <div className="field">
           <span className="label" id="facing-label">
             Facing
           </span>
@@ -195,9 +207,9 @@ export function UnitForm({
         </div>
       </div>
 
-      <div className="row row--top">
+      <div className="row--fields">
         {flatTypes.length > 0 ? (
-          <div className="field field--narrow">
+          <div className="field">
             <Select.Root
               items={flatTypes.map((t) => ({ label: t, value: t }))}
               value={inputs.flatType || null}
@@ -230,7 +242,7 @@ export function UnitForm({
           </div>
         ) : null}
 
-        <Field.Root className="field field--narrow">
+        <Field.Root className="field">
           <Field.Label className="label">Destination postcode</Field.Label>
           <Field.Control
             className="input"

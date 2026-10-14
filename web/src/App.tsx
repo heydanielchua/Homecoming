@@ -72,6 +72,10 @@ export function App() {
   const [loadError, setLoadError] = React.useState<string | null>(null);
 
   const [inputs, setInputs] = React.useState<Inputs>(EMPTY_INPUTS);
+  // Opened by hand as well as by a failed link: the block-and-street fields
+  // were only reachable by pasting something that did not resolve, which
+  // makes the second way in a punishment for getting the first one wrong.
+  const [addressOpen, setAddressOpen] = React.useState(false);
   const [block, setBlock] = React.useState('');
   const [street, setStreet] = React.useState('');
 
@@ -324,8 +328,9 @@ export function App() {
         flatTypes={report ? Object.keys(report.flat_types) : []}
         busy={busy}
         needsAddress={
-          resolution !== null && resolution.status !== 'resolved'
+          addressOpen || (resolution !== null && resolution.status !== 'resolved')
         }
+        onUseAddress={() => setAddressOpen(true)}
         block={block}
         street={street}
         onAddressChange={(b, s) => {

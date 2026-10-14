@@ -53,6 +53,8 @@ class Place:
     status: str | None = None
     size_hint: float | None = None
     to_edge: bool = False
+    lat: float | None = None
+    lon: float | None = None
 
     def as_dict(self) -> dict:
         out = {
@@ -72,6 +74,24 @@ class Place:
             out["to_edge"] = True
         return out
 
+    def as_point(self) -> dict:
+        """The short form the map draws, rounded to about a metre.
+
+        Six decimal places is 0.1 m at this latitude, which is finer than the
+        sources are, and the full float doubles the size of the list for
+        digits that mean nothing.
+        """
+        out = {
+            "kind": self.kind,
+            "name": self.name,
+            "lat": round(self.lat, 6),
+            "lon": round(self.lon, 6),
+            "distance_m": round(self.distance_m),
+        }
+        if self.subtype:
+            out["subtype"] = self.subtype
+        return out
+
 
 @dataclass
 class Nearby:
@@ -88,6 +108,7 @@ class Nearby:
     preschools_within_walk: int | None = None
     facilities: dict[str, int] = field(default_factory=dict)
     nearest_facility: dict[str, Place] = field(default_factory=dict)
+    points: list[Place] = field(default_factory=list)
     missing: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict:
@@ -109,6 +130,7 @@ class Nearby:
             "nearest_facility": {
                 k: v.as_dict() for k, v in self.nearest_facility.items()
             },
+            "points": [p.as_point() for p in self.points],
             "missing": list(self.missing),
         }
 
@@ -144,6 +166,13 @@ def _places(
 
     out: list[Place] = []
     for row in conn.execute(" ".join(sql), params):
+        # Where the marker goes. For a point this is the point. For a shape
+        # measured to its edge it has to be that edge, because the centroid
+        # is somewhere else entirely: Kallang Riverside Park is 796 m away
+        # along the river and its middle is 1,298 m away, and a map drawn
+        # from centroids puts a pin on the wrong side of a town and then
+        # zooms out far enough to contain the mistake.
+        at_lat, at_lon = row["lat"], row["lon"]
         if to_edge:
             distance = distance_to_box_m(
                 lat, lon, row["min_lat"], row["max_lat"],
@@ -151,6 +180,11 @@ def _places(
             )
             if distance is None:
                 distance = haversine_m(lat, lon, row["lat"], row["lon"])
+            else:
+                at_lat, at_lon = nearest_point_on_box(
+                    lat, lon, row["min_lat"], row["max_lat"],
+                    row["min_lon"], row["max_lon"],
+                )
         else:
             distance = haversine_m(lat, lon, row["lat"], row["lon"])
         if distance > radius_m:
@@ -160,8 +194,31 @@ def _places(
             bearing=bearing_deg(lat, lon, row["lat"], row["lon"]),
             subtype=row["subtype"], detail=row["detail"], status=row["status"],
             size_hint=row["size_hint"], to_edge=to_edge,
+            lat=at_lat, lon=at_lon,
         ))
     return sorted(out, key=lambda p: p.distance_m)
+
+
+def nearest_point_on_box(
+    lat: float,
+    lon: float,
+    min_lat: float | None,
+    max_lat: float | None,
+    min_lon: float | None,
+    max_lon: float | None,
+) -> tuple[float | None, float | None]:
+    """The point on a bounding box closest to somewhere.
+
+    Clamping into the box, which is the position `distance_to_box_m` reports
+    the distance to. Inside the box it gives the place itself back, and a
+    distance of zero — you are in the park.
+    """
+    if None in (min_lat, max_lat, min_lon, max_lon):
+        return None, None
+    return (
+        min(max(lat, min_lat), max_lat),
+        min(max(lon, min_lon), max_lon),
+    )
 
 
 def _loaded_kinds(conn: sqlite3.Connection) -> set[str]:
@@ -170,6 +227,16 @@ def _loaded_kinds(conn: sqlite3.Connection) -> set[str]:
             "SELECT DISTINCT kind FROM amenity WHERE lat IS NOT NULL"
         )
     }
+
+
+MAP_LIMITS = {
+    "mrt_exit": 4,
+    "bus_stop": 6,
+    "hawker_centre": 3,
+    "park": 3,
+    "school": 6,
+    "preschool": 6,
+}
 
 
 # What to say when a layer has not been loaded, so an empty answer reads as
@@ -265,6 +332,23 @@ def nearby_for(
         nearest.setdefault(key, place)
     result.facilities = counts
     result.nearest_facility = nearest
+
+    found: dict[str, list[Place]] = {
+        "mrt_exit": exits,
+        "bus_stop": stops,
+        "hawker_centre": open_hawkers,
+        "park": parks,
+        "school": primaries,
+    }
+    if "preschool" in loaded:
+        found["preschool"] = _places(
+            conn, lat, lon, "preschool", radius_m=WALKING_M
+        )
+    for kind, places in found.items():
+        for place in places[: MAP_LIMITS[kind]]:
+            if place.lat is not None and place.lon is not None:
+                result.points.append(place)
+    result.points.sort(key=lambda p: p.distance_m)
 
     return result
 

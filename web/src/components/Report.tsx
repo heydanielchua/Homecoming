@@ -25,6 +25,7 @@ import type {
   TownReport,
 } from '../lib/types';
 import { ConfidenceMark, Figure } from './Confidence';
+import { SurroundingsMap } from './SurroundingsMap';
 import { TrendChart } from './TrendChart';
 
 /** Which five-floor band a typed floor falls in. */
@@ -585,6 +586,13 @@ export function Report({
             : undefined
         }
       >
+        <SurroundingsMap
+          lat={report.lat}
+          lon={report.lon}
+          label={`${report.block} ${titleCase(report.street)}`}
+          points={nearby.points ?? []}
+        />
+
         <ul className="places">
           <PlaceRow label="Nearest MRT exit" place={nearby.mrt_exit} />
           <PlaceRow label="Nearest bus stop" place={nearby.bus_stop} />
@@ -634,7 +642,9 @@ export function Report({
 
         <p className="muted" style={{ marginTop: 10 }}>
           Straight-line distances, so each is a lower bound on the walk. Which
-          buses call at a stop needs an LTA DataMall key and is not here.
+          buses call at a stop needs an LTA DataMall key and is not here. The
+          map shows the nearest few of each kind rather than every one, so a
+          street of bus stops does not bury the school.
         </p>
 
         {destinationPostcode ? (
