@@ -94,6 +94,10 @@ VIEW_CASES = [
     {"name": "high floor", "storey": 15},
     {"name": "top floor", "storey": 16},
     {"name": "floor not given", "storey": None},
+    # The case that was reporting a clear view in every direction: an empty
+    # neighbour list because the block never geocoded, not because there is
+    # nothing around it.
+    {"name": "block not geocoded", "storey": 8, "located": False},
 ]
 
 
@@ -134,9 +138,12 @@ def view_fixture() -> dict:
     neighbours = [Neighbour(**n) for n in VIEW_NEIGHBOURS]
     cases = []
     for case in VIEW_CASES:
+        located = case.get("located", True)
         cases.append({
             **case,
-            "expected": view_from(neighbours, case["storey"], 16).as_dict(),
+            "expected": view_from(
+                neighbours if located else [], case["storey"], 16, located,
+            ).as_dict(),
         })
     return {
         "block_max_floor": 16,

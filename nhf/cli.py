@@ -466,8 +466,13 @@ def cmd_report(args) -> int:
         _say(f"  [!] {message}")
 
     surroundings = report["surroundings"]
-    _say(f"\n  {len(surroundings['neighbours'])} HDB block(s) within 300 m, "
-         f"{surroundings['neighbours_taller']} taller than this one")
+    if not surroundings["located"]:
+        # "0 blocks within 300 m" from an unplaced block is a measurement
+        # nobody made, not an empty neighbourhood.
+        _say("\n  this block has no geocode, so what stands around it is unknown")
+    else:
+        _say(f"\n  {len(surroundings['neighbours'])} HDB block(s) within 300 m, "
+             f"{surroundings['neighbours_taller']} taller than this one")
     if args.storey:
         from .sun import exposure
         from nhf.view import Neighbour, view_from
@@ -477,16 +482,26 @@ def cmd_report(args) -> int:
                       bearing=n["bearing"], storeys=n["storeys"])
             for n in surroundings["neighbours"]
         ]
-        view = view_from(neighbours, args.storey, surroundings["max_floor"]["v"])
-        _say(f"  from floor {args.storey}: {len(view.blocked)} block(s) above you, "
-             f"{view.blocked_arc_deg:.0f} degrees of horizon, open to "
-             f"{', '.join(view.open_directions) or 'nothing'}")
+        view = view_from(
+            neighbours, args.storey, surroundings["max_floor"]["v"],
+            located=surroundings["located"],
+        )
+        if view.unknown:
+            _say(f"  from floor {args.storey}: {view.unknown}")
+        else:
+            _say(f"  from floor {args.storey}: {len(view.blocked)} block(s) above "
+                 f"you, {view.blocked_arc_deg:.0f} degrees of horizon, open to "
+                 f"{', '.join(view.open_directions) or 'nothing'}")
         if args.facing:
             sun = exposure(args.facing, builder.track, view.obstructions())
             from .sun import describe
+            shading = (
+                "what shades it is unknown" if view.unknown
+                else f"{sun.blocked_low_hours:.0f} h shaded"
+            )
             _say(f"  facing {args.facing.upper()}: {describe(sun)} "
                  f"({sun.net_low_hours:.0f} h/year of low afternoon sun, "
-                 f"{sun.blocked_low_hours:.0f} h shaded)")
+                 f"{shading})")
     for parcel in surroundings["parcels"][:3]:
         band = parcel["band"]
         height = (f"{band['low']}–{band['high']} storeys" if band["low"]

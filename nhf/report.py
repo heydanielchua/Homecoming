@@ -536,13 +536,19 @@ class ReportBuilder:
         }
 
     # -- view, sun, nearby, rain ------------------------------------------
-    def surroundings(self, block_key: str, max_floor: int | None) -> dict:
+    def surroundings(self, block_key: str, max_floor: int | None,
+                     located: bool = True) -> dict:
         neighbours = neighbours_of(self.conn, block_key)[:MAX_NEIGHBOURS]
         parcels = parcels_near(
             self.conn, block_key, fitted=self.height_bands)[:MAX_PARCELS]
         taller = [n for n in neighbours if (n.floors or 0) > (max_floor or 0)]
 
         return {
+            # Whether the block has coordinates at all. An empty neighbour
+            # list means "nothing within 300 m" from a located block and
+            # "nothing measured" from one that never geocoded, and the browser
+            # cannot tell those apart from the list alone.
+            "located": located,
             "max_floor": (
                 fig(max_floor, FACT, "HDB publishes the storey count for every block")
                 if max_floor else
@@ -562,7 +568,8 @@ class ReportBuilder:
                     "SELECT 1 FROM land_parcel LIMIT 1").fetchone()
             ),
             "height_bands_fitted": len(self.height_bands),
-            "view_without_floor": view_from(neighbours, None).as_dict(),
+            "view_without_floor": view_from(
+                neighbours, None, max_floor, located).as_dict(),
         }
 
     # -- the whole thing --------------------------------------------------
@@ -625,7 +632,10 @@ class ReportBuilder:
             "dwelling_units": block["total_dwelling_units"],
             "lease": lease,
             "flat_types": per_type,
-            "surroundings": self.surroundings(block_key, block["max_floor_lvl"]),
+            "surroundings": self.surroundings(
+                block_key, block["max_floor_lvl"],
+                located=block["lat"] is not None and block["lon"] is not None,
+            ),
             "nearby": nearby_for(
                 self.conn, block_key, block["lat"], block["lon"]).as_dict(),
             "rain": rain_for(self.conn, block["lat"], block["lon"]).as_dict(),

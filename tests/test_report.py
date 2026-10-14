@@ -228,6 +228,23 @@ class TestWholeReport:
         assert report["surroundings"]["max_floor"]["c"] == UNKNOWN
         assert report["flat_types"]
 
+    def test_an_ungeocoded_block_reports_an_unknown_view(self, full_db):
+        """Not a clear one. Half the blocks are unplaced during a first sync,
+        and every one of them would otherwise claim an open horizon."""
+        full_db.execute(
+            "UPDATE block SET lat = NULL, lon = NULL WHERE block_key = ?", (BLOCK,))
+        report = ReportBuilder(full_db).build(BLOCK)
+        assert report["surroundings"]["located"] is False
+        view = report["surroundings"]["view_without_floor"]
+        assert "no geocode" in view["unknown"]
+        assert view["open_directions"] == []
+        assert report["nearby"]["mrt_exit"] is None
+        assert any("no geocode" in m for m in report["nearby"]["missing"])
+        assert "no geocode" in report["rain"]["unknown"]
+
+    def test_a_geocoded_block_is_marked_located(self, builder):
+        assert builder.build(BLOCK)["surroundings"]["located"] is True
+
     def test_the_report_serialises(self, builder):
         """It is written to a file and read by a browser, so anything that
         does not survive json.dumps is a bug here and not there."""

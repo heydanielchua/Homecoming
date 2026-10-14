@@ -22,7 +22,12 @@ const golden = JSON.parse(
 ) as {
   block_max_floor: number;
   neighbours: { name: string; distance_m: number; bearing: number; storeys: number; max_floor_lvl: number }[];
-  cases: { name: string; storey: number | null; expected: ViewData }[];
+  cases: {
+    name: string;
+    storey: number | null;
+    located?: boolean;
+    expected: ViewData;
+  }[];
 };
 
 const constants = sunGolden.constants;
@@ -39,7 +44,13 @@ const neighbours: NeighbourData[] = golden.neighbours.map((n) => ({
 describe('the shared view fixture', () => {
   for (const testCase of golden.cases) {
     it(`agrees with Python: ${testCase.name}`, () => {
-      const got = viewFrom(neighbours, testCase.storey, constants);
+      const located = testCase.located ?? true;
+      const got = viewFrom(
+        located ? neighbours : [],
+        testCase.storey,
+        constants,
+        located,
+      );
       // `clear` carries the direction string, which Python derives the same
       // way; comparing the whole object checks that too.
       expect(got).toEqual(testCase.expected);
@@ -87,6 +98,25 @@ describe('what blocks a view', () => {
     const view = viewFrom(one(25), null, constants);
     expect(view.unknown).toContain('floor was not given');
     expect(view.above_everything).toBe(false);
+  });
+
+  it('leaves the view unknown when the block was never geocoded', () => {
+    // An empty neighbour list means two different things. From a placed
+    // block it means nothing is within 300 m; from an unplaced one it means
+    // nothing was measured, and reporting that as a clear view in every
+    // direction is exactly the false confidence this report avoids.
+    const unplaced = viewFrom([], 8, constants, false);
+    expect(unplaced.unknown).toContain('no geocode');
+    expect(unplaced.open_directions).toEqual([]);
+    expect(unplaced.above_everything).toBe(false);
+
+    const placed = viewFrom([], 8, constants, true);
+    expect(placed.unknown).toBeNull();
+    expect(placed.open_directions).toHaveLength(8);
+  });
+
+  it('has nothing to shade with when the block was never geocoded', () => {
+    expect(obstructionsFor(viewFrom([], 8, constants, false), constants)).toEqual([]);
   });
 
   it('does not double-count two blocks in one direction', () => {

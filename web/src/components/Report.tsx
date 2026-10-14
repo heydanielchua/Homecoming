@@ -169,8 +169,14 @@ export function Report({
   const constants = meta.sun.constants;
 
   const view = React.useMemo(
-    () => viewFrom(report.surroundings.neighbours, storey, constants),
-    [report.surroundings.neighbours, storey, constants],
+    () =>
+      viewFrom(
+        report.surroundings.neighbours,
+        storey,
+        constants,
+        report.surroundings.located,
+      ),
+    [report.surroundings.neighbours, storey, constants, report.surroundings.located],
   );
 
   const obstructions = React.useMemo<Obstruction[]>(
@@ -391,14 +397,16 @@ export function Report({
         value="view"
         title="View and sun"
         summary={
-          storey === null
+          !report.surroundings.located
+            ? 'this block has no geocode'
+            : storey === null
             ? 'type a floor to see it'
             : view.above_everything
               ? 'above everything within 300 m'
               : `${view.blocked.length} block${view.blocked.length === 1 ? '' : 's'} above you`
         }
       >
-        {storey === null ? (
+        {view.unknown ? (
           <p className="secondary">{view.unknown}</p>
         ) : (
           <>

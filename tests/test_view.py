@@ -79,6 +79,25 @@ class TestWhatStandsThere:
         far = view_from([_n("A", 250.0, 270.0, 30)], storey=4).blocked_arc_deg
         assert near > far * 2
 
+    def test_a_block_with_no_geocode_has_an_unknown_view_not_a_clear_one(self):
+        """An empty neighbour list means two different things.
+
+        From a placed block it means there is genuinely nothing within 300 m.
+        From one that never geocoded it means nothing was measured — and
+        reporting that as "nothing above you, open in every direction" is the
+        false confidence this whole report exists to avoid. The list is
+        identical in both cases, so the caller has to say which it is.
+        """
+        unplaced = view_from([], storey=8, located=False)
+        assert unplaced.unknown and "no geocode" in unplaced.unknown
+        assert unplaced.open_directions == []
+        assert not unplaced.above_everything
+        assert unplaced.obstructions() == []
+
+        placed = view_from([], storey=8, located=True)
+        assert placed.unknown is None
+        assert len(placed.open_directions) == 8
+
     def test_no_floor_means_unknown_not_clear(self):
         """The PRD's rule: leave the floor out and the view rows read unknown.
         An empty `blocked` list would read as a clear view."""
@@ -219,7 +238,11 @@ class TestGoldenFixture:
         golden = json.loads(GOLDEN.read_text())
         neighbours = [Neighbour(**n) for n in golden["neighbours"]]
         for case in golden["cases"]:
+            located = case.get("located", True)
             got = view_from(
-                neighbours, case["storey"], golden["block_max_floor"]
+                neighbours if located else [],
+                case["storey"],
+                golden["block_max_floor"],
+                located,
             ).as_dict()
             assert got == case["expected"], case["name"]

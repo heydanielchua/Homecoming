@@ -218,6 +218,21 @@
       },
       "name": "floor not given",
       "storey": null
+    },
+    {
+      "expected": {
+        "above_everything": false,
+        "blocked": [],
+        "blocked_arc_deg": 0.0,
+        "clear": [],
+        "eye_height_m": null,
+        "open_directions": [],
+        "storey": 8,
+        "unknown": "this block has no geocode, so nothing can be measured around it \u2014 what the view looks at is unknown, not clear"
+      },
+      "located": false,
+      "name": "block not geocoded",
+      "storey": 8
     }
   ],
   "neighbours": [

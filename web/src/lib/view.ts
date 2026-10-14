@@ -128,12 +128,36 @@ export function mergeArcs(arcs: { centre: number; half: number }[]): number {
 
 const round1 = (value: number) => Math.round(value * 10) / 10;
 
-/** Which neighbours stand above a given floor, and which do not. */
+/**
+ * Which neighbours stand above a given floor, and which do not.
+ *
+ * `located` is whether the block has coordinates, and it is a separate
+ * argument because an empty neighbour list means two different things. A
+ * geocoded block with nothing within 300 m really does have nothing in the
+ * way; an ungeocoded one has nothing *measured*, and reporting that as a
+ * clear view in every direction is the false confidence this whole report is
+ * built to avoid.
+ */
 export function viewFrom(
   neighbours: NeighbourData[],
   storey: number | null,
   constants: SunConstants,
+  located = true,
 ): ViewData {
+  if (!located) {
+    return {
+      storey,
+      eye_height_m: null,
+      unknown:
+        'this block has no geocode, so nothing can be measured around it — ' +
+        'what the view looks at is unknown, not clear',
+      blocked: [],
+      clear: [],
+      blocked_arc_deg: 0,
+      open_directions: [],
+      above_everything: false,
+    };
+  }
   if (storey === null || storey < 1) {
     return {
       storey: null,

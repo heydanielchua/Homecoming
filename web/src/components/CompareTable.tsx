@@ -65,7 +65,12 @@ function buildGroups(units: LoadedUnit[], meta: Meta): Group[] {
     const band = bandOf(unit.storey, meta.curves.storey_band_floors) ?? '1';
     const fair = section?.money.fair_value[band] ?? null;
     const verdict = verdictFor(unit.asking, fair?.low ?? null, fair?.high ?? null);
-    const view = viewFrom(report.surroundings.neighbours, unit.storey, constants);
+    const view = viewFrom(
+      report.surroundings.neighbours,
+      unit.storey,
+      constants,
+      report.surroundings.located,
+    );
     const sun = unit.facing
       ? exposure(
           unit.facing,
@@ -290,7 +295,9 @@ function buildGroups(units: LoadedUnit[], meta: Meta): Group[] {
           label: 'Blocks above you',
           better: 'low',
           cells: per.map((u) =>
-            u.unit.storey === null
+            // `unknown` covers both an unplaced block and a floor nobody
+            // typed; neither is a view over the rooftops.
+            u.view.unknown
               ? nothing
               : cell(
                   u.view.above_everything
@@ -304,7 +311,7 @@ function buildGroups(units: LoadedUnit[], meta: Meta): Group[] {
           label: 'Horizon blocked',
           better: 'low',
           cells: per.map((u) =>
-            u.unit.storey === null
+            u.view.unknown
               ? nothing
               : cell(`${Math.round(u.view.blocked_arc_deg)}°`, u.view.blocked_arc_deg),
           ),

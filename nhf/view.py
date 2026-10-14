@@ -249,12 +249,29 @@ def view_from(
     neighbours: list[Neighbour],
     storey: int | None,
     block_max_floor: int | None = None,
+    located: bool = True,
 ) -> View:
     """Which neighbours stand above a given floor, and which do not.
+
+    `located` is whether the block has coordinates, and it is a separate
+    argument because an empty neighbour list means two different things. A
+    geocoded block with nothing within 300 m really does have nothing in the
+    way; an ungeocoded one has nothing *measured*, and reporting that as a
+    clear view in every direction is the false confidence this whole report
+    is built to avoid. The list looks identical in both cases, so the caller
+    has to say which it is.
 
     The mirror of this runs in the browser, because the floor is typed in
     there. `tests/golden/view.json` is what keeps the two in step.
     """
+    if not located:
+        return View(
+            storey=storey,
+            unknown=(
+                "this block has no geocode, so nothing can be measured around "
+                "it — what the view looks at is unknown, not clear"
+            ),
+        )
     if storey is None or storey < 1:
         return View(
             storey=None,

@@ -126,6 +126,10 @@ export interface ParcelData {
 }
 
 export interface Surroundings {
+  /** Whether the block has coordinates. An empty neighbour list means
+   *  "nothing within 300 m" when it does and "nothing measured" when it
+   *  does not. */
+  located: boolean;
   max_floor: Figure;
   neighbours: NeighbourData[];
   neighbours_taller: number;
