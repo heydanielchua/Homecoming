@@ -9,6 +9,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { describeUnit, loadSaved, remove, storeSaved, upsert, type UnitDraft } from './saved';
+import { titleCase } from './format';
 import { readShared, shareLink, shareParams } from './share';
 import type { SavedUnit } from './types';
 
@@ -205,5 +206,32 @@ describe('a saved unit is not a report', () => {
   it('keeps the link, so the listing can be opened again', () => {
     const [unit] = upsert([], draft) as SavedUnit[];
     expect(unit!.url).toContain('99.co');
+  });
+});
+
+
+describe('reading HDB\'s shouting back as words', () => {
+  it('title-cases a town and a street', () => {
+    expect(titleCase('ANG MO KIO')).toBe('Ang Mo Kio');
+    expect(titleCase('LOR 1 TOA PAYOH')).toBe('Lor 1 Toa Payoh');
+  });
+
+  it('leaves the letter after an apostrophe alone', () => {
+    // Every HDB street name with an apostrophe wants this, and the obvious
+    // word-boundary class produced "St George'S Lane".
+    expect(titleCase("ST GEORGE'S LANE")).toBe("St George's Lane");
+    expect(titleCase("QUEEN'S RD")).toBe("Queen's Rd");
+    expect(titleCase("C'WEALTH AVE WEST")).toBe("C'wealth Ave West");
+  });
+
+  it('capitalises after a bracket, a slash and a hyphen', () => {
+    expect(titleCase('KALLANG/WHAMPOA')).toBe('Kallang/Whampoa');
+    expect(titleCase('TOA PAYOH (WEST)')).toBe('Toa Payoh (West)');
+    expect(titleCase('BUKIT-TIMAH')).toBe('Bukit-Timah');
+  });
+
+  it('is nothing for nothing', () => {
+    expect(titleCase(null)).toBe('');
+    expect(titleCase('')).toBe('');
   });
 });

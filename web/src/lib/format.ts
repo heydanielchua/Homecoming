@@ -132,12 +132,19 @@ export function figureValue(
   }
 }
 
-/** Title case for the shouting HDB publishes: "ANG MO KIO" to "Ang Mo Kio". */
+/**
+ * Title case for the shouting HDB publishes: "ANG MO KIO" to "Ang Mo Kio".
+ *
+ * An apostrophe is deliberately not a word boundary here. Every HDB street
+ * name containing one — ST GEORGE'S LANE, QUEEN'S ROAD, C'WEALTH AVE — wants
+ * the letter after it left alone, and treating it as a boundary produced
+ * "St George'S Lane".
+ */
 export function titleCase(text: string | null | undefined): string {
   if (!text) return '';
   return text
     .toLowerCase()
-    .replace(/(^|[\s/('-])([a-z])/g, (_m, before: string, letter: string) =>
+    .replace(/(^|[\s/(-])([a-z])/g, (_m, before: string, letter: string) =>
       `${before}${letter.toUpperCase()}`,
     );
 }
