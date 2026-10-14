@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="A block of flats">
+  <rect width="32" height="32" rx="6" fill="#2a78d6"/>
+  <rect x="8" y="9" width="16" height="16" rx="1.5" fill="#fcfcfb"/>
+  <g fill="#2a78d6">
+    <rect x="10.5" y="11.5" width="3" height="3"/>
+    <rect x="15" y="11.5" width="3" height="3"/>
+    <rect x="19.5" y="11.5" width="3" height="3"/>
+    <rect x="10.5" y="16" width="3" height="3"/>
+    <rect x="19.5" y="16" width="3" height="3"/>
+    <rect x="14.5" y="19" width="4" height="6"/>
+  </g>
+</svg>

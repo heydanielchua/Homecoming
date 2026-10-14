@@ -365,6 +365,163 @@ def cmd_export(args) -> int:
     return 0
 
 
+def cmd_resolve(args) -> int:
+    """Paste a link, get the block — or an honest failure."""
+    from .listing import build_index, resolve_address, resolve_link
+
+    conn = open_db(args.db)
+    index = build_index(conn)
+    if not index.by_alias:
+        _say("no blocks in the store: run `nhf sync --step blocks` first")
+        return 1
+
+    if args.street:
+        result = resolve_address(args.link, args.street, index)
+    else:
+        result = resolve_link(args.link, index)
+
+    _say(f"{result.status}: {result.block_key or '—'}")
+    if result.portal:
+        _say(f"  portal: {result.portal}")
+    if result.matched_alias:
+        _say(f"  matched: {result.matched_alias}")
+    if result.reason:
+        _say(f"  {result.reason}")
+    for candidate in result.candidates:
+        _say(f"  - {candidate}")
+    return 0 if result.ok else 1
+
+
+def cmd_report(args) -> int:
+    """The report for one block, as the site would show it."""
+    import json as _json
+
+    from .listing import build_index, resolve_link
+    from .report import ReportBuilder, band_of, verdict
+
+    conn = open_db(args.db)
+    key = args.block
+    if "|" not in key:
+        result = resolve_link(key, build_index(conn))
+        if not result.ok:
+            _say(f"{result.status}: {result.reason}")
+            return 1
+        key = result.block_key
+
+    builder = ReportBuilder(conn)
+    report = builder.build(key)
+    if report is None:
+        _say(f"no report for {key}")
+        return 1
+
+    if args.json:
+        _say(_json.dumps(report, indent=2))
+        return 0
+
+    _say(f"{report['block']} {report['street']}, {report['town']}")
+    lease = report["lease"]["remaining_years"]
+    _say(f"  lease left: {lease['v']} years ({lease['c']}) — {lease.get('n') or ''}")
+
+    for flat_type, section in report["flat_types"].items():
+        if args.flat_type and flat_type != args.flat_type.upper():
+            continue
+        money = section["money"]
+        _say(f"\n  {flat_type}: {money['n_sales']['v']} sale(s) in 24 months")
+        if money.get("median_price", {}).get("v"):
+            _say(f"    median ${money['median_price']['v']:,.0f}"
+                 f"  psm ${money['median_psm']['v']:,.0f}")
+        band = str(band_of(args.storey) or "1")
+        value = money["fair_value"].get(band)
+        if value and value["mid"]:
+            _say(f"    fair value on floor {args.storey or '1-5'} "
+                 f"(band {band}): ${value['low']:,.0f} – ${value['high']:,.0f}"
+                 f" from {value['n_comps']} comparable(s), {value['scope']}")
+            if args.asking:
+                said = verdict(args.asking, value["low"], value["high"])
+                _say(f"    ${args.asking:,.0f} asked: {said['status']} — {said['says']}")
+        rent = section["rent"]["median"]
+        if rent["v"]:
+            _say(f"    rent ${rent['v']:,.0f}/month ({section['rent']['scope']})")
+
+    near = report["nearby"]
+    _say("")
+    for label, place in (("MRT exit", near["mrt_exit"]), ("bus stop", near["bus_stop"]),
+                         ("hawker", near["hawker"]), ("park", near["park"]),
+                         ("primary school", near["primary_school"])):
+        if place:
+            _say(f"  {label}: {place['name']} — {place['distance_m']} m {place['direction']}")
+    if near["schools_within_1km"] is not None:
+        _say(f"  primary schools within 1 km: {near['schools_within_1km']}")
+    for message in near["missing"]:
+        _say(f"  [!] {message}")
+
+    surroundings = report["surroundings"]
+    _say(f"\n  {len(surroundings['neighbours'])} HDB block(s) within 300 m, "
+         f"{surroundings['neighbours_taller']} taller than this one")
+    if args.storey:
+        from .sun import exposure
+        from nhf.view import Neighbour, view_from
+
+        neighbours = [
+            Neighbour(name=n["name"], distance_m=n["distance_m"],
+                      bearing=n["bearing"], storeys=n["storeys"])
+            for n in surroundings["neighbours"]
+        ]
+        view = view_from(neighbours, args.storey, surroundings["max_floor"]["v"])
+        _say(f"  from floor {args.storey}: {len(view.blocked)} block(s) above you, "
+             f"{view.blocked_arc_deg:.0f} degrees of horizon, open to "
+             f"{', '.join(view.open_directions) or 'nothing'}")
+        if args.facing:
+            sun = exposure(args.facing, builder.track, view.obstructions())
+            from .sun import describe
+            _say(f"  facing {args.facing.upper()}: {describe(sun)} "
+                 f"({sun.net_low_hours:.0f} h/year of low afternoon sun, "
+                 f"{sun.blocked_low_hours:.0f} h shaded)")
+    for parcel in surroundings["parcels"][:3]:
+        band = parcel["band"]
+        height = (f"{band['low']}–{band['high']} storeys" if band["low"]
+                  else "height unknown")
+        _say(f"  {parcel['land_use']} {parcel['distance_m']:.0f} m "
+             f"{parcel['direction']}: {height} ({band['basis']})")
+
+    rain = report["rain"]
+    if rain["rank"]:
+        _say(f"\n  rain: {rain['station']} is the {rain['rank']} wettest of "
+             f"{rain['of']} gauges ({rain['year']} sample)")
+    elif rain["unknown"]:
+        _say(f"\n  rain: {rain['unknown']}")
+    return 0
+
+
+def cmd_site(args) -> int:
+    """Render the site's data: one small JSON file per block."""
+    from .site import build_site, verify
+
+    conn = open_db(args.db)
+    if not conn.execute("SELECT 1 FROM resale_txn LIMIT 1").fetchone():
+        _say("no transactions in the store: run `nhf sync` first")
+        return 1
+    if not conn.execute("SELECT 1 FROM storey_premium LIMIT 1").fetchone():
+        _say("the storey and lease curves are not fitted: run `nhf build` first")
+        return 1
+
+    report = build_site(conn, args.out, months=args.months, limit=args.limit)
+    _say(f"wrote {report.reports_written} block report(s), {report.towns_written} "
+         f"town file(s) and {report.index_files} index file(s) to "
+         f"{report.out_dir} ({report.bytes_written / 1_000_000:.1f} MB)")
+    _say(f"{report.aliases:,} street spellings indexed across "
+         f"{report.blocks_indexed:,} blocks")
+    for warning in report.warnings:
+        _say(f"[!!] {warning}")
+    for alias, keys in list(report.collisions.items())[:5]:
+        _say(f"     {alias} -> {', '.join(keys)}")
+
+    problems = verify(args.out)
+    for problem in problems:
+        _say(f"[!!] {problem}")
+    return 1 if problems else 0
+
+
 def cmd_serve(args) -> int:
     from .web.app import create_app
     from .web.auth import auth_disabled
@@ -465,6 +622,30 @@ def build_parser() -> argparse.ArgumentParser:
     export.add_argument("--limit", type=int,
                         help="only the top N candidates, for a quick check")
     export.set_defaults(func=cmd_export)
+
+    resolve = subs.add_parser(
+        "resolve", help="turn a pasted portal link into a block")
+    resolve.add_argument("link", help="a 99.co or PropertyGuru URL, or a block number")
+    resolve.add_argument("street", nargs="?",
+                         help="with a block number instead of a link")
+    resolve.set_defaults(func=cmd_resolve)
+
+    rep = subs.add_parser("report", help="the report for one block")
+    rep.add_argument("block", help='a block key, or a pasted listing URL')
+    rep.add_argument("--flat-type", dest="flat_type", help="only this flat type")
+    rep.add_argument("--storey", type=int, help="the floor, for view, sun and value")
+    rep.add_argument("--facing", help="N, NE, E, SE, S, SW, W or NW")
+    rep.add_argument("--asking", type=float, help="the asking price, to judge")
+    rep.add_argument("--json", action="store_true", help="the payload the site reads")
+    rep.set_defaults(func=cmd_report)
+
+    site = subs.add_parser(
+        "site", help="render the site's data (one JSON file per block)")
+    site.add_argument("--out", default="dist/data", help="output directory")
+    site.add_argument("--months", type=int, default=24,
+                      help="a block needs a sale this recent to get a report")
+    site.add_argument("--limit", type=int, help="only N blocks, for a quick check")
+    site.set_defaults(func=cmd_site)
 
     serve = subs.add_parser("serve", help="run the phone app")
     serve.add_argument("--host", default="127.0.0.1")

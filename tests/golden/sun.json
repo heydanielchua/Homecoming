@@ -118,9 +118,11 @@
     }
   ],
   "constants": {
+    "blocked_slack_m": 0.5,
     "face_half_angle": 90.0,
     "low_sun_altitude": 30.0,
     "min_altitude": 2.0,
+    "nominal_block_length_m": 60.0,
     "storey_height_m": 3.0
   },
   "lat": 1.35,

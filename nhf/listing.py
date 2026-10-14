@@ -373,13 +373,13 @@ def resolve_link(url: str, index: BlockIndex) -> Resolution:
 
     # Nothing matched. A bare block number is the common case and deserves a
     # better answer than "no", because 266B really is two different blocks.
-    for position in parse.block_candidates:
-        # A number at the very end of the path is a street number or a short
-        # id, not the block: a listing slug puts the block before its street.
-        # Without this, `...-999z-nowhere-street-1` reports on block 1 — which
-        # exists on 28 streets — instead of saying the link did not resolve.
-        if position == len(parse.tokens) - 1 and position != parse.block_candidates[0]:
-            continue
+    #
+    # Only the first number that looks like a block is considered. A listing
+    # slug puts the block before its street, so every later one is a street
+    # number or part of an id — and without that rule
+    # `...-999z-nowhere-street-1` reports on block 1, which is a real block on
+    # 28 different streets, instead of admitting the link did not resolve.
+    for position in parse.block_candidates[:1]:
         block = parse.tokens[position].lower()
         on_block = index.by_block.get(block) or []
         if on_block:

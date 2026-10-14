@@ -268,7 +268,7 @@ class ReportBuilder:
                 "town_median_psm": (
                     fig(round(town_median, 2), WORKED,
                         f"median of every {flat_type.lower()} sale in {town} "
-                        f"over {SALES_MONTHS} months")
+                        f"over {SALES_MONTHS} months", unit="SGD/sqm")
                     if town_median else unknown("no town sales to compare with")
                 ),
                 "vs_town_pct": thin,
@@ -286,7 +286,7 @@ class ReportBuilder:
                 + ("enough to read a median from" if n >= 5
                    else "too few to be sure of; the range is wide for a reason"),
             ),
-            "last_sale": fig(sales[0]["month"], FACT),
+            "last_sale": fig(sales[0]["month"], FACT, unit="month"),
             "median_price": fig(round(median(prices)), FACT, unit="SGD"),
             "low_price": fig(round(min(prices)), FACT, unit="SGD"),
             "high_price": fig(round(max(prices)), FACT, unit="SGD"),
@@ -296,7 +296,7 @@ class ReportBuilder:
             "town_median_psm": (
                 fig(round(town_median, 2), WORKED,
                     f"median of every {flat_type.lower()} sale in {town} over "
-                    f"{SALES_MONTHS} months")
+                    f"{SALES_MONTHS} months", unit="SGD/sqm")
                 if town_median else unknown("no town sales to compare with")
             ),
             "vs_town_pct": (
@@ -508,6 +508,7 @@ class ReportBuilder:
                         "no sale in this block states a lease start, so the year "
                         "it was completed is standing in for it — the lease "
                         "usually starts a year or two earlier",
+                        unit="year",
                     ),
                     "remaining_years": fig(
                         round(months / 12, 1) if months else None, ESTIMATED,
@@ -524,7 +525,8 @@ class ReportBuilder:
         year = int(row["lease_commence_year"])
         months = remaining_lease_months(year, self.latest_month)
         return {
-            "commence_year": fig(year, FACT, "as stated on this block's own sales"),
+            "commence_year": fig(
+                year, FACT, "as stated on this block's own sales", unit="year"),
             "remaining_years": fig(
                 round(months / 12, 1) if months else None, WORKED,
                 f"99 years from {year}, as at {self.latest_month}", unit="years",

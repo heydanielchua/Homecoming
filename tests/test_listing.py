@@ -280,3 +280,58 @@ class TestPathNoise:
         assert parse.tokens[0] == "669C"
         assert 0 in parse.block_candidates
         assert "SINGAPORE" not in parse.tokens      # dropped as noise
+
+
+class TestGoldenFixture:
+    """One file, two implementations.
+
+    The site resolves links in the browser, against the sharded index files
+    rather than against this module, so the lookup has two homes and no way
+    to notice a drift. `tests/golden/links.json` carries the index shards and
+    the answers; `web/src/lib/resolve.test.ts` reads the same file.
+    """
+
+    def test_python_agrees_with_the_shared_fixture(self):
+        import json
+        from pathlib import Path
+
+        from nhf.db import open_db, upsert_many
+        from nhf.listing import RESOLVED, build_index
+        from nhf.site import block_slug
+
+        golden = json.loads(
+            (Path(__file__).resolve().parent / "golden" / "links.json").read_text()
+        )
+        conn = open_db(":memory:")
+        with conn:
+            upsert_many(
+                conn, "block", ("block_key", "block", "street_name", "town"),
+                [(f"{b['block']}|{b['street']}", b["block"], b["street"], b["town"])
+                 for b in golden["blocks"]],
+                conflict="REPLACE",
+            )
+        index = build_index(conn)
+
+        for case in golden["cases"]:
+            result = resolve_link(case["url"], index)
+            expected = case["expected"]
+            assert result.status == expected["status"], case["url"]
+            if result.status == RESOLVED:
+                assert block_slug(result.block, result.street_name) == expected["slug"]
+            elif expected.get("candidates"):
+                got = sorted(
+                    block_slug(*key.split("|", 1)) for key in result.candidates)
+                assert got == expected["candidates"], case["url"]
+
+    def test_the_fixture_carries_the_index_shards_the_browser_would_fetch(self):
+        import json
+        from pathlib import Path
+
+        golden = json.loads(
+            (Path(__file__).resolve().parent / "golden" / "links.json").read_text()
+        )
+        # 266B is the one that matters: one shard, two streets.
+        shard = golden["index"]["266b"]
+        assert len(shard["streets"]) == 2
+        assert {s["street"] for s in shard["streets"]} == {
+            "PUNGGOL WAY", "COMPASSVALE BOW"}

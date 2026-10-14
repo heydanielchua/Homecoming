@@ -9,3 +9,8 @@ data/*.db-shm
 data/cache/
 .env
 *.egg-info/
+
+# The built site. `scripts/build_site.sh` makes it; committing a rebuilt
+# database and its JSON every month would grow the repository for ever.
+dist/
+web/node_modules/

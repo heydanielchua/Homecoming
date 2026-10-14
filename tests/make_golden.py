@@ -30,7 +30,12 @@ from nhf.sun import (
     afternoon_track,
     exposure,
 )
-from nhf.view import Neighbour, view_from
+from nhf.view import (
+    BLOCKED_SLACK_M,
+    NOMINAL_BLOCK_LENGTH_M,
+    Neighbour,
+    view_from,
+)
 
 OUT = Path(__file__).resolve().parent / "golden"
 
@@ -106,11 +111,19 @@ def sun_fixture() -> dict:
         "lon": ISLAND_LON,
         "year": YEAR,
         "step_minutes": STEP_MINUTES,
+        # Every constant the browser needs, and exactly the set `meta.json`
+        # publishes — `tests/test_report.py` checks the two agree, so a
+        # constant added to one cannot go missing from the other. The
+        # TypeScript reads these rather than repeating them, because a
+        # constant repeated in two languages is a constant that will differ
+        # in one of them.
         "constants": {
             "low_sun_altitude": LOW_SUN_ALTITUDE,
             "min_altitude": MIN_ALTITUDE,
             "face_half_angle": FACE_HALF_ANGLE,
             "storey_height_m": STOREY_HEIGHT_M,
+            "nominal_block_length_m": NOMINAL_BLOCK_LENGTH_M,
+            "blocked_slack_m": BLOCKED_SLACK_M,
         },
         "track": [s.as_dict() for s in track],
         "cases": cases,
@@ -132,9 +145,91 @@ def view_fixture() -> dict:
     }
 
 
+# Real blocks on real streets, including the two that share 266B and the two
+# streets where ST is SAINT rather than STREET.
+LINK_BLOCKS = [
+    ("669C", "JURONG WEST ST 64", "JURONG WEST"),
+    ("266B", "PUNGGOL WAY", "PUNGGOL"),
+    ("266B", "COMPASSVALE BOW", "SENGKANG"),
+    ("101", "ANG MO KIO AVE 3", "ANG MO KIO"),
+    ("220", "BT BATOK EAST AVE 3", "BUKIT BATOK"),
+    ("12", "ST GEORGE'S RD", "KALLANG/WHAMPOA"),
+    ("1", "LOR 7 TOA PAYOH", "TOA PAYOH"),
+    ("406", "TAMPINES ST 41", "TAMPINES"),
+    ("18", "C'WEALTH AVE WEST", "QUEENSTOWN"),
+    ("519", "PASIR RIS ST 13", "PASIR RIS"),
+]
+
+LINK_CASES = [
+    "https://www.99.co/singapore/sale/property/669c-jurong-west-street-64-hdb-eSeF",
+    "https://www.99.co/singapore/sale/property/669c-jurong-west-st-64-hdb-eSeF",
+    "https://www.propertyguru.com.sg/listing/hdb-for-sale-266b-punggol-way-25099211",
+    "https://www.propertyguru.com.sg/listing/hdb-for-sale-266b-compassvale-bow-25099211",
+    "https://www.propertyguru.com.sg/listing/hdb-for-sale-266b-25099211",
+    "https://www.99.co/singapore/sale/property/101-ang-mo-kio-avenue-3-hdb-xK9q",
+    "https://www.propertyguru.com.sg/listing/hdb-for-sale-220-bukit-batok-east-avenue-3-1234567",
+    "https://www.99.co/singapore/sale/property/12-st-georges-road-hdb-x1",
+    "https://www.99.co/singapore/rent/property/1-lorong-7-toa-payoh-hdb-q9",
+    "https://www.propertyguru.com.sg/listing/hdb-for-sale-406-tampines-street-41-25099211",
+    "https://www.99.co/singapore/sale/property/18-commonwealth-avenue-west-hdb-z",
+    "https://www.99.co/singapore/sale/property/519-pasir-ris-street-13-hdb-z",
+    "propertyguru.com.sg/listing/hdb-for-sale-266b-punggol-way-1",
+    "https://www.99.co/singapore/sale/property/669c-jurong-west-street-64-hdb-eSeF?utm_source=x#photos",
+    "https://www.propertyguru.com.sg/listing/hdb-for-sale-999z-nowhere-street-1",
+    "https://example.com/some/listing/page",
+    "",
+]
+
+
+def link_fixture() -> dict:
+    """URL in, block out — for both implementations of the same lookup.
+
+    The browser resolves against the sharded index files rather than against
+    `nhf.listing`, so the fixture carries those files as well as the answers.
+    A TypeScript resolver reading this has everything a real visit would
+    have, and nothing it would not.
+    """
+    from nhf.db import open_db, upsert_many
+    from nhf.listing import RESOLVED, build_index, resolve_link
+    from nhf.site import block_slug, index_payloads
+
+    conn = open_db(":memory:")
+    with conn:
+        upsert_many(
+            conn, "block", ("block_key", "block", "street_name", "town"),
+            [(f"{b}|{s}", b, s, town) for b, s, town in LINK_BLOCKS],
+            conflict="REPLACE",
+        )
+    index = build_index(conn)
+    keys = {f"{b}|{s}" for b, s, _ in LINK_BLOCKS}
+    shards = {number: payload for number, payload in index_payloads(conn, keys)}
+
+    cases = []
+    for url in LINK_CASES:
+        result = resolve_link(url, index)
+        expected: dict = {"status": result.status}
+        if result.status == RESOLVED:
+            expected["slug"] = block_slug(result.block, result.street_name)
+        elif result.candidates:
+            expected["candidates"] = sorted(
+                block_slug(*key.split("|", 1)) for key in result.candidates
+            )
+        cases.append({"url": url, "expected": expected})
+
+    return {
+        "blocks": [
+            {"block": b, "street": s, "town": t, "slug": block_slug(b, s)}
+            for b, s, t in LINK_BLOCKS
+        ],
+        "index": shards,
+        "cases": cases,
+    }
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
-    for name, payload in (("sun", sun_fixture()), ("view", view_fixture())):
+    for name, payload in (("sun", sun_fixture()), ("view", view_fixture()),
+                          ("links", link_fixture())):
         path = OUT / f"{name}.json"
         path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
         print(f"wrote {path}")

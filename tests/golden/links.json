@@ -1,0 +1,341 @@
+{
+  "blocks": [
+    {
+      "block": "669C",
+      "slug": "669c-jurong-west-st-64",
+      "street": "JURONG WEST ST 64",
+      "town": "JURONG WEST"
+    },
+    {
+      "block": "266B",
+      "slug": "266b-punggol-way",
+      "street": "PUNGGOL WAY",
+      "town": "PUNGGOL"
+    },
+    {
+      "block": "266B",
+      "slug": "266b-compassvale-bow",
+      "street": "COMPASSVALE BOW",
+      "town": "SENGKANG"
+    },
+    {
+      "block": "101",
+      "slug": "101-ang-mo-kio-ave-3",
+      "street": "ANG MO KIO AVE 3",
+      "town": "ANG MO KIO"
+    },
+    {
+      "block": "220",
+      "slug": "220-bt-batok-east-ave-3",
+      "street": "BT BATOK EAST AVE 3",
+      "town": "BUKIT BATOK"
+    },
+    {
+      "block": "12",
+      "slug": "12-st-george-s-rd",
+      "street": "ST GEORGE'S RD",
+      "town": "KALLANG/WHAMPOA"
+    },
+    {
+      "block": "1",
+      "slug": "1-lor-7-toa-payoh",
+      "street": "LOR 7 TOA PAYOH",
+      "town": "TOA PAYOH"
+    },
+    {
+      "block": "406",
+      "slug": "406-tampines-st-41",
+      "street": "TAMPINES ST 41",
+      "town": "TAMPINES"
+    },
+    {
+      "block": "18",
+      "slug": "18-c-wealth-ave-west",
+      "street": "C'WEALTH AVE WEST",
+      "town": "QUEENSTOWN"
+    },
+    {
+      "block": "519",
+      "slug": "519-pasir-ris-st-13",
+      "street": "PASIR RIS ST 13",
+      "town": "PASIR RIS"
+    }
+  ],
+  "cases": [
+    {
+      "expected": {
+        "slug": "669c-jurong-west-st-64",
+        "status": "resolved"
+      },
+      "url": "https://www.99.co/singapore/sale/property/669c-jurong-west-street-64-hdb-eSeF"
+    },
+    {
+      "expected": {
+        "slug": "669c-jurong-west-st-64",
+        "status": "resolved"
+      },
+      "url": "https://www.99.co/singapore/sale/property/669c-jurong-west-st-64-hdb-eSeF"
+    },
+    {
+      "expected": {
+        "slug": "266b-punggol-way",
+        "status": "resolved"
+      },
+      "url": "https://www.propertyguru.com.sg/listing/hdb-for-sale-266b-punggol-way-25099211"
+    },
+    {
+      "expected": {
+        "slug": "266b-compassvale-bow",
+        "status": "resolved"
+      },
+      "url": "https://www.propertyguru.com.sg/listing/hdb-for-sale-266b-compassvale-bow-25099211"
+    },
+    {
+      "expected": {
+        "candidates": [
+          "266b-compassvale-bow",
+          "266b-punggol-way"
+        ],
+        "status": "ambiguous"
+      },
+      "url": "https://www.propertyguru.com.sg/listing/hdb-for-sale-266b-25099211"
+    },
+    {
+      "expected": {
+        "slug": "101-ang-mo-kio-ave-3",
+        "status": "resolved"
+      },
+      "url": "https://www.99.co/singapore/sale/property/101-ang-mo-kio-avenue-3-hdb-xK9q"
+    },
+    {
+      "expected": {
+        "slug": "220-bt-batok-east-ave-3",
+        "status": "resolved"
+      },
+      "url": "https://www.propertyguru.com.sg/listing/hdb-for-sale-220-bukit-batok-east-avenue-3-1234567"
+    },
+    {
+      "expected": {
+        "slug": "12-st-george-s-rd",
+        "status": "resolved"
+      },
+      "url": "https://www.99.co/singapore/sale/property/12-st-georges-road-hdb-x1"
+    },
+    {
+      "expected": {
+        "slug": "1-lor-7-toa-payoh",
+        "status": "resolved"
+      },
+      "url": "https://www.99.co/singapore/rent/property/1-lorong-7-toa-payoh-hdb-q9"
+    },
+    {
+      "expected": {
+        "slug": "406-tampines-st-41",
+        "status": "resolved"
+      },
+      "url": "https://www.propertyguru.com.sg/listing/hdb-for-sale-406-tampines-street-41-25099211"
+    },
+    {
+      "expected": {
+        "slug": "18-c-wealth-ave-west",
+        "status": "resolved"
+      },
+      "url": "https://www.99.co/singapore/sale/property/18-commonwealth-avenue-west-hdb-z"
+    },
+    {
+      "expected": {
+        "slug": "519-pasir-ris-st-13",
+        "status": "resolved"
+      },
+      "url": "https://www.99.co/singapore/sale/property/519-pasir-ris-street-13-hdb-z"
+    },
+    {
+      "expected": {
+        "slug": "266b-punggol-way",
+        "status": "resolved"
+      },
+      "url": "propertyguru.com.sg/listing/hdb-for-sale-266b-punggol-way-1"
+    },
+    {
+      "expected": {
+        "slug": "669c-jurong-west-st-64",
+        "status": "resolved"
+      },
+      "url": "https://www.99.co/singapore/sale/property/669c-jurong-west-street-64-hdb-eSeF?utm_source=x#photos"
+    },
+    {
+      "expected": {
+        "status": "unresolved"
+      },
+      "url": "https://www.propertyguru.com.sg/listing/hdb-for-sale-999z-nowhere-street-1"
+    },
+    {
+      "expected": {
+        "status": "unresolved"
+      },
+      "url": "https://example.com/some/listing/page"
+    },
+    {
+      "expected": {
+        "status": "unresolved"
+      },
+      "url": ""
+    }
+  ],
+  "index": {
+    "1": {
+      "block": "1",
+      "streets": [
+        {
+          "aliases": [
+            "lor-7-toa-payoh",
+            "lorong-7-toa-payoh"
+          ],
+          "report": true,
+          "slug": "1-lor-7-toa-payoh",
+          "street": "LOR 7 TOA PAYOH",
+          "town": "TOA PAYOH"
+        }
+      ]
+    },
+    "101": {
+      "block": "101",
+      "streets": [
+        {
+          "aliases": [
+            "ang-mo-kio-ave-3",
+            "ang-mo-kio-avenue-3"
+          ],
+          "report": true,
+          "slug": "101-ang-mo-kio-ave-3",
+          "street": "ANG MO KIO AVE 3",
+          "town": "ANG MO KIO"
+        }
+      ]
+    },
+    "12": {
+      "block": "12",
+      "streets": [
+        {
+          "aliases": [
+            "saint-georges-rd",
+            "saint-georges-road",
+            "st-georges-rd",
+            "st-georges-road",
+            "street-georges-rd",
+            "street-georges-road"
+          ],
+          "report": true,
+          "slug": "12-st-george-s-rd",
+          "street": "ST GEORGE'S RD",
+          "town": "KALLANG/WHAMPOA"
+        }
+      ]
+    },
+    "18": {
+      "block": "18",
+      "streets": [
+        {
+          "aliases": [
+            "commonwealth-ave-west",
+            "commonwealth-avenue-west",
+            "cwealth-ave-west",
+            "cwealth-avenue-west"
+          ],
+          "report": true,
+          "slug": "18-c-wealth-ave-west",
+          "street": "C'WEALTH AVE WEST",
+          "town": "QUEENSTOWN"
+        }
+      ]
+    },
+    "220": {
+      "block": "220",
+      "streets": [
+        {
+          "aliases": [
+            "bt-batok-east-ave-3",
+            "bt-batok-east-avenue-3",
+            "bukit-batok-east-ave-3",
+            "bukit-batok-east-avenue-3"
+          ],
+          "report": true,
+          "slug": "220-bt-batok-east-ave-3",
+          "street": "BT BATOK EAST AVE 3",
+          "town": "BUKIT BATOK"
+        }
+      ]
+    },
+    "266b": {
+      "block": "266B",
+      "streets": [
+        {
+          "aliases": [
+            "compassvale-bow"
+          ],
+          "report": true,
+          "slug": "266b-compassvale-bow",
+          "street": "COMPASSVALE BOW",
+          "town": "SENGKANG"
+        },
+        {
+          "aliases": [
+            "punggol-way"
+          ],
+          "report": true,
+          "slug": "266b-punggol-way",
+          "street": "PUNGGOL WAY",
+          "town": "PUNGGOL"
+        }
+      ]
+    },
+    "406": {
+      "block": "406",
+      "streets": [
+        {
+          "aliases": [
+            "tampines-saint-41",
+            "tampines-st-41",
+            "tampines-street-41"
+          ],
+          "report": true,
+          "slug": "406-tampines-st-41",
+          "street": "TAMPINES ST 41",
+          "town": "TAMPINES"
+        }
+      ]
+    },
+    "519": {
+      "block": "519",
+      "streets": [
+        {
+          "aliases": [
+            "pasir-ris-saint-13",
+            "pasir-ris-st-13",
+            "pasir-ris-street-13"
+          ],
+          "report": true,
+          "slug": "519-pasir-ris-st-13",
+          "street": "PASIR RIS ST 13",
+          "town": "PASIR RIS"
+        }
+      ]
+    },
+    "669c": {
+      "block": "669C",
+      "streets": [
+        {
+          "aliases": [
+            "jurong-west-saint-64",
+            "jurong-west-st-64",
+            "jurong-west-street-64"
+          ],
+          "report": true,
+          "slug": "669c-jurong-west-st-64",
+          "street": "JURONG WEST ST 64",
+          "town": "JURONG WEST"
+        }
+      ]
+    }
+  }
+}

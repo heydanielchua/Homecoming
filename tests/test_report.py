@@ -246,6 +246,21 @@ class TestWholeReport:
         assert meta["curves"]["storey_band_floors"] == STOREY_BAND_FLOORS
         assert meta["sun"]["constants"]["storey_height_m"] == 3.0
 
+    def test_the_published_constants_are_the_ones_in_the_golden_fixture(
+        self, builder
+    ):
+        """The browser reads its constants from meta.json and is tested
+        against tests/golden/sun.json. A constant in one and not the other
+        silently becomes `undefined` in the browser, which reads as every
+        neighbour being below you."""
+        import json as _json
+        from pathlib import Path as _Path
+
+        golden = _json.loads(
+            (_Path(__file__).resolve().parent / "golden" / "sun.json").read_text()
+        )
+        assert builder.meta_payload()["sun"]["constants"] == golden["constants"]
+
     def test_the_sun_is_not_written_into_every_block(self, builder):
         """One track serves the island: the altitude varies by a quarter of a
         degree from end to end, less than the width of the sun itself."""
