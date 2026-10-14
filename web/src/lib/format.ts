@@ -113,7 +113,9 @@ export function figureValue(
     case 'SGD':
       return money(value);
     case 'SGD/sqm':
-      return `${moneyExact(value)}/m²`;
+      // Not "/m²": every label that carries this unit already says per m²,
+      // and "Price per m²: $12,069.90/m²" reads as a mistake.
+      return moneyExact(value);
     case 'SGD/month':
       return `${money(value)}/month`;
     case '%':

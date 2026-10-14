@@ -445,7 +445,14 @@ function buildGroups(units: LoadedUnit[], meta: Meta): Group[] {
   return groups;
 }
 
-/** Which columns tie for best in a row. Several can win. */
+/**
+ * Which columns tie for best in a row. Several can win, but not all of them.
+ *
+ * A row where every column holds the same value — two blocks both with three
+ * primary schools within a kilometre, both with no playground — has no better
+ * value in it, and marking every cell says there is one. The mark is there to
+ * draw the eye to a difference, so a row without a difference gets none.
+ */
 function winners(row: Row): Set<number> {
   if (!row.better) return new Set();
   const values = row.cells
@@ -456,7 +463,9 @@ function winners(row: Row): Set<number> {
     row.better === 'high'
       ? Math.max(...values.map((c) => c.v))
       : Math.min(...values.map((c) => c.v));
-  return new Set(values.filter((c) => c.v === best).map((c) => c.i));
+  const won = values.filter((c) => c.v === best);
+  if (won.length === row.cells.length) return new Set();
+  return new Set(won.map((c) => c.i));
 }
 
 export function CompareTable({
