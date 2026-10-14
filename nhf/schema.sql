@@ -248,6 +248,53 @@ CREATE TABLE IF NOT EXISTS land_parcel (
 CREATE INDEX IF NOT EXISTS parcel_box_idx ON land_parcel(min_lat, max_lat, min_lon, max_lon);
 CREATE INDEX IF NOT EXISTS parcel_use_idx ON land_parcel(land_use);
 
+-- Parks, hawker centres and park facilities. One table because the question
+-- is always the same shape — what is near this block, and how far — and the
+-- `kind` says which layer it came from.
+--
+-- Shapes are summarised the same way as land_parcel: centroid plus box. For a
+-- park the box earns its place, because the distance that matters is to the
+-- edge, not the middle.
+CREATE TABLE IF NOT EXISTS amenity (
+    id        INTEGER PRIMARY KEY,
+    kind      TEXT NOT NULL,          -- hawker_centre | park | park_facility
+    subtype   TEXT,                   -- facility class, or reserve type
+    name      TEXT,
+    detail    TEXT,
+    status    TEXT,                   -- hawker centres: six are not built yet
+    size_hint REAL,                   -- stall count, or park area
+    lat       REAL,
+    lon       REAL,
+    min_lat   REAL,
+    max_lat   REAL,
+    min_lon   REAL,
+    max_lon   REAL,
+    source    TEXT,
+    UNIQUE (kind, name, lat, lon)
+);
+CREATE INDEX IF NOT EXISTS amenity_kind_idx ON amenity(kind, subtype);
+CREATE INDEX IF NOT EXISTS amenity_box_idx  ON amenity(min_lat, max_lat, min_lon, max_lon);
+
+-- One row per rainfall station per year, folded down from roughly seven
+-- million five-minute readings. The readings themselves are never stored:
+-- the only question they answer is whether one part of the island is wetter
+-- than another, and 89 summaries answer it.
+CREATE TABLE IF NOT EXISTS rainfall_station (
+    id            INTEGER PRIMARY KEY,
+    station_id    TEXT NOT NULL,
+    name          TEXT,
+    lat           REAL,
+    lon           REAL,
+    year          INTEGER NOT NULL,
+    total_mm      REAL,
+    readings      INTEGER,
+    wet_readings  INTEGER,
+    rain_days     INTEGER,
+    days_observed INTEGER,            -- days the gauge reported at all
+    source        TEXT,
+    UNIQUE (station_id, year)
+);
+
 CREATE TABLE IF NOT EXISTS sync_log (
     id          INTEGER PRIMARY KEY,
     dataset_key TEXT NOT NULL,

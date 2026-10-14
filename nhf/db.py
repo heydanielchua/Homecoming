@@ -19,6 +19,10 @@ def connect(path: Path | str | None = None) -> sqlite3.Connection:
     conn = sqlite3.connect(target, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    # A long step (geocoding runs for hours) holds the write lock in bursts,
+    # and SQLite's default is to fail a competing write immediately rather
+    # than wait. Thirty seconds of patience turns that into a non-event.
+    conn.execute("PRAGMA busy_timeout = 30000")
     return conn
 
 

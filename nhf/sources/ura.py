@@ -42,6 +42,8 @@ import re
 from dataclasses import dataclass
 from typing import Any, Iterator
 
+from ..geo import geometry_summary
+
 log = logging.getLogger(__name__)
 
 POLL_DOWNLOAD = "https://api-open.data.gov.sg/v1/public/api/datasets/{id}/poll-download"
@@ -89,65 +91,6 @@ def parse_gpr(raw: Any) -> tuple[float | None, str | None]:
     if re.fullmatch(r"\d+(\.\d+)?", text):
         return float(text), None
     return None, GPR_CODES.get(text, f"unrecognised GPR code {text!r}")
-
-
-def _ring_centroid(ring: list) -> tuple[float, float, float]:
-    """Area-weighted centroid of one ring, and its signed area.
-
-    The plain mean of the vertices is pulled towards whichever edge was
-    drawn in most detail, and these rings are very unevenly sampled — some
-    edges carry thirty points and the opposite side two. The shoelace
-    centroid does not care how finely an edge was traced.
-    """
-    cx = cy = a2 = 0.0
-    for (x1, y1), (x2, y2) in zip(ring, ring[1:]):
-        cross = x1 * y2 - x2 * y1
-        a2 += cross
-        cx += (x1 + x2) * cross
-        cy += (y1 + y2) * cross
-    if a2 == 0:                       # degenerate: fall back to the mean
-        n = len(ring) or 1
-        return (sum(p[0] for p in ring) / n, sum(p[1] for p in ring) / n, 0.0)
-    return (cx / (3 * a2), cy / (3 * a2), abs(a2) / 2)
-
-
-def geometry_summary(geometry: dict) -> tuple[float, float, float, float, float, float] | None:
-    """Centroid and bounding box for a Polygon or MultiPolygon.
-
-    Only a summary is kept. Holding 113,212 polygons would mean shipping a
-    geometry library and a spatial index for a question — "what sits within
-    a few hundred metres of this block" — that a centroid and a box answer
-    well enough, and the box is what makes a large parcel still count when
-    its centre is far away.
-    """
-    kind = (geometry or {}).get("type")
-    coords = (geometry or {}).get("coordinates")
-    if not coords:
-        return None
-    if kind == "Polygon":
-        rings = [coords[0]]
-    elif kind == "MultiPolygon":
-        rings = [poly[0] for poly in coords if poly]
-    else:
-        return None
-
-    total, wx, wy = 0.0, 0.0, 0.0
-    min_lon = min_lat = float("inf")
-    max_lon = max_lat = float("-inf")
-    for ring in rings:
-        if len(ring) < 3:
-            continue
-        x, y, area = _ring_centroid(ring)
-        weight = area or 1e-12
-        total += weight
-        wx += x * weight
-        wy += y * weight
-        for lon, lat in ring:
-            min_lon, max_lon = min(min_lon, lon), max(max_lon, lon)
-            min_lat, max_lat = min(min_lat, lat), max(max_lat, lat)
-    if not total or min_lon == float("inf"):
-        return None
-    return (wy / total, wx / total, min_lat, max_lat, min_lon, max_lon)
 
 
 @dataclass

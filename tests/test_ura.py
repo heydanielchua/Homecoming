@@ -91,10 +91,20 @@ def test_a_multipolygon_is_summarised_across_its_parts():
     assert 103.1 < lon < 104.1, "the centroid should sit between the parts"
 
 
+def test_a_point_is_summarised_as_itself():
+    """Hawker centres and parks are published as points, so a point has to be
+    a valid shape — its box is the point."""
+    lat, lon, min_lat, max_lat, min_lon, max_lon = ura.geometry_summary(
+        {"type": "Point", "coordinates": [103.8, 1.29]}
+    )
+    assert (lat, lon) == (1.29, 103.8)
+    assert (min_lat, max_lat, min_lon, max_lon) == (1.29, 1.29, 103.8, 103.8)
+
+
 def test_geometry_that_cannot_be_summarised_returns_nothing():
     assert ura.geometry_summary({}) is None
-    assert ura.geometry_summary({"type": "Point", "coordinates": [103.0, 1.0]}) is None
-    assert ura.geometry_summary({"type": "Polygon", "coordinates": [[[103.0, 1.0]]]}) is None
+    assert ura.geometry_summary({"type": "GeometryCollection", "coordinates": [1]}) is None
+    assert ura.geometry_summary({"type": "Polygon", "coordinates": []}) is None
 
 
 # --- streaming the file ----------------------------------------------------

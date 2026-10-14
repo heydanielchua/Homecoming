@@ -18,7 +18,7 @@ STEPS = ["resale", "blocks", "price_index", "town_medians", "rentals",
          "future_mrt", "geocode", "commute",
          # Only by name. 174 MB of a plan revised every few years does not
          # belong in the monthly run, so `nhf sync` skips it.
-         "land_use"]
+         "land_use", "amenities", "rainfall"]
 
 
 def _say(*parts) -> None:

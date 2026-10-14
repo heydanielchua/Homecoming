@@ -276,6 +276,138 @@ def sync_land_use(
     return len(rows)
 
 
+def _fetch_geojson(resource_id: str, dest: Path, session) -> str:
+    """Download a GeoJSON layer via the file route, not the datastore.
+
+    The datastore returns nothing for a geospatial dataset; these come from
+    api-open.data.gov.sg, which hands back a presigned link.
+    """
+    from .sources import ura
+
+    url = ura.download_url(resource_id, session)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with session.get(url, stream=True, timeout=900) as resp:
+        resp.raise_for_status()
+        with open(dest, "wb") as fh:
+            for chunk in resp.iter_content(chunk_size=1 << 20):
+                fh.write(chunk)
+    return str(dest)
+
+
+def sync_amenities(
+    conn: sqlite3.Connection,
+    reporter: SyncReporter,
+    cfg: Config,
+    paths: dict[str, str] | None = None,
+    session=None,
+) -> int:
+    """Load the parks, hawker centre and park facility layers."""
+    import requests
+
+    from .sources import amenity
+
+    total = 0
+    session = session or requests.Session()
+    cache = Path("data")
+
+    for entry in cfg.datasets.get("amenities") or []:
+        started = _now()
+        key, resource_id, label = entry.get("key"), entry.get("id"), entry.get("label")
+
+        if not resource_id or resource_id == TODO:
+            reporter.record(
+                f"amenity:{key}", "skipped", resource_id=resource_id, label=label,
+                started_at=started, message="resource id still TODO in config",
+            )
+            continue
+        try:
+            local = (paths or {}).get(key) or _fetch_geojson(
+                resource_id, cache / f"{resource_id}.geojson", session
+            )
+            rows = list(amenity.load_layer(local, key, source=label or resource_id))
+        except Exception as exc:
+            reporter.record(
+                f"amenity:{key}", "error", resource_id=resource_id, label=label,
+                started_at=started, message=str(exc),
+            )
+            continue
+
+        with conn:
+            conn.execute("DELETE FROM amenity WHERE kind = ?", (key,))
+            upsert_many(conn, "amenity", amenity.AMENITY_COLUMNS, rows, conflict="IGNORE")
+        total += len(rows)
+
+        note = None
+        if key == "hawker_centre":
+            soon = sum(1 for r in rows if (r[4] or "").lower().startswith("under"))
+            note = f"{soon} not open yet" if soon else None
+        reporter.record(
+            f"amenity:{key}", "ok" if rows else "error", rows=len(rows),
+            resource_id=resource_id, label=label, started_at=started, message=note,
+        )
+    return total
+
+
+def sync_rainfall(
+    conn: sqlite3.Connection,
+    client: DataGovClient,
+    reporter: SyncReporter,
+    cfg: Config,
+    year: int | None = None,
+    limit: int | None = None,
+) -> int:
+    """Fold a year of five-minute rainfall readings into one row per station.
+
+    Seven million rows in, 89 out. The readings are never stored: the only
+    question they answer is whether one part of the island is wetter than
+    another.
+    """
+    from .sources import rainfall
+
+    started = _now()
+    conf = cfg.datasets.get("rainfall") or {}
+    year = int(year or conf.get("default_year") or 0)
+    resource_id = (conf.get("years") or {}).get(year)
+    label = f"NEA historical rainfall ({year})"
+
+    if not resource_id or resource_id == TODO:
+        reporter.record(
+            "rainfall", "skipped", label=label, started_at=started,
+            message=f"no resource id configured for {year}",
+        )
+        return 0
+
+    try:
+        stations = rainfall.fold(client.records(resource_id, limit=limit))
+    except DataGovError as exc:
+        reporter.record("rainfall", "error", resource_id=resource_id, label=label,
+                        started_at=started, message=str(exc))
+        return 0
+
+    rows = list(rainfall.station_rows(stations, year, label))
+    if not rows:
+        reporter.record("rainfall", "error", resource_id=resource_id, label=label,
+                        started_at=started, message="no station readings came back")
+        return 0
+
+    with conn:
+        conn.execute("DELETE FROM rainfall_station WHERE year = ?", (year,))
+        upsert_many(conn, "rainfall_station", rainfall.STATION_COLUMNS, rows,
+                    conflict="REPLACE")
+
+    wettest = max(rows, key=lambda r: r[5] or 0)
+    driest = min(rows, key=lambda r: r[5] or 0)
+    reporter.record(
+        "rainfall", "ok", rows=len(rows), resource_id=resource_id, label=label,
+        started_at=started,
+        message=(
+            f"{year}: wettest {wettest[1]} at {wettest[5]:.0f} mm, driest "
+            f"{driest[1]} at {driest[5]:.0f} mm"
+        ),
+    )
+    return len(rows)
+
+
 def load_future_mrt(conn: sqlite3.Connection, cfg: Config, reporter: SyncReporter) -> int:
     """The hand-kept table of announced and under-construction stations.
 
@@ -627,6 +759,12 @@ def run_sync(
     # years has no business in a monthly job.
     if wanted and "land_use" in wanted:
         sync_land_use(conn, reporter, cfg)
+    if should("amenities"):
+        sync_amenities(conn, reporter, cfg)
+    # By name only: a year of five-minute readings is 704 pages for a figure
+    # that changes once a year.
+    if wanted and "rainfall" in wanted:
+        sync_rainfall(conn, client, reporter, cfg, limit=limit)
     if should("geocode"):
         geocode_offices(conn, cfg, reporter, onemap)
         geocode_blocks(conn, reporter, onemap, limit=limit)
