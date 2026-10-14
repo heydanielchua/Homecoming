@@ -216,6 +216,38 @@ CREATE TABLE IF NOT EXISTS listing_check (
 );
 
 -- F8 data freshness.
+-- URA Master Plan land use, one row per parcel (113,212 in the 2019 layer).
+-- Only a summary of each polygon is kept — centroid and bounding box — which
+-- is enough to answer "what sits within a few hundred metres of this block"
+-- without shipping a geometry library. The box matters as much as the centre:
+-- a large parcel still counts when its centroid is far away.
+--
+-- gpr_raw and gpr_numeric are deliberately separate. URA writes LND (landed
+-- housing), EVA (evaluated at planning stage), NA or SDP where there is no
+-- ratio, and those are not the same as missing: landed housing tells you the
+-- height, "to be evaluated" is an admission that nobody has decided.
+CREATE TABLE IF NOT EXISTS land_parcel (
+    id           INTEGER PRIMARY KEY,
+    objectid     INTEGER,
+    land_use     TEXT,
+    gpr_raw      TEXT,
+    gpr_numeric  REAL,
+    gpr_note     TEXT,
+    area_sqm     REAL,
+    lat          REAL,
+    lon          REAL,
+    min_lat      REAL,
+    max_lat      REAL,
+    min_lon      REAL,
+    max_lon      REAL,
+    source       TEXT,
+    UNIQUE (objectid, source)
+);
+-- Proximity is asked as a bounding-box window first, so the box corners are
+-- what need indexing, not the centroid.
+CREATE INDEX IF NOT EXISTS parcel_box_idx ON land_parcel(min_lat, max_lat, min_lon, max_lon);
+CREATE INDEX IF NOT EXISTS parcel_use_idx ON land_parcel(land_use);
+
 CREATE TABLE IF NOT EXISTS sync_log (
     id          INTEGER PRIMARY KEY,
     dataset_key TEXT NOT NULL,

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any, Callable, Iterable
 
@@ -198,6 +199,81 @@ def derive_town_medians(conn: sqlite3.Connection, reporter: SyncReporter | None 
             message="HDB's own median dataset id is not configured; derived instead",
         )
     return len(payload)
+
+
+def sync_land_use(
+    conn: sqlite3.Connection,
+    reporter: SyncReporter,
+    cfg: Config,
+    path: str | None = None,
+    session=None,
+) -> int:
+    """Fetch and store the URA Master Plan land use parcels.
+
+    Deliberately left out of the monthly run. The Master Plan is approved
+    once and amended occasionally, and the file is 174 MB, so re-fetching it
+    every month would move a lot of bytes to learn nothing. `path` loads a
+    file already on disk instead of downloading.
+    """
+    import requests
+
+    from .sources import ura
+
+    started = _now()
+    entry = cfg.datasets.get("land_use") or {}
+    resource_id, label = entry.get("id"), entry.get("label")
+
+    if not resource_id or resource_id == TODO:
+        reporter.record(
+            "land_use", "skipped", resource_id=resource_id, label=label,
+            started_at=started,
+            message="resource id still TODO in config/datasets.yml; nothing loaded",
+        )
+        return 0
+
+    local = path
+    try:
+        if not local:
+            session = session or requests.Session()
+            url = ura.download_url(resource_id, session)
+            local = str(Path(cfg.datasets.get("cache_dir") or "data") / f"{resource_id}.geojson")
+            Path(local).parent.mkdir(parents=True, exist_ok=True)
+            with session.get(url, stream=True, timeout=900) as resp:
+                resp.raise_for_status()
+                with open(local, "wb") as fh:
+                    for chunk in resp.iter_content(chunk_size=1 << 20):
+                        fh.write(chunk)
+
+        rows = list(ura.stream_parcels(local, source=label or resource_id))
+    except Exception as exc:                     # network, disk, or bad JSON
+        reporter.record(
+            "land_use", "error", resource_id=resource_id, label=label,
+            started_at=started, message=str(exc),
+        )
+        return 0
+
+    if not rows:
+        reporter.record(
+            "land_use", "error", resource_id=resource_id, label=label,
+            started_at=started, message="the layer parsed to no parcels at all",
+        )
+        return 0
+
+    with conn:
+        conn.execute("DELETE FROM land_parcel WHERE source = ?", (label or resource_id,))
+        upsert_many(conn, "land_parcel", ura.PARCEL_COLUMNS, rows, conflict="REPLACE")
+
+    without_ratio = sum(1 for r in rows if r[3] is None)
+    reporter.record(
+        "land_use", "ok", rows=len(rows), resource_id=resource_id, label=label,
+        started_at=started,
+        message=(
+            f"{without_ratio} of {len(rows)} parcels carry no numeric GPR "
+            "(landed housing, or not yet evaluated), so a height band is only "
+            "available for the rest"
+        ),
+    )
+    return len(rows)
 
 
 def load_future_mrt(conn: sqlite3.Connection, cfg: Config, reporter: SyncReporter) -> int:
@@ -547,6 +623,10 @@ def run_sync(
         sync_rentals(conn, client, reporter, cfg, limit)
     if should("future_mrt"):
         load_future_mrt(conn, cfg, reporter)
+    # Only when asked for by name: 174 MB of a plan that changes every few
+    # years has no business in a monthly job.
+    if wanted and "land_use" in wanted:
+        sync_land_use(conn, reporter, cfg)
     if should("geocode"):
         geocode_offices(conn, cfg, reporter, onemap)
         geocode_blocks(conn, reporter, onemap, limit=limit)

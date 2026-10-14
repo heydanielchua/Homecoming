@@ -41,6 +41,22 @@ town_medians:
   # transactions themselves, which cover the same ground from 2000.
   confirmed: false
 
+# URA Master Plan land use. Not a datastore resource: the CKAN endpoint above
+# returns nothing for a geospatial dataset. It is a GeoJSON file, fetched from
+# a separate host (api-open.data.gov.sg), and it is not monthly data — the
+# Master Plan is approved once and amended occasionally, so `nhf sync` leaves
+# it alone and `nhf sync --step land_use` fetches it when a revision lands.
+land_use:
+  id: d_90d86daa5bfaa371668b84fa5f01424f
+  label: URA Master Plan 2019 land use (GeoJSON, 174 MB)
+  download_host: https://api-open.data.gov.sg/v1/public/api/datasets/{id}/poll-download
+  # The 2019 plan was approved 18 Nov 2019. URA has since published an
+  # "Amendment to Master Plan 2025 Building Layer"
+  # (d_15dd877587e74558f4ca31e7b3fdcc09, 57 MB), so check whether a 2025 land
+  # use layer exists before trusting this one as current.
+  approved: 2019-11-18
+  confirmed: true
+
 rentals:
   id: d_c9f57187485a850908655db0e8cfe651
   label: HDB renting out of flats, Jan 2021 onwards
