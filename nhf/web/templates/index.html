@@ -33,20 +33,30 @@ nhf build</pre>
         <input type="number" name="max_price" step="10000"
                value="{{ filters.max_price | int if filters.max_price }}"
                placeholder="{{ (cfg.budget * 1.1) | int }}"></label>
-      <label>Flat type
-        <select name="flat_type" multiple size="4">
+      {# Checkboxes rather than a multi-select: on a phone, picking several
+         towns out of twenty-six meant precise taps in a scrolling listbox,
+         and nothing said more than one could be chosen. Same field name, so
+         request.args.getlist reads them exactly as before. #}
+      <fieldset class="group">
+        <legend>Flat type</legend>
+        <div class="chooser">
           {% for t in flat_types %}
-            <option value="{{ t }}"
-              {{ 'selected' if filters.flat_types and t in filters.flat_types }}>{{ t }}</option>
+            <label><input type="checkbox" name="flat_type" value="{{ t }}"
+              {{ 'checked' if filters.flat_types and t in filters.flat_types }}>
+              {{ t | title }}</label>
           {% endfor %}
-        </select></label>
-      <label>Town
-        <select name="town" multiple size="6">
+        </div>
+      </fieldset>
+      <fieldset class="group">
+        <legend>Town</legend>
+        <div class="chooser">
           {% for t in towns %}
-            <option value="{{ t }}"
-              {{ 'selected' if filters.towns and t in filters.towns }}>{{ t | title }}</option>
+            <label><input type="checkbox" name="town" value="{{ t }}"
+              {{ 'checked' if filters.towns and t in filters.towns }}>
+              {{ t | title }}</label>
           {% endfor %}
-        </select></label>
+        </div>
+      </fieldset>
       <label class="check"><input type="checkbox" name="hide_flagged" value="1"
         {{ 'checked' if hide_flagged }}> Hide anything with a red flag</label>
     </fieldset>

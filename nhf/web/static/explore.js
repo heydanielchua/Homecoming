@@ -248,18 +248,30 @@
     });
   }
 
-  function fillSelect(id, values, selected) {
+  /* A checkbox per value rather than a multi-select: on a phone the listbox
+     needed precise taps and never said that more than one was allowed. */
+  function fillChecks(id, values, selected) {
     var el = document.getElementById(id);
     el.innerHTML = values.map(function (v) {
-      return '<option value="' + esc(v) + '"' +
-        (selected.indexOf(v) >= 0 ? " selected" : "") + ">" + esc(title(v)) + "</option>";
+      return '<label><input type="checkbox" value="' + esc(v) + '"' +
+        (selected.indexOf(v) >= 0 ? " checked" : "") + "> " + esc(title(v)) + "</label>";
     }).join("");
-    el.addEventListener("change", function () {
+
+    var commit = function () {
       var picked = [];
-      Array.prototype.forEach.call(el.selectedOptions, function (o) { picked.push(o.value); });
+      el.querySelectorAll("input:checked").forEach(function (i) { picked.push(i.value); });
       if (id === "town") state.towns = picked; else state.types = picked;
       render();
-    });
+    };
+    el.addEventListener("change", commit);
+
+    var clear = document.getElementById("clear_" + id);
+    if (clear) {
+      clear.addEventListener("click", function () {
+        el.querySelectorAll("input:checked").forEach(function (i) { i.checked = false; });
+        commit();
+      });
+    }
   }
 
   function wire() {
@@ -320,9 +332,9 @@
     state.hideFlagged = !!saved.hideFlagged;
 
     buildSliders();
-    fillSelect("flat_type", uniq(state.rows.map(function (r) { return r.flat_type; })),
+    fillChecks("flat_type", uniq(state.rows.map(function (r) { return r.flat_type; })),
                state.types);
-    fillSelect("town", uniq(state.rows.map(function (r) { return r.town; })), state.towns);
+    fillChecks("town", uniq(state.rows.map(function (r) { return r.town; })), state.towns);
     wire();
     render();
 

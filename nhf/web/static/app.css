@@ -35,6 +35,33 @@
 }
 
 * { box-sizing: border-box; }
+
+/* Keyboard focus. This file previously defined none at all, which with
+   restyled inputs and buttons left the browser default doing an uneven job —
+   and in a sticky-header layout a keyboard user has no other way of knowing
+   where they are. The ring is the design system's own, so it matches the
+   focus treatment its components use. :focus-visible rather than :focus, so
+   a tap or click does not leave a ring behind. */
+:where(a, button, summary, input, select, textarea, [tabindex]):focus-visible {
+  outline: var(--sgds-outline-focus);
+  outline-offset: 2px;
+  border-radius: var(--sgds-border-radius-sm);
+}
+/* Form controls fill their own box, so the ring sits inside it like the
+   design system's do, rather than colliding with the next field. */
+:where(input, select, textarea):focus-visible {
+  outline-offset: var(--sgds-outline-offset-focus);
+}
+
+/* A keyboard user should not have to tab the whole ranked list to reach the
+   tab bar. Visible only once focused. */
+.skip-link {
+  position: absolute; left: 0.5rem; top: -4rem; z-index: 40;
+  padding: 0.6rem 0.9rem; border-radius: var(--sgds-border-radius-sm);
+  background: var(--accent); color: var(--on-accent);
+  text-decoration: none; font-weight: var(--sgds-font-weight-semibold, 600);
+}
+.skip-link:focus { top: 0.5rem; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
@@ -137,7 +164,21 @@ table tr.mid td { color: var(--mid); }
 
 details { margin-top: 0.6rem; }
 summary { cursor: pointer; font-size: 0.88rem; font-weight: 600; color: var(--accent);
-  display: flex; justify-content: space-between; gap: 0.5rem; }
+  display: flex; justify-content: space-between; gap: 0.5rem;
+  /* Laying summary out as a flex box removes the disclosure triangle in
+     Chrome and Safari, so these read as bold text with nothing to say they
+     open. The marker is replaced rather than mourned. */
+  list-style: none; align-items: center; min-height: 2.75rem; }
+summary::-webkit-details-marker { display: none; }
+summary::after {
+  content: ""; flex: none; width: 0.5rem; height: 0.5rem; margin-left: auto;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: rotate(45deg) translate(-0.1rem, -0.1rem);
+}
+details[open] > summary::after { transform: rotate(-135deg) translate(-0.15rem, -0.15rem); }
+@media (prefers-reduced-motion: no-preference) {
+  summary::after { transition: transform 0.15s ease; }
+}
 summary small { display: inline; }
 .controls summary { font-size: 0.95rem; }
 
@@ -157,6 +198,30 @@ button { background: var(--accent); color: var(--on-accent); border: none;
 fieldset { border: 1px solid var(--line); border-radius: 10px; padding: 0.4rem 0.8rem 0.8rem; margin: 0.8rem 0; }
 legend { color: var(--muted); font-size: 0.78rem; padding: 0 0.3rem; }
 .slider span { display: flex; justify-content: space-between; font-size: 0.85rem; }
+
+/* A multi-select was the wrong control on a phone: picking several towns out
+   of twenty-six meant precise taps in a scrolling listbox, and nothing about
+   it said more than one was allowed. Checkboxes say so by being checkboxes,
+   and each row is a thumb-sized target. The box scrolls so the filter panel
+   does not become the page. */
+.chooser {
+  max-height: 14rem; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--line); border-radius: var(--sgds-border-radius-md, 8px);
+  background: var(--bg); margin-top: 0.3rem;
+}
+.chooser label {
+  display: flex; align-items: center; gap: 0.6rem; margin: 0;
+  min-height: 2.75rem; padding: 0 0.7rem; color: var(--text);
+  font-size: 0.9rem; cursor: pointer;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
+}
+.chooser label:last-child { border-bottom: none; }
+.chooser input[type="checkbox"] { width: 1.1rem; height: 1.1rem; margin: 0; flex: none; }
+.chooser label:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.chooser-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem;
+}
+.chooser-head .link { font-size: 0.8rem; }
 .row { display: flex; gap: 0.6rem; }
 .row label { flex: 1; }
 form.inline { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: end; }
@@ -182,9 +247,17 @@ form.inline button { flex: 1 1 100%; margin-top: 0.4rem; }
 .tag.below, .tag.within { color: var(--ok); }
 
 .types { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.7rem; }
-.pill { font-size: 0.8rem; padding: 0.3rem 0.7rem; border-radius: 999px; text-decoration: none;
-  border: 1px solid var(--line); color: var(--muted); }
+.pill {
+  font-size: 0.8rem; border-radius: 999px; text-decoration: none;
+  border: 1px solid var(--line); color: var(--muted);
+  /* 44px: these are the main way between flat types on a phone, and at the
+     old 0.3rem padding they were about 30px of tappable height. */
+  min-height: 2.75rem; padding: 0 var(--sgds-spacer-5, 1rem);
+  display: inline-flex; align-items: center;
+}
 .pill.on { border-color: var(--accent); color: var(--accent); }
+/* A pill with no page behind it is not a link, and should not look like one. */
+span.pill { opacity: 0.55; }
 
 ul.plain { list-style: none; padding: 0; margin: 0.4rem 0 0; font-size: 0.88rem; }
 ul.plain li { padding: 0.35rem 0; border-bottom: 1px solid var(--line); }

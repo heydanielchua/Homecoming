@@ -33,6 +33,7 @@
 {% block head %}{% endblock %}
 </head>
 <body>
+<a class="skip-link" href="#main">Skip to the list</a>
 <header class="topbar">
   <div class="topbar-row">
     <h1>{% block heading %}Next Home Finder{% endblock %}</h1>
@@ -67,20 +68,29 @@
   {% if messages %}<p class="flash">{{ messages | join(' ') }}</p>{% endif %}
 {% endwith %}
 
-<main>{% block content %}{% endblock %}</main>
+<main id="main">{% block content %}{% endblock %}</main>
 
-<nav class="tabbar">
-  <a href="{{ url_for('index') }}" class="{{ 'on' if request.endpoint == 'index' }}">
-    <span>▤</span>Ranked</a>
-  <a href="{{ url_for('map_view') }}" class="{{ 'on' if request.endpoint == 'map_view' }}">
-    <span>◎</span>Map</a>
+{# The current tab was marked by a class, which is a colour and nothing
+   more: a screen reader had no way to tell which page it was on. The glyphs
+   are decoration and were being read out as characters, so they are hidden
+   from the accessibility tree and the word beside them does the work. #}
+<nav class="tabbar" aria-label="Sections">
+  {% set here = request.endpoint %}
+  <a href="{{ url_for('index') }}" class="{{ 'on' if here == 'index' }}"
+     {% if here == "index" %}aria-current="page"{% endif %}>
+    <span aria-hidden="true">▤</span>Ranked</a>
+  <a href="{{ url_for('map_view') }}" class="{{ 'on' if here == 'map_view' }}"
+     {% if here == "map_view" %}aria-current="page"{% endif %}>
+    <span aria-hidden="true">◎</span>Map</a>
   {% if not static_export %}
   <a href="{{ url_for('listings') }}"
-     class="{{ 'on' if request.endpoint in ('listings', 'listing_detail') }}">
-    <span>★</span>Shortlist</a>
+     class="{{ 'on' if here in ('listings', 'listing_detail') }}"
+     {% if here in ("listings", "listing_detail") %}aria-current="page"{% endif %}>
+    <span aria-hidden="true">★</span>Shortlist</a>
   {% endif %}
-  <a href="{{ url_for('data_page') }}" class="{{ 'on' if request.endpoint == 'data_page' }}">
-    <span>↻</span>Data</a>
+  <a href="{{ url_for('data_page') }}" class="{{ 'on' if here == 'data_page' }}"
+     {% if here == "data_page" %}aria-current="page"{% endif %}>
+    <span aria-hidden="true">↻</span>Data</a>
 </nav>
 {% if not static_export %}
 <script>

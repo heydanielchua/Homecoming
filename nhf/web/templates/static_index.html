@@ -34,10 +34,19 @@
     <legend>Narrow the list</legend>
     <label>Cheapest recent sale at most
       <input type="number" id="max_price" step="10000" placeholder="no limit"></label>
-    <label>Flat type
-      <select id="flat_type" multiple size="4"></select></label>
-    <label>Town
-      <select id="town" multiple size="6"></select></label>
+    {# Checkboxes rather than a multi-select: picking several towns out of
+       twenty-six on a phone meant precise taps in a scrolling listbox, and
+       nothing said more than one could be chosen. #}
+    <fieldset class="group">
+      <legend class="chooser-head">Flat type
+        <button type="button" class="link" id="clear_flat_type">Clear</button></legend>
+      <div class="chooser" id="flat_type"></div>
+    </fieldset>
+    <fieldset class="group">
+      <legend class="chooser-head">Town
+        <button type="button" class="link" id="clear_town">Clear</button></legend>
+      <div class="chooser" id="town"></div>
+    </fieldset>
     <label class="check"><input type="checkbox" id="hide_flagged"> Hide anything
       with a red flag</label>
   </fieldset>

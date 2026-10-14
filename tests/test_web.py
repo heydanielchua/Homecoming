@@ -204,7 +204,7 @@ def test_publishing_a_block_page_does_not_change_the_block_numbers(client):
     published = client.get(BLOCK_URL).get_data(as_text=True)
 
     def body(html: str) -> str:
-        main = re.search(r"<main>(.*)</main>", html, re.DOTALL).group(1)
+        main = re.search(r"<main[^>]*>(.*)</main>", html, re.DOTALL).group(1)
         # The rank line is the one part meant to differ, and the published
         # page drops the price criterion on purpose.
         main = re.sub(r'<p class="muted">\s*Ranked.*?</p>', "", main, flags=re.DOTALL)
@@ -212,3 +212,69 @@ def test_publishing_a_block_page_does_not_change_the_block_numbers(client):
         return "".join(main.split())
 
     assert body(served) and body(served) == body(published)
+
+
+# --- accessibility ---------------------------------------------------------
+def _css() -> str:
+    from pathlib import Path
+    import nhf.web.app as web
+    return (Path(web.__file__).parent / "static" / "app.css").read_text()
+
+
+def test_there_is_a_visible_focus_style():
+    """There was none at all, and inputs and buttons are restyled enough that
+    the browser default did an uneven job of standing in."""
+    css = _css()
+    assert ":focus-visible" in css
+    assert "--sgds-outline-focus" in css, "use the design system's own ring"
+
+
+def test_a_keyboard_user_can_skip_the_list(client):
+    html = client.get("/").get_data(as_text=True)
+    assert 'class="skip-link" href="#main"' in html
+    assert 'id="main"' in html, "the skip link needs something to land on"
+
+
+def test_exactly_one_tab_is_marked_as_the_current_page(client):
+    for path in ("/", "/map", "/data"):
+        html = client.get(path).get_data(as_text=True)
+        assert html.count('aria-current="page"') == 1, f"{path} marks the wrong number"
+
+
+def test_the_tab_glyphs_are_hidden_from_screen_readers(client):
+    """They are decoration; read aloud they are just characters."""
+    import re
+
+    html = client.get("/").get_data(as_text=True)
+    nav = re.search(r'<nav class="tabbar".*?</nav>', html, re.DOTALL).group(0)
+    for glyph in ("▤", "◎", "↻"):
+        assert f'<span aria-hidden="true">{glyph}</span>' in nav
+
+
+def test_the_tab_bar_is_a_named_landmark(client):
+    assert 'aria-label="Sections"' in client.get("/").get_data(as_text=True)
+
+
+def test_the_disclosure_summary_keeps_an_affordance():
+    """Laying summary out as a flex box drops the triangle in Chrome and
+    Safari, leaving no sign that it opens."""
+    css = _css()
+    assert "summary::after" in css
+
+
+def test_choosing_several_towns_uses_checkboxes_not_a_multi_select(client):
+    """A multi-select needed precise taps on a phone and never said that more
+    than one was allowed."""
+    html = client.get("/").get_data(as_text=True)
+    assert "multiple" not in html, "a multi-select is back"
+    assert 'type="checkbox" name="town"' in html
+
+
+def test_the_town_filter_still_reads_the_same_query_string(client):
+    """The control changed; the contract it submits must not have."""
+    import re
+
+    html = client.get("/?town=SEMBAWANG&town=YISHUN").get_data(as_text=True)
+    towns = set(re.findall(r'<p class="sub">[^<]*·\s*([A-Za-z ]+?)\s*(?:·|</p>)', html))
+    assert towns, "no candidates came back at all"
+    assert towns <= {"Sembawang", "Yishun"}, f"filter leaked: {towns}"
