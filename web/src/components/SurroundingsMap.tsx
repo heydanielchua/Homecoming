@@ -45,6 +45,17 @@ const KINDS: Record<
   park: { label: 'Park', plural: 'Parks', letter: 'K', slot: 6 },
 };
 
+/**
+ * What the opening view frames, in metres.
+ *
+ * Everything is drawn; this only decides where the map starts. Fitting all of
+ * it means one school 1.8 km away sets the zoom, and the map opens showing
+ * Toa Payoh to Geylang with the block as a dot in the middle — technically
+ * complete and useless for "what is around here". Framing the walkable ones
+ * opens on streets you could name, and the far pins are a scroll away.
+ */
+const FIT_RADIUS_M = 900;
+
 /** Singapore, with enough slack for Pulau Ubin and the western islands. */
 const ISLAND_BOUNDS = L.latLngBounds([1.13, 103.57], [1.49, 104.13]);
 
@@ -176,7 +187,13 @@ export function SurroundingsMap({
     const resized = new ResizeObserver(() => {
       instance.invalidateSize({ animate: false });
       const target = fitTo.current;
-      if (target) instance.fitBounds(target, { maxZoom: 17, animate: false });
+      if (target) {
+        instance.fitBounds(target, {
+          maxZoom: 17,
+          padding: [24, 24],
+          animate: false,
+        });
+      }
     });
     resized.observe(host.current);
 
@@ -237,11 +254,20 @@ export function SurroundingsMap({
     // Fit to what is drawn, so a block with everything close does not sit at
     // the same zoom as one with a school 900 m away.
     const bounds = L.latLngBounds([[lat, lon]]);
-    for (const p of shown) bounds.extend([p.lat, p.lon]);
-    const padded = bounds.pad(0.18);
-    fitTo.current = padded;
+    const near = shown.filter((p) => p.distance_m <= FIT_RADIUS_M);
+    // If nothing is close, frame what there is rather than the block alone.
+    for (const p of near.length > 0 ? near : shown) bounds.extend([p.lat, p.lon]);
+    fitTo.current = bounds;
     instance.invalidateSize({ animate: false });
-    instance.fitBounds(padded, { maxZoom: 17, animate: false });
+    // Pixel padding, not `pad()`. A ratio pad grows with the span, so a block
+    // with a school 1.8 km off got 18% of 2.4 km of margin and dropped a whole
+    // zoom level for it — the map came out at z13, which is most of the
+    // island. A fixed margin costs the same 24 px whatever is being framed.
+    instance.fitBounds(bounds, {
+      maxZoom: 17,
+      padding: [24, 24],
+      animate: false,
+    });
 
     return () => {
       group.remove();

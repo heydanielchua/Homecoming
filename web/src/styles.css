@@ -766,7 +766,10 @@ button {
 }
 
 .map-canvas {
-  height: 340px;
+  /* Tall enough that the height is not the binding constraint on the fit:
+     these points spread further north-south than east-west, so a short map
+     zooms out to fit the span rather than to show the streets. */
+  height: 420px;
   border-radius: var(--radius);
   background: var(--surface-sunken);
   /* Leaflet's panes carry their own stacking; this keeps them under Base UI's
