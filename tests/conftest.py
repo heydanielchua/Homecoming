@@ -256,3 +256,134 @@ def fitted_db(db):
     compute_block_metrics(db)
     score_all(db)
     return db
+
+
+# --- the layers the listing report reads ---------------------------------
+# Placed around the Tampines fixture blocks, with distances chosen so the
+# assertions can be about the right answer rather than about not crashing:
+# the MRT exit is nearer than the station centroid would be, the park's edge
+# is close while its middle is far, and one hawker centre is still being
+# built.
+TAMPINES_LAT, TAMPINES_LON = 1.3520, 103.9450
+
+
+def _offset(lat: float, lon: float, north_m: float, east_m: float) -> tuple[float, float]:
+    """Move a point by a distance in metres. Good enough at this latitude."""
+    return (lat + north_m / 110_574.0, lon + east_m / 111_320.0)
+
+
+def add_surroundings(conn):
+    """Amenities, land parcels and rainfall gauges around the fixture blocks."""
+    from nhf.sources.amenity import AMENITY_COLUMNS
+
+    lat, lon = TAMPINES_LAT + 0.01, TAMPINES_LON + 0.01      # the cheap block
+    rows = []
+
+    def point(kind, name, north, east, **kw):
+        plat, plon = _offset(lat, lon, north, east)
+        rows.append((
+            kind, kw.get("subtype"), name, kw.get("detail"), kw.get("status"),
+            kw.get("size_hint"), plat, plon, plat, plat, plon, plon,
+            kw.get("postal"), "fixture",
+        ))
+
+    # Two exits of one station: the near one is what you walk to.
+    point("mrt_exit", "TAMPINES MRT STATION Exit A", 300, 0,
+          subtype="TAMPINES MRT STATION", detail="Exit A")
+    point("mrt_exit", "TAMPINES MRT STATION Exit D", 520, 120,
+          subtype="TAMPINES MRT STATION", detail="Exit D")
+    point("bus_stop", "76059", 90, 20, detail="B07")
+    point("bus_stop", "76061", 240, 60)
+    point("hawker_centre", "Tampines Round Market", 420, 10,
+          status="Existing", size_hint=43.0)
+    point("hawker_centre", "New Tampines Hawker Centre", 260, 30,
+          status="Under Construction", size_hint=36.0)
+    point("school", "TAMPINES PRIMARY SCHOOL", 600, 100,
+          subtype="PRIMARY", postal="529301")
+    point("school", "ANGKASA PRIMARY SCHOOL", 900, 200,
+          subtype="PRIMARY", postal="529302")
+    point("school", "FAR AWAY PRIMARY SCHOOL", 1600, 400,
+          subtype="PRIMARY", postal="529303")
+    point("school", "TAMPINES SECONDARY SCHOOL", 500, 300,
+          subtype="SECONDARY", postal="529304")
+    point("preschool", "PCF SPARKLETOTS TAMPINES", 120, 40, detail="PT1001")
+    point("preschool", "MY FIRST SKOOL TAMPINES", 300, 90, detail="PT1002")
+    point("park_facility", "Playground at Blk 501", 60, 10, subtype="PLAYGROUND")
+    point("park_facility", "Fitness corner", 150, 30, subtype="FITNESS AREA")
+    point("park_facility", "Hardcourt", 380, 40, subtype="MULTIPURPOSE COURT")
+    point("park_facility", "Far playground", 900, 100, subtype="PLAYGROUND")
+    point("park_facility", "Carpark B", 50, 5, subtype="CAR PARK")
+
+    # A park whose centroid is a kilometre away but whose nearest edge is two
+    # hundred metres: the case that makes the bounding box load-bearing.
+    far_lat, far_lon = _offset(lat, lon, 1200, 0)
+    edge_lat, _ = _offset(lat, lon, 200, 0)
+    top_lat, _ = _offset(lat, lon, 2200, 0)
+    west_lon = _offset(lat, lon, 0, -400)[1]
+    east_lon = _offset(lat, lon, 0, 400)[1]
+    rows.append((
+        "park", "NATURE RESERVE", "Long Thin Park", "NP999", None, 184000.0,
+        far_lat, far_lon, edge_lat, top_lat, west_lon, east_lon, None, "fixture",
+    ))
+
+    with conn:
+        upsert_many(conn, "amenity", AMENITY_COLUMNS, rows, conflict="REPLACE")
+
+    # Two gauges: a wet one near the fixture blocks and a dry one on the far
+    # side of the island, so a rank has something to rank against.
+    with conn:
+        upsert_many(
+            conn, "rainfall_station",
+            ("station_id", "name", "lat", "lon", "year", "total_mm", "readings",
+             "wet_readings", "rain_days", "days_observed", "source"),
+            [
+                ("S100", "Tampines Road", lat + 0.004, lon, 2024,
+                 1800.0, 30000, 2400, 160, 360, "fixture"),
+                ("S200", "Jurong West", 1.3480, 103.7000, 2024,
+                 900.0, 30000, 1300, 120, 360, "fixture"),
+                ("S300", "Changi", 1.3400, 103.9800, 2024,
+                 1200.0, 30000, 1700, 140, 360, "fixture"),
+            ],
+            conflict="REPLACE",
+        )
+
+    # Land parcels: an empty residential plot to the west with a plot ratio,
+    # a park that cannot be built on, and one URA wrote LND against.
+    def parcel(objectid, use, gpr_raw, gpr, note, area, north, east, size_m=120):
+        plat, plon = _offset(lat, lon, north, east)
+        half = size_m / 2
+        min_lat, min_lon = _offset(plat, plon, -half, -half)
+        max_lat, max_lon = _offset(plat, plon, half, half)
+        return (objectid, use, gpr_raw, gpr, note, area, plat, plon,
+                min_lat, max_lat, min_lon, max_lon, "fixture")
+
+    with conn:
+        from nhf.sources.ura import PARCEL_COLUMNS
+        upsert_many(
+            conn, "land_parcel", PARCEL_COLUMNS,
+            [
+                parcel(1, "RESIDENTIAL", "2.8", 2.8, None, 9000.0, 40, -150),
+                parcel(2, "RESERVE SITE", "EVA", None,
+                       "evaluated at planning stage, not fixed", 14000.0, 120, -260),
+                parcel(3, "PARK", "NA", None, "not applicable to this use",
+                       20000.0, 200, 0),
+                parcel(4, "RESIDENTIAL", "LND", None, "landed housing, so low-rise",
+                       5000.0, -180, 90),
+                parcel(5, "RESIDENTIAL", "1.4", 1.4, None, 400.0, 30, 60),
+            ],
+            conflict="REPLACE",
+        )
+    return conn
+
+
+@pytest.fixture()
+def full_db(db):
+    """The fixture store with every dataset and every batch step applied."""
+    from nhf.fit import fit_lease_factors, fit_storey_premiums
+    from nhf.sync import derive_town_medians
+
+    add_surroundings(db)
+    derive_town_medians(db)
+    fit_lease_factors(db)
+    fit_storey_premiums(db)
+    return db

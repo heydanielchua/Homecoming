@@ -15,7 +15,7 @@ from .db import open_db
 log = logging.getLogger("nhf")
 
 STEPS = ["resale", "blocks", "price_index", "town_medians", "rentals",
-         "future_mrt", "geocode", "commute",
+         "schools", "future_mrt", "geocode", "commute",
          # Only by name. 174 MB of a plan revised every few years does not
          # belong in the monthly run, so `nhf sync` skips it.
          "land_use", "amenities", "rainfall"]
@@ -212,17 +212,23 @@ def cmd_backtest(args) -> int:
 
 def cmd_geocode(args) -> int:
     from .sources.onemap import OneMapClient
-    from .sync import SyncReporter, geocode_blocks, geocode_offices
+    from .sync import (
+        SyncReporter, geocode_amenities, geocode_blocks, geocode_offices,
+    )
 
     conn = open_db(args.db)
     cfg = load_config()
     reporter = SyncReporter(conn)
     client = OneMapClient()
-    if args.offices or not args.blocks:
+    picked = args.offices or args.blocks or args.schools
+    if args.offices or not picked:
         _say(f"offices geocoded: {geocode_offices(conn, cfg, reporter, client)}")
-    if args.blocks or not args.offices:
+    if args.blocks or not picked:
         _say(f"blocks geocoded: "
              f"{geocode_blocks(conn, reporter, client, limit=args.limit)}")
+    if args.schools or not picked:
+        _say(f"schools geocoded: "
+             f"{geocode_amenities(conn, reporter, client, 'school', limit=args.limit)}")
     for entry in reporter.results:
         if entry["message"]:
             _say(f"  {entry['dataset_key']}: {entry['message']}")
@@ -431,6 +437,8 @@ def build_parser() -> argparse.ArgumentParser:
     geo = subs.add_parser("geocode", help="geocode offices and blocks via OneMap")
     geo.add_argument("--offices", action="store_true")
     geo.add_argument("--blocks", action="store_true")
+    geo.add_argument("--schools", action="store_true",
+                     help="place MOE schools from their postal codes")
     geo.add_argument("--limit", type=int)
     geo.set_defaults(func=cmd_geocode)
 

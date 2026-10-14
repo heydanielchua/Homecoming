@@ -1,10 +1,17 @@
 """OneMap (Singapore Land Authority): geocoding and drive routing.
 
-Address search is open; routing needs a token from a free account and the
-token lasts three days. Set ONEMAP_TOKEN directly, or ONEMAP_EMAIL and
-ONEMAP_PASSWORD to have the client mint one. Without a token the client
-reports `no_token` and the commute column stays empty, so a missing token
-never reads as a short drive.
+Nothing here needs a token. Address search, drive routing and the map tiles
+all answer unauthenticated, which was worth discovering: the previous version
+of this client raised `NoTokenError` before sending the routing request, so
+every drive time in the app read as unknown for want of a credential the
+service never asked for.
+
+A token is still used when one is available — set `ONEMAP_TOKEN`, or
+`ONEMAP_EMAIL` and `ONEMAP_PASSWORD` to have the client mint one (they last
+three days) — because an account raises the rate limit. What changed is the
+order: the request goes out either way, and `NoTokenError` is raised only if
+OneMap actually answers 401 or 403 on a call made without one. So a missing
+token can still show as unknown, but only when it is genuinely the cause.
 """
 
 from __future__ import annotations
@@ -63,35 +70,55 @@ class OneMapClient:
             time.sleep(wait)
         self._last_call = time.monotonic()
 
-    def token(self) -> str:
-        """A OneMap token, minted from email/password if one is not set."""
+    def token(self) -> str | None:
+        """A OneMap token if one can be had, else None.
+
+        Returning None rather than raising is the point: the caller sends the
+        request without an Authorization header and lets OneMap decide, which
+        it does by answering normally.
+        """
         if self._token:
             return self._token
         email = os.environ.get("ONEMAP_EMAIL")
         password = os.environ.get("ONEMAP_PASSWORD")
         if not (email and password):
-            raise NoTokenError(
-                "set ONEMAP_TOKEN, or ONEMAP_EMAIL and ONEMAP_PASSWORD, to use routing"
-            )
+            return None
         self._throttle()
-        resp = self.session.post(
-            self.token_url, json={"email": email, "password": password}, timeout=self.timeout
-        )
-        resp.raise_for_status()
-        token = resp.json().get("access_token")
+        try:
+            resp = self.session.post(
+                self.token_url, json={"email": email, "password": password},
+                timeout=self.timeout,
+            )
+            resp.raise_for_status()
+            token = resp.json().get("access_token")
+        except (requests.RequestException, ValueError) as exc:
+            # Credentials that do not work are not fatal here, because the
+            # endpoints answer without a token anyway.
+            log.warning("OneMap token request failed, carrying on unauthenticated: %s", exc)
+            return None
         if not token:
-            raise OneMapError(f"no access_token in OneMap token response: {resp.text[:200]}")
+            log.warning("no access_token in the OneMap token response; carrying on without")
+            return None
         self._token = token
         return token
 
     def _get(self, url: str, params: dict[str, Any], auth: bool = False) -> dict[str, Any]:
         headers = {"Accept": "application/json"}
-        if auth:
-            headers["Authorization"] = self.token()
+        token = self.token() if auth else None
+        if token:
+            headers["Authorization"] = token
         self._throttle()
         resp = self.session.get(url, params=params, headers=headers, timeout=self.timeout)
         if resp.status_code in (401, 403) and auth:
-            raise OneMapError(f"OneMap rejected the token ({resp.status_code}); it may have expired")
+            if token:
+                raise OneMapError(
+                    f"OneMap rejected the token ({resp.status_code}); it may have expired"
+                )
+            raise NoTokenError(
+                f"OneMap answered {resp.status_code} to an unauthenticated request to "
+                f"{url}. It did not used to require a credential for this; set "
+                "ONEMAP_TOKEN, or ONEMAP_EMAIL and ONEMAP_PASSWORD, if it now does."
+            )
         resp.raise_for_status()
         return resp.json()
 

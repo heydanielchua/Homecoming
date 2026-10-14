@@ -248,17 +248,29 @@ CREATE TABLE IF NOT EXISTS land_parcel (
 CREATE INDEX IF NOT EXISTS parcel_box_idx ON land_parcel(min_lat, max_lat, min_lon, max_lon);
 CREATE INDEX IF NOT EXISTS parcel_use_idx ON land_parcel(land_use);
 
--- Parks, hawker centres and park facilities. One table because the question
--- is always the same shape — what is near this block, and how far — and the
--- `kind` says which layer it came from.
+-- Everything the report answers "what is near this block, and how far" out
+-- of: hawker centres, parks, park facilities, MRT station exits, bus stops,
+-- schools and pre-schools. One table because the question is always the same
+-- shape, and the `kind` says which layer it came from.
 --
 -- Shapes are summarised the same way as land_parcel: centroid plus box. For a
 -- park the box earns its place, because the distance that matters is to the
--- edge, not the middle.
+-- edge, not the middle. For a point layer the box is the point.
+--
+-- An MRT exit is a row of its own rather than a station, because what you
+-- walk to is an exit: at a long station the two differ by a couple of hundred
+-- metres, and the station centroid can sit under a road you cannot cross.
+--
+-- postal and geocoded_at exist for the one layer that arrives without
+-- coordinates. MOE publishes 337 schools with a postal code and no geometry,
+-- so they are loaded flat and then geocoded like the blocks were; until that
+-- runs, lat and lon are null and the report says the school distance is
+-- unknown rather than guessing one.
 CREATE TABLE IF NOT EXISTS amenity (
     id        INTEGER PRIMARY KEY,
-    kind      TEXT NOT NULL,          -- hawker_centre | park | park_facility
-    subtype   TEXT,                   -- facility class, or reserve type
+    kind      TEXT NOT NULL,          -- hawker_centre | park | park_facility |
+                                      -- mrt_exit | bus_stop | school | preschool
+    subtype   TEXT,                   -- facility class, reserve type, school level
     name      TEXT,
     detail    TEXT,
     status    TEXT,                   -- hawker centres: six are not built yet
@@ -269,6 +281,8 @@ CREATE TABLE IF NOT EXISTS amenity (
     max_lat   REAL,
     min_lon   REAL,
     max_lon   REAL,
+    postal    TEXT,
+    geocoded_at TEXT,
     source    TEXT,
     UNIQUE (kind, name, lat, lon)
 );

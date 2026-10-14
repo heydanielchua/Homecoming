@@ -7,7 +7,7 @@ near this block" without a geometry library or a spatial index.
 
 from __future__ import annotations
 
-from math import asin, cos, radians, sin, sqrt
+from math import asin, atan2, cos, degrees, radians, sin, sqrt
 
 EARTH_RADIUS_M = 6_371_000.0
 
@@ -18,6 +18,30 @@ def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     dlon = radians(lon2 - lon1)
     a = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
     return 2 * EARTH_RADIUS_M * asin(sqrt(a))
+
+
+def bearing_deg(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Compass bearing from the first point to the second, 0..360.
+
+    Needed because "what blocks the view" and "where the afternoon sun comes
+    from" are both questions about direction, and the sun's azimuth is
+    measured the same way: clockwise from true north.
+
+    Over a few hundred metres at the equator the spherical and the flat
+    answer agree to a small fraction of a degree, but the spherical one is no
+    harder to write.
+    """
+    phi1, phi2 = radians(lat1), radians(lat2)
+    dlon = radians(lon2 - lon1)
+    y = sin(dlon) * cos(phi2)
+    x = cos(phi1) * sin(phi2) - sin(phi1) * cos(phi2) * cos(dlon)
+    return (degrees(atan2(y, x)) + 360.0) % 360.0
+
+
+def compass_point(bearing: float) -> str:
+    """The nearest of the eight compass points, for a bearing."""
+    points = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
+    return points[int((bearing % 360.0 + 22.5) // 45.0) % 8]
 
 
 def nearest(
@@ -38,6 +62,33 @@ def nearest(
         if best_d is None or d < best_d:
             best, best_d = point, d
     return best, best_d
+
+
+def distance_to_box_m(
+    lat: float,
+    lon: float,
+    min_lat: float | None,
+    max_lat: float | None,
+    min_lon: float | None,
+    max_lon: float | None,
+) -> float | None:
+    """Distance to the nearest point of a bounding box, zero if inside.
+
+    This is what makes a park's distance mean anything. Bukit Timah Nature
+    Reserve's centroid is over a kilometre from blocks whose nearest fence is
+    two hundred metres away, and the centroid distance would report those
+    blocks as nowhere near a park.
+
+    The box is an over-estimate of the shape, so this is a lower bound on the
+    true distance to the boundary — which is the right direction to be wrong
+    in for a park, and is why the figure is reported as worked out rather
+    than as fact.
+    """
+    if None in (min_lat, max_lat, min_lon, max_lon):
+        return None
+    near_lat = min(max(lat, min_lat), max_lat)
+    near_lon = min(max(lon, min_lon), max_lon)
+    return haversine_m(lat, lon, near_lat, near_lon)
 
 
 def _ring_centroid(ring: list) -> tuple[float, float, float]:

@@ -71,6 +71,19 @@ amenities:
   - key: park_facility
     id: d_14d807e20158338fd578c2913953516e
     label: NParks park facilities
+  # An exit, not a station centroid: you walk to an exit, and the two differ
+  # by a couple of hundred metres at a long station like Bugis or Bayfront.
+  - key: mrt_exit
+    id: d_b39d3a0871985372d7e1637193335da5
+    label: LTA MRT station exits
+  - key: bus_stop
+    id: d_3f172c6feb3f4f92a2f47d93eed2908a
+    label: LTA bus stops
+  # ECDA's layer is KML converted to GeoJSON: every attribute arrives inside
+  # one HTML table in a `Description` string rather than as its own field.
+  - key: preschool
+    id: d_61eefab99958fd70e6aab17320a71f1c
+    label: ECDA pre-school locations
 
 # Rainfall. One dataset per year of five-minute readings — 7,044,646 rows for
 # 2021 — paged through the ordinary datastore and folded down to one row per
@@ -94,6 +107,13 @@ rainfall:
 rentals:
   id: d_c9f57187485a850908655db0e8cfe651
   label: HDB renting out of flats, Jan 2021 onwards
+
+# MOE's directory is the one amenity layer that is not geospatial: it comes
+# down the ordinary datastore and carries a postal code but no coordinates,
+# so the blocks' own geocoder is pointed at it after loading.
+schools:
+  id: d_688b934f82c1059ed0a6993d2a829089
+  label: MOE school directory
 
 onemap:
   search_url: https://www.onemap.gov.sg/api/common/elastic/search

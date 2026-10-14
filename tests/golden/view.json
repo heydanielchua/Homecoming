@@ -1,0 +1,253 @@
+{
+  "block_max_floor": 16,
+  "cases": [
+    {
+      "expected": {
+        "above_everything": false,
+        "blocked": [
+          {
+            "bearing": 180.0,
+            "direction": "S",
+            "distance_m": 40.0,
+            "elevation_deg": 40.8,
+            "name": "669A",
+            "rises_m": 34.5,
+            "storeys": 16,
+            "storeys_above": 11.5
+          },
+          {
+            "bearing": 272.0,
+            "direction": "W",
+            "distance_m": 55.0,
+            "elevation_deg": 48.2,
+            "name": "664A",
+            "rises_m": 61.5,
+            "storeys": 25,
+            "storeys_above": 20.5
+          },
+          {
+            "bearing": 95.0,
+            "direction": "E",
+            "distance_m": 180.0,
+            "elevation_deg": 23.0,
+            "name": "671",
+            "rises_m": 76.5,
+            "storeys": 30,
+            "storeys_above": 25.5
+          }
+        ],
+        "blocked_arc_deg": 149.9,
+        "clear": [
+          {
+            "bearing": 10.0,
+            "direction": "N",
+            "distance_m": 70.0,
+            "name": "668",
+            "storeys": 4
+          }
+        ],
+        "eye_height_m": 10.5,
+        "open_directions": [
+          "N",
+          "NE",
+          "SE",
+          "SW",
+          "NW"
+        ],
+        "storey": 4,
+        "unknown": null
+      },
+      "name": "low floor",
+      "storey": 4
+    },
+    {
+      "expected": {
+        "above_everything": false,
+        "blocked": [
+          {
+            "bearing": 180.0,
+            "direction": "S",
+            "distance_m": 40.0,
+            "elevation_deg": 2.1,
+            "name": "669A",
+            "rises_m": 1.5,
+            "storeys": 16,
+            "storeys_above": 0.5
+          },
+          {
+            "bearing": 272.0,
+            "direction": "W",
+            "distance_m": 55.0,
+            "elevation_deg": 27.4,
+            "name": "664A",
+            "rises_m": 28.5,
+            "storeys": 25,
+            "storeys_above": 9.5
+          },
+          {
+            "bearing": 95.0,
+            "direction": "E",
+            "distance_m": 180.0,
+            "elevation_deg": 13.6,
+            "name": "671",
+            "rises_m": 43.5,
+            "storeys": 30,
+            "storeys_above": 14.5
+          }
+        ],
+        "blocked_arc_deg": 149.9,
+        "clear": [
+          {
+            "bearing": 10.0,
+            "direction": "N",
+            "distance_m": 70.0,
+            "name": "668",
+            "storeys": 4
+          }
+        ],
+        "eye_height_m": 43.5,
+        "open_directions": [
+          "N",
+          "NE",
+          "SE",
+          "SW",
+          "NW"
+        ],
+        "storey": 15,
+        "unknown": null
+      },
+      "name": "high floor",
+      "storey": 15
+    },
+    {
+      "expected": {
+        "above_everything": false,
+        "blocked": [
+          {
+            "bearing": 272.0,
+            "direction": "W",
+            "distance_m": 55.0,
+            "elevation_deg": 24.9,
+            "name": "664A",
+            "rises_m": 25.5,
+            "storeys": 25,
+            "storeys_above": 8.5
+          },
+          {
+            "bearing": 95.0,
+            "direction": "E",
+            "distance_m": 180.0,
+            "elevation_deg": 12.7,
+            "name": "671",
+            "rises_m": 40.5,
+            "storeys": 30,
+            "storeys_above": 13.5
+          }
+        ],
+        "blocked_arc_deg": 76.1,
+        "clear": [
+          {
+            "bearing": 180.0,
+            "direction": "S",
+            "distance_m": 40.0,
+            "name": "669A",
+            "storeys": 16
+          },
+          {
+            "bearing": 10.0,
+            "direction": "N",
+            "distance_m": 70.0,
+            "name": "668",
+            "storeys": 4
+          }
+        ],
+        "eye_height_m": 46.5,
+        "open_directions": [
+          "N",
+          "NE",
+          "SE",
+          "S",
+          "SW",
+          "NW"
+        ],
+        "storey": 16,
+        "unknown": null
+      },
+      "name": "top floor",
+      "storey": 16
+    },
+    {
+      "expected": {
+        "above_everything": false,
+        "blocked": [],
+        "blocked_arc_deg": 0.0,
+        "clear": [
+          {
+            "bearing": 272.0,
+            "direction": "W",
+            "distance_m": 55.0,
+            "name": "664A",
+            "storeys": 25
+          },
+          {
+            "bearing": 95.0,
+            "direction": "E",
+            "distance_m": 180.0,
+            "name": "671",
+            "storeys": 30
+          },
+          {
+            "bearing": 10.0,
+            "direction": "N",
+            "distance_m": 70.0,
+            "name": "668",
+            "storeys": 4
+          },
+          {
+            "bearing": 180.0,
+            "direction": "S",
+            "distance_m": 40.0,
+            "name": "669A",
+            "storeys": 16
+          }
+        ],
+        "eye_height_m": null,
+        "open_directions": [],
+        "storey": null,
+        "unknown": "the floor was not given, so what the view looks at is unknown"
+      },
+      "name": "floor not given",
+      "storey": null
+    }
+  ],
+  "neighbours": [
+    {
+      "bearing": 272.0,
+      "distance_m": 55.0,
+      "max_floor_lvl": 25,
+      "name": "664A",
+      "storeys": 25
+    },
+    {
+      "bearing": 95.0,
+      "distance_m": 180.0,
+      "max_floor_lvl": 30,
+      "name": "671",
+      "storeys": 30
+    },
+    {
+      "bearing": 10.0,
+      "distance_m": 70.0,
+      "max_floor_lvl": 4,
+      "name": "668",
+      "storeys": 4
+    },
+    {
+      "bearing": 180.0,
+      "distance_m": 40.0,
+      "max_floor_lvl": 16,
+      "name": "669A",
+      "storeys": 16
+    }
+  ]
+}

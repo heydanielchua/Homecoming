@@ -85,6 +85,60 @@ class DataGovClient:
         raise DataGovError(f"giving up on {params.get('resource_id')}: {last_error}")
 
     # -- public ------------------------------------------------------------
+    def total(self, resource_id: str) -> int | None:
+        """How many rows a resource holds, from a one-row request."""
+        result = self._get({"resource_id": resource_id, "limit": 1, "offset": 0})
+        total = result.get("total")
+        return int(total) if total is not None else None
+
+    def sample(
+        self,
+        resource_id: str,
+        pages: int = 40,
+        page_size: int = 1000,
+    ) -> Iterator[dict[str, Any]]:
+        """Rows from `pages` pages spread evenly through a resource.
+
+        For a table nobody can afford to read whole. A year of five-minute
+        rainfall is 6.4 million rows and there is no server-side aggregation
+        to lean on, so reading it all is hours of requests for a figure that
+        only has to rank one part of the island against another.
+
+        Spread evenly, not the first N pages, because these tables are in
+        time order: the first 40,000 rows of a rainfall year are the first
+        few days of January, and a wet January would become the whole year's
+        answer. Offsets across the range sample the seasons instead.
+
+        It works because a page is not one station. Each page interleaves
+        around 60 of the 89 gauges, so every station lands in nearly every
+        page and the comparison between them stays fair. What the sample
+        cannot give is a total: 40 pages of a 6,400-page year is a rate, and
+        the caller has to treat it as one.
+        """
+        rows = self.total(resource_id)
+        if not rows:
+            return
+        pages = max(1, pages)
+        page_size = max(MIN_PAGE_SIZE, page_size)
+        # Deep offsets are the constraint, not page count: this resource
+        # answers offset=3,000,000 with limit=1,000 in six seconds and times
+        # out at limit=10,000, so sampling asks for small pages on purpose.
+        span = max(1, rows // pages)
+        for i in range(pages):
+            offset = min(i * span, max(0, rows - page_size))
+            try:
+                result = self._get(
+                    {"resource_id": resource_id, "limit": page_size, "offset": offset}
+                )
+            except PayloadTooLarge:
+                log.warning("%s refused a sample page at offset %s", resource_id, offset)
+                continue
+            records = result.get("records", [])
+            if not records:
+                continue
+            log.debug("%s: sampled %s rows at offset %s", resource_id, len(records), offset)
+            yield from records
+
     def records(self, resource_id: str, limit: int | None = None) -> Iterator[dict[str, Any]]:
         """Every record in a resource, paged.
 

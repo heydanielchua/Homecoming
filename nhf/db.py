@@ -26,8 +26,36 @@ def connect(path: Path | str | None = None) -> sqlite3.Connection:
     return conn
 
 
+# Columns added to a table after the first version of the schema shipped.
+# `CREATE TABLE IF NOT EXISTS` does nothing to a table that already exists, so
+# a database made by an earlier version would keep the old shape and every
+# insert naming a new column would fail. Adding them here, idempotently, is
+# what lets an existing data/nhf.db survive a schema change without a resync
+# that costs hours of geocoding.
+ADDED_COLUMNS: dict[str, dict[str, str]] = {
+    "amenity": {"postal": "TEXT", "geocoded_at": "TEXT"},
+}
+
+
+def ensure_columns(conn: sqlite3.Connection, table: str, columns: dict[str, str]) -> list[str]:
+    """Add any of `columns` the table does not have yet. Returns what was added."""
+    existing = {
+        row["name"] for row in conn.execute(f"PRAGMA table_info({table})")
+    }
+    if not existing:                  # no such table; the schema will create it
+        return []
+    added = []
+    for name, decl in columns.items():
+        if name not in existing:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+            added.append(name)
+    return added
+
+
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA_PATH.read_text())
+    for table, columns in ADDED_COLUMNS.items():
+        ensure_columns(conn, table, columns)
     conn.commit()
 
 

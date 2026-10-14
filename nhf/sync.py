@@ -147,6 +147,146 @@ def sync_rentals(conn, client, reporter, cfg: Config, limit: int | None = None) 
     )
 
 
+def sync_schools(conn, client, reporter, cfg: Config, limit: int | None = None) -> int:
+    """Load MOE's school directory, which is datastore rows and not a layer.
+
+    The amenity table is where every "what is near this block" answer comes
+    from, so schools go in beside the parks and the bus stops even though
+    they arrive by a different route. They land without coordinates;
+    `geocode_amenities` places them from their postal codes afterwards.
+    """
+    from .sources import amenity
+
+    entry = cfg.datasets.get("schools") or {}
+    started = _now()
+    resource_id, label = entry.get("id"), entry.get("label")
+
+    if not resource_id or resource_id == TODO:
+        reporter.record(
+            "schools", "skipped", resource_id=resource_id, label=label,
+            started_at=started, message="resource id still TODO in config/datasets.yml",
+        )
+        return 0
+
+    try:
+        rows = list(hdb.map_records(
+            client.records(resource_id, limit=limit), amenity.school_row,
+            label or resource_id,
+        ))
+    except DataGovError as exc:
+        reporter.record("schools", "error", resource_id=resource_id, label=label,
+                        started_at=started, message=str(exc))
+        return 0
+
+    # Keep coordinates already geocoded. Re-running the sync should not throw
+    # away OneMap calls because MOE republished the directory with a new
+    # principal's name, so the places are read out first and written back
+    # after the reload rather than carried through the insert.
+    placed = {
+        row["name"]: row
+        for row in conn.execute(
+            "SELECT name, lat, lon, geocoded_at FROM amenity"
+            " WHERE kind = 'school' AND lat IS NOT NULL AND lon IS NOT NULL"
+        )
+    }
+
+    with conn:
+        conn.execute("DELETE FROM amenity WHERE kind = 'school'")
+        upsert_many(conn, "amenity", amenity.AMENITY_COLUMNS, rows, conflict="REPLACE")
+        restored = 0
+        for row in rows:
+            known = placed.get(row[2])
+            if not known:
+                continue
+            conn.execute(
+                "UPDATE amenity SET lat = ?, lon = ?, min_lat = ?, max_lat = ?,"
+                " min_lon = ?, max_lon = ?, geocoded_at = ?"
+                " WHERE kind = 'school' AND name = ?",
+                (known["lat"], known["lon"], known["lat"], known["lat"],
+                 known["lon"], known["lon"], known["geocoded_at"], row[2]),
+            )
+            restored += 1
+
+    primaries = sum(1 for r in rows if r[1] == "PRIMARY")
+    unplaced = len(rows) - restored
+    reporter.record(
+        "schools", "ok" if rows else "error", rows=len(rows),
+        resource_id=resource_id, label=label, started_at=started,
+        message=(
+            f"{primaries} primary; {unplaced} still need coordinates "
+            "(run `nhf geocode --schools`)" if unplaced else f"{primaries} primary"
+        ),
+    )
+    return len(rows)
+
+
+def geocode_amenities(
+    conn: sqlite3.Connection,
+    reporter: SyncReporter,
+    client: OneMapClient | None = None,
+    kind: str = "school",
+    limit: int | None = None,
+) -> int:
+    """Place the one layer that arrives without coordinates.
+
+    Same geocoder as the blocks, pointed at a postal code instead of a block
+    and street. A school that does not resolve keeps a null lat/lon, and the
+    report then says the school distance is unknown and why, rather than
+    quietly leaving it out of the within-1-km count.
+    """
+    started = _now()
+    client = client or OneMapClient()
+
+    sql = (
+        "SELECT id, name, postal, detail FROM amenity"
+        " WHERE kind = ? AND (lat IS NULL OR lon IS NULL) AND postal IS NOT NULL"
+        " ORDER BY name"
+    )
+    if limit:
+        sql += f" LIMIT {int(limit)}"
+    targets = conn.execute(sql, (kind,)).fetchall()
+
+    done = 0
+    failures: list[str] = []
+    for row in targets:
+        # The postal code is the better query: a school address written
+        # "11 WOODLANDS CIRCLE" matches many things, a postal code matches one.
+        for query in (row["postal"], row["detail"], row["name"]):
+            if not query:
+                continue
+            try:
+                point = client.geocode(str(query))
+            except Exception as exc:          # one bad address must not stop 337
+                failures.append(f"{row['name']}: {exc}")
+                point = None
+                break
+            if point:
+                break
+        else:
+            point = None
+        if not point:
+            failures.append(f"{row['name']}: no match for postal {row['postal']}")
+            continue
+        with conn:
+            conn.execute(
+                "UPDATE amenity SET lat = ?, lon = ?, min_lat = ?, max_lat = ?,"
+                " min_lon = ?, max_lon = ?, geocoded_at = ? WHERE id = ?",
+                (point.lat, point.lon, point.lat, point.lat, point.lon, point.lon,
+                 _now(), row["id"]),
+            )
+        done += 1
+
+    reporter.record(
+        f"geocode_{kind}", "ok" if done or not targets else "error", rows=done,
+        started_at=started,
+        message=(
+            f"{len(failures)} {kind}(s) did not geocode; first few: "
+            + "; ".join(failures[:3])
+        ) if failures else None,
+    )
+    return done
+
+
 def sync_town_medians(conn, client, reporter, cfg: Config, limit: int | None = None) -> int:
     """HDB's own town medians, with a fallback derived from the transactions.
 
@@ -355,12 +495,21 @@ def sync_rainfall(
     cfg: Config,
     year: int | None = None,
     limit: int | None = None,
+    sample_pages: int | None = 40,
 ) -> int:
     """Fold a year of five-minute rainfall readings into one row per station.
 
-    Seven million rows in, 89 out. The readings are never stored: the only
+    Millions of rows in, 89 out. The readings are never stored: the only
     question they answer is whether one part of the island is wetter than
     another.
+
+    By default this samples rather than reads the year whole. 2024 is
+    6,406,260 readings, and with no server-side aggregation available that is
+    hours of paging for a ranking. Pages are spread across the year and each
+    one carries about 60 of the 89 stations, so every gauge is sampled alike
+    — which is what makes the comparison between them fair even though the
+    totals are not annual totals. `sample_pages=None` reads everything, for
+    whoever wants to spend the hours.
     """
     from .sources import rainfall
 
@@ -377,8 +526,13 @@ def sync_rainfall(
         )
         return 0
 
+    sampled = bool(sample_pages) and not limit
     try:
-        stations = rainfall.fold(client.records(resource_id, limit=limit))
+        records = (
+            client.sample(resource_id, pages=int(sample_pages))
+            if sampled else client.records(resource_id, limit=limit)
+        )
+        stations = rainfall.fold(records)
     except DataGovError as exc:
         reporter.record("rainfall", "error", resource_id=resource_id, label=label,
                         started_at=started, message=str(exc))
@@ -395,14 +549,25 @@ def sync_rainfall(
         upsert_many(conn, "rainfall_station", rainfall.STATION_COLUMNS, rows,
                     conflict="REPLACE")
 
-    wettest = max(rows, key=lambda r: r[5] or 0)
-    driest = min(rows, key=lambda r: r[5] or 0)
+    # Rate per reading, not total: with a sample the totals are not
+    # comparable between stations that happened to land in a different number
+    # of pages, and the whole point of the layer is the comparison.
+    def rate(row: tuple) -> float:
+        return (row[5] or 0.0) / row[6] if row[6] else 0.0
+
+    wettest = max(rows, key=rate)
+    driest = min(rows, key=rate)
+    readings = sum(r[6] or 0 for r in rows)
     reporter.record(
         "rainfall", "ok", rows=len(rows), resource_id=resource_id, label=label,
         started_at=started,
         message=(
-            f"{year}: wettest {wettest[1]} at {wettest[5]:.0f} mm, driest "
-            f"{driest[1]} at {driest[5]:.0f} mm"
+            f"{year}: {readings:,} readings "
+            f"{'sampled from ' + str(sample_pages) + ' pages' if sampled else 'read whole'}; "
+            f"wettest {wettest[1]} at {rate(wettest) * 1000:.2f} mm per 1000 readings, "
+            f"driest {driest[1]} at {rate(driest) * 1000:.2f}"
+            + ("; a sample ranks stations against each other and is not an annual total"
+               if sampled else "")
         ),
     )
     return len(rows)
@@ -753,6 +918,8 @@ def run_sync(
         sync_town_medians(conn, client, reporter, cfg, limit)
     if should("rentals"):
         sync_rentals(conn, client, reporter, cfg, limit)
+    if should("schools"):
+        sync_schools(conn, client, reporter, cfg, limit)
     if should("future_mrt"):
         load_future_mrt(conn, cfg, reporter)
     # Only when asked for by name: 174 MB of a plan that changes every few
@@ -768,6 +935,7 @@ def run_sync(
     if should("geocode"):
         geocode_offices(conn, cfg, reporter, onemap)
         geocode_blocks(conn, reporter, onemap, limit=limit)
+        geocode_amenities(conn, reporter, onemap, kind="school", limit=limit)
     if should("commute"):
         compute_commute(conn, cfg, reporter, onemap, limit=limit)
 

@@ -72,7 +72,7 @@ def test_a_park_keeps_its_area_and_its_extent(tmp_path):
     assert row[0] == "park" and row[2] == "Big Park"
     assert row[1] == "NATURE RESERVE" and row[3] == "NP510"
     assert row[5] == pytest.approx(151032.7)
-    _, _, _, _, _, _, lat, lon, min_lat, max_lat, min_lon, max_lon, _ = row
+    _, _, _, _, _, _, lat, lon, min_lat, max_lat, min_lon, max_lon, _, _ = row
     assert (min_lat, max_lat) == (1.0, 1.2) and (min_lon, max_lon) == (103.0, 103.2)
     assert min_lat < lat < max_lat
 
@@ -210,3 +210,109 @@ def test_neither_heavy_step_runs_in_the_monthly_sync():
     source = inspect.getsource(sync_mod.run_sync)
     assert 'wanted and "rainfall" in wanted' in source
     assert 'wanted and "land_use" in wanted' in source
+
+
+# --- the layers added for the listing report -----------------------------
+# Field names again taken from the published layers: STATION_NA and EXIT_CODE
+# on LTA's exits, BUS_STOP_NUM on its stops, and ECDA's attributes buried in
+# a KML-converted HTML table.
+class TestTransportAndSchools:
+    def test_an_mrt_exit_is_named_by_station_and_exit(self, tmp_path):
+        """An exit, not a station: what you walk to is the exit."""
+        path = _layer(tmp_path, "exits", [{
+            "type": "Feature",
+            "geometry": _point(103.818, 1.3987),
+            "properties": {"OBJECTID": 21404, "STATION_NA": "SPRINGLEAF MRT STATION",
+                           "EXIT_CODE": "Exit 1"},
+        }])
+        row = next(iter(amenity.load_layer(path, "mrt_exit", "test")))
+        assert row[0] == "mrt_exit"
+        assert row[1] == "SPRINGLEAF MRT STATION"       # subtype keeps the station
+        assert row[2] == "SPRINGLEAF MRT STATION Exit 1"
+        assert row[6] == pytest.approx(1.3987) and row[7] == pytest.approx(103.818)
+
+    def test_an_exit_without_a_station_is_dropped(self, tmp_path):
+        path = _layer(tmp_path, "exits", [{
+            "type": "Feature", "geometry": _point(),
+            "properties": {"EXIT_CODE": "Exit 4"},
+        }])
+        assert list(amenity.load_layer(path, "mrt_exit", "test")) == []
+
+    def test_a_bus_stop_is_keyed_by_its_number(self, tmp_path):
+        """Either spelling of the stop-number field, because the published
+        layer uses BUS_STOP_NUM and the schema docs say BUS_STOP_N."""
+        for field in ("BUS_STOP_NUM", "BUS_STOP_N"):
+            path = _layer(tmp_path, f"stops-{field}", [{
+                "type": "Feature", "geometry": _point(103.8377, 1.3659),
+                "properties": {field: "54621", "BUS_ROOF_NUM": "B13"},
+            }])
+            row = next(iter(amenity.load_layer(path, "bus_stop", "test")))
+            assert row[0] == "bus_stop" and row[2] == "54621" and row[3] == "B13"
+
+    def test_a_preschool_is_read_out_of_the_kml_description(self, tmp_path):
+        """ECDA's layer is KML converted to GeoJSON, so every attribute is in
+        one HTML table in `Description` and `Name` is the useless "kml_1"."""
+        description = (
+            "<center><table><tr><th colspan='2' align='center'><em>Attributes</em>"
+            "</th></tr><tr bgcolor=\"#E3E3F3\"> <th>CENTRE_NAME</th> "
+            "<td>CHILDREN&#39;S COVE PRESCHOOL PTE.LTD.</td> </tr>"
+            "<tr bgcolor=\"\"> <th>CENTRE_CODE</th> <td>PT9390</td> </tr>"
+            "</table></center>"
+        )
+        path = _layer(tmp_path, "preschools", [{
+            "type": "Feature",
+            # Three ordinates, as published: the z is always 0.0.
+            "geometry": {"type": "Point", "coordinates": [103.807166, 1.299332, 0.0]},
+            "properties": {"Name": "kml_1", "Description": description},
+        }])
+        row = next(iter(amenity.load_layer(path, "preschool", "test")))
+        assert row[0] == "preschool"
+        assert row[2] == "CHILDREN'S COVE PRESCHOOL PTE.LTD."   # entity unescaped
+        assert row[3] == "PT9390"
+        assert row[6] == pytest.approx(1.299332)
+
+    def test_a_preschool_with_no_attributes_is_dropped(self, tmp_path):
+        """Better one fewer pre-school than a point named "kml_1"."""
+        path = _layer(tmp_path, "preschools", [{
+            "type": "Feature", "geometry": _point(),
+            "properties": {"Name": "kml_17", "Description": "<table></table>"},
+        }])
+        assert list(amenity.load_layer(path, "preschool", "test")) == []
+
+    def test_a_school_arrives_with_a_postal_code_and_no_coordinates(self):
+        """MOE's directory is datastore rows, not a layer: it carries a postal
+        code and no geometry, and is geocoded afterwards."""
+        row = amenity.school_row({
+            "school_name": "ADMIRALTY PRIMARY SCHOOL",
+            "postal_code": "738907",
+            "address": "11 WOODLANDS CIRCLE   ",
+            "mainlevel_code": "PRIMARY",
+        }, "test")
+        assert row[0] == "school" and row[1] == "PRIMARY"
+        assert row[2] == "ADMIRALTY PRIMARY SCHOOL"
+        assert row[3] == "11 WOODLANDS CIRCLE"          # inner whitespace collapsed
+        assert row[6] is None and row[7] is None        # not placed yet
+        assert row[12] == "738907"
+
+    def test_a_school_without_a_postal_code_cannot_be_placed(self):
+        assert amenity.school_row(
+            {"school_name": "NOWHERE SCHOOL", "mainlevel_code": "PRIMARY"}, "test"
+        ) is None
+
+    def test_every_new_layer_row_matches_the_column_list(self, tmp_path):
+        """The one assertion that catches a column added to the table and not
+        to a mapper, which SQLite would otherwise report as a shifted value."""
+        path = _layer(tmp_path, "exits", [{
+            "type": "Feature", "geometry": _point(),
+            "properties": {"STATION_NA": "BUGIS MRT STATION", "EXIT_CODE": "Exit A"},
+        }])
+        rows = [next(iter(amenity.load_layer(path, "mrt_exit", "test")))]
+        rows.append(amenity.school_row(
+            {"school_name": "A SCHOOL", "postal_code": "123456"}, "test"))
+        conn = open_db(":memory:")
+        for row in rows:
+            assert len(row) == len(amenity.AMENITY_COLUMNS)
+        upsert_many(conn, "amenity", amenity.AMENITY_COLUMNS, rows)
+        conn.commit()
+        kinds = {r[0] for r in conn.execute("SELECT kind FROM amenity")}
+        assert kinds == {"mrt_exit", "school"}

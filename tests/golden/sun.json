@@ -1,0 +1,755 @@
+{
+  "cases": [
+    {
+      "expected": {
+        "bearing": 270.0,
+        "blocked_hours": 0.0,
+        "blocked_low_hours": 0.0,
+        "facing": "W",
+        "hours": 1273.6,
+        "low_hours": 667.4,
+        "net_low_hours": 667.4,
+        "peak_month": 3,
+        "shaded_by": {}
+      },
+      "facing": "W",
+      "name": "open west face",
+      "obstructions": []
+    },
+    {
+      "expected": {
+        "bearing": 90.0,
+        "blocked_hours": 0.0,
+        "blocked_low_hours": 0.0,
+        "facing": "E",
+        "hours": 0.0,
+        "low_hours": 0.0,
+        "net_low_hours": 0.0,
+        "peak_month": null,
+        "shaded_by": {}
+      },
+      "facing": "E",
+      "name": "east face, no afternoon sun",
+      "obstructions": []
+    },
+    {
+      "expected": {
+        "bearing": 270.0,
+        "blocked_hours": 597.3,
+        "blocked_low_hours": 597.3,
+        "facing": "W",
+        "hours": 1273.6,
+        "low_hours": 667.4,
+        "net_low_hours": 70.2,
+        "peak_month": 3,
+        "shaded_by": {
+          "Block 123": 597.3
+        }
+      },
+      "facing": "W",
+      "name": "tall block due west",
+      "obstructions": [
+        {
+          "bearing": 270.0,
+          "distance_m": 60.0,
+          "half_width": 25.0,
+          "height_m": 30.0,
+          "label": "Block 123"
+        }
+      ]
+    },
+    {
+      "expected": {
+        "bearing": 270.0,
+        "blocked_hours": 0.0,
+        "blocked_low_hours": 0.0,
+        "facing": "W",
+        "hours": 1273.6,
+        "low_hours": 667.4,
+        "net_low_hours": 667.4,
+        "peak_month": 3,
+        "shaded_by": {}
+      },
+      "facing": "W",
+      "name": "same block, seen from above it",
+      "obstructions": [
+        {
+          "bearing": 270.0,
+          "distance_m": 60.0,
+          "half_width": 25.0,
+          "height_m": -9.0,
+          "label": "Block 123"
+        }
+      ]
+    },
+    {
+      "expected": {
+        "bearing": 315.0,
+        "blocked_hours": 260.7,
+        "blocked_low_hours": 260.7,
+        "facing": "NW",
+        "hours": 896.2,
+        "low_hours": 469.9,
+        "net_low_hours": 209.2,
+        "peak_month": 6,
+        "shaded_by": {
+          "Block 124": 136.8,
+          "Block 125": 123.9
+        }
+      },
+      "facing": "NW",
+      "name": "two neighbours, one to the north-west",
+      "obstructions": [
+        {
+          "bearing": 300.0,
+          "distance_m": 45.0,
+          "half_width": 20.0,
+          "height_m": 18.0,
+          "label": "Block 124"
+        },
+        {
+          "bearing": 250.0,
+          "distance_m": 80.0,
+          "half_width": 15.0,
+          "height_m": 40.0,
+          "label": "Block 125"
+        }
+      ]
+    }
+  ],
+  "constants": {
+    "face_half_angle": 90.0,
+    "low_sun_altitude": 30.0,
+    "min_altitude": 2.0,
+    "storey_height_m": 3.0
+  },
+  "lat": 1.35,
+  "lon": 103.82,
+  "step_minutes": 30,
+  "track": [
+    {
+      "altitude": 49.896,
+      "azimuth": 234.052,
+      "hour": 15.5,
+      "month": 1,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 43.65,
+      "azimuth": 238.66,
+      "hour": 16.0,
+      "month": 1,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 37.134,
+      "azimuth": 242.003,
+      "hour": 16.5,
+      "month": 1,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 30.439,
+      "azimuth": 244.447,
+      "hour": 17.0,
+      "month": 1,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 23.625,
+      "azimuth": 246.227,
+      "hour": 17.5,
+      "month": 1,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 16.731,
+      "azimuth": 247.492,
+      "hour": 18.0,
+      "month": 1,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 9.784,
+      "azimuth": 248.338,
+      "hour": 18.5,
+      "month": 1,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 2.805,
+      "azimuth": 248.821,
+      "hour": 19.0,
+      "month": 1,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 54.58,
+      "azimuth": 245.745,
+      "hour": 15.5,
+      "month": 2,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 47.644,
+      "azimuth": 249.479,
+      "hour": 16.0,
+      "month": 2,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 40.563,
+      "azimuth": 252.063,
+      "hour": 16.5,
+      "month": 2,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 33.393,
+      "azimuth": 253.903,
+      "hour": 17.0,
+      "month": 2,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 26.166,
+      "azimuth": 255.232,
+      "hour": 17.5,
+      "month": 2,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 18.899,
+      "azimuth": 256.186,
+      "hour": 18.0,
+      "month": 2,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 11.608,
+      "azimuth": 256.847,
+      "hour": 18.5,
+      "month": 2,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 4.3,
+      "azimuth": 257.267,
+      "hour": 19.0,
+      "month": 2,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 55.746,
+      "azimuth": 264.287,
+      "hour": 15.5,
+      "month": 3,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 48.278,
+      "azimuth": 265.346,
+      "hour": 16.0,
+      "month": 3,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 40.8,
+      "azimuth": 266.086,
+      "hour": 16.5,
+      "month": 3,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 33.316,
+      "azimuth": 266.634,
+      "hour": 17.0,
+      "month": 3,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 25.828,
+      "azimuth": 267.055,
+      "hour": 17.5,
+      "month": 3,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 18.338,
+      "azimuth": 267.388,
+      "hour": 18.0,
+      "month": 3,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 10.846,
+      "azimuth": 267.658,
+      "hour": 18.5,
+      "month": 3,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 3.352,
+      "azimuth": 267.88,
+      "hour": 19.0,
+      "month": 3,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 52.931,
+      "azimuth": 284.564,
+      "hour": 15.5,
+      "month": 4,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 45.64,
+      "azimuth": 282.696,
+      "hour": 16.0,
+      "month": 4,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 38.305,
+      "azimuth": 281.469,
+      "hour": 16.5,
+      "month": 4,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 30.944,
+      "azimuth": 280.659,
+      "hour": 17.0,
+      "month": 4,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 23.568,
+      "azimuth": 280.146,
+      "hour": 17.5,
+      "month": 4,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 16.182,
+      "azimuth": 279.86,
+      "hour": 18.0,
+      "month": 4,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 8.792,
+      "azimuth": 279.761,
+      "hour": 18.5,
+      "month": 4,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 49.53,
+      "azimuth": 298.128,
+      "hour": 15.5,
+      "month": 5,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 42.812,
+      "azimuth": 294.824,
+      "hour": 16.0,
+      "month": 5,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 35.941,
+      "azimuth": 292.532,
+      "hour": 16.5,
+      "month": 5,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 28.973,
+      "azimuth": 290.946,
+      "hour": 17.0,
+      "month": 5,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 21.944,
+      "azimuth": 289.881,
+      "hour": 17.5,
+      "month": 5,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 14.877,
+      "azimuth": 289.227,
+      "hour": 18.0,
+      "month": 5,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 7.789,
+      "azimuth": 288.917,
+      "hour": 18.5,
+      "month": 5,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 48.608,
+      "azimuth": 304.887,
+      "hour": 15.5,
+      "month": 6,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 42.307,
+      "azimuth": 300.92,
+      "hour": 16.0,
+      "month": 6,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 35.778,
+      "azimuth": 298.098,
+      "hour": 16.5,
+      "month": 6,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 29.101,
+      "azimuth": 296.103,
+      "hour": 17.0,
+      "month": 6,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 22.327,
+      "azimuth": 294.729,
+      "hour": 17.5,
+      "month": 6,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 15.492,
+      "azimuth": 293.849,
+      "hour": 18.0,
+      "month": 6,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 8.621,
+      "azimuth": 293.384,
+      "hour": 18.5,
+      "month": 6,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 50.555,
+      "azimuth": 303.259,
+      "hour": 15.5,
+      "month": 7,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 44.138,
+      "azimuth": 299.205,
+      "hour": 16.0,
+      "month": 7,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 37.502,
+      "azimuth": 296.355,
+      "hour": 16.5,
+      "month": 7,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 30.724,
+      "azimuth": 294.35,
+      "hour": 17.0,
+      "month": 7,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 23.855,
+      "azimuth": 292.969,
+      "hour": 17.5,
+      "month": 7,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 16.928,
+      "azimuth": 292.073,
+      "hour": 18.0,
+      "month": 7,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 9.967,
+      "azimuth": 291.579,
+      "hour": 18.5,
+      "month": 7,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 2.991,
+      "azimuth": 291.44,
+      "hour": 19.0,
+      "month": 7,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 52.984,
+      "azimuth": 291.776,
+      "hour": 15.5,
+      "month": 8,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 45.95,
+      "azimuth": 288.891,
+      "hour": 16.0,
+      "month": 8,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 38.814,
+      "azimuth": 286.95,
+      "hour": 16.5,
+      "month": 8,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 31.616,
+      "azimuth": 285.633,
+      "hour": 17.0,
+      "month": 8,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 24.379,
+      "azimuth": 284.756,
+      "hour": 17.5,
+      "month": 8,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 17.118,
+      "azimuth": 284.214,
+      "hour": 18.0,
+      "month": 8,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 9.844,
+      "azimuth": 283.947,
+      "hour": 18.5,
+      "month": 8,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 2.565,
+      "azimuth": 283.92,
+      "hour": 19.0,
+      "month": 8,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 52.498,
+      "azimuth": 273.138,
+      "hour": 15.5,
+      "month": 9,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 45.009,
+      "azimuth": 272.855,
+      "hour": 16.0,
+      "month": 9,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 37.518,
+      "azimuth": 272.702,
+      "hour": 16.5,
+      "month": 9,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 30.026,
+      "azimuth": 272.635,
+      "hour": 17.0,
+      "month": 9,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 22.535,
+      "azimuth": 272.633,
+      "hour": 17.5,
+      "month": 9,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 15.043,
+      "azimuth": 272.683,
+      "hour": 18.0,
+      "month": 9,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 7.551,
+      "azimuth": 272.78,
+      "hour": 18.5,
+      "month": 9,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 49.046,
+      "azimuth": 255.274,
+      "hour": 15.5,
+      "month": 10,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 41.759,
+      "azimuth": 257.249,
+      "hour": 16.0,
+      "month": 10,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 34.423,
+      "azimuth": 258.646,
+      "hour": 16.5,
+      "month": 10,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 27.056,
+      "azimuth": 259.655,
+      "hour": 17.0,
+      "month": 10,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 19.669,
+      "azimuth": 260.385,
+      "hour": 17.5,
+      "month": 10,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 12.269,
+      "azimuth": 260.904,
+      "hour": 18.0,
+      "month": 10,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 4.86,
+      "azimuth": 261.248,
+      "hour": 18.5,
+      "month": 10,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 45.785,
+      "azimuth": 241.345,
+      "hour": 15.5,
+      "month": 11,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 39.099,
+      "azimuth": 244.634,
+      "hour": 16.0,
+      "month": 11,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 32.256,
+      "azimuth": 247.012,
+      "hour": 16.5,
+      "month": 11,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 25.307,
+      "azimuth": 248.737,
+      "hour": 17.0,
+      "month": 11,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 18.29,
+      "azimuth": 249.967,
+      "hour": 17.5,
+      "month": 11,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 11.226,
+      "azimuth": 250.802,
+      "hour": 18.0,
+      "month": 11,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 4.134,
+      "azimuth": 251.302,
+      "hour": 18.5,
+      "month": 11,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 45.951,
+      "azimuth": 233.649,
+      "hour": 15.5,
+      "month": 12,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 39.752,
+      "azimuth": 237.75,
+      "hour": 16.0,
+      "month": 12,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 33.305,
+      "azimuth": 240.768,
+      "hour": 16.5,
+      "month": 12,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 26.691,
+      "azimuth": 242.986,
+      "hour": 17.0,
+      "month": 12,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 19.964,
+      "azimuth": 244.592,
+      "hour": 17.5,
+      "month": 12,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 13.16,
+      "azimuth": 245.706,
+      "hour": 18.0,
+      "month": 12,
+      "weight": 15.2188
+    },
+    {
+      "altitude": 6.308,
+      "azimuth": 246.404,
+      "hour": 18.5,
+      "month": 12,
+      "weight": 15.2188
+    }
+  ],
+  "year": 2026
+}
