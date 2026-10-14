@@ -174,7 +174,7 @@ export function Report({
   );
 
   const obstructions = React.useMemo<Obstruction[]>(
-    () => obstructionsFor(view, report.surroundings.neighbours, constants),
+    () => obstructionsFor(view, constants),
     [view, report.surroundings.neighbours, constants],
   );
 

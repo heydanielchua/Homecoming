@@ -135,15 +135,23 @@ class TestWhatCouldBeBuilt:
         assert band.basis == "coverage"
         assert "2.8" in band.note and "site coverage" in band.note
 
-    def test_a_fitted_band_beats_the_coverage_guess(self):
+    def test_a_fitted_band_says_what_it_rests_on(self):
         """Reading the storeys off blocks already built at that ratio is a
-        better answer than dividing by an assumed coverage, and it comes with
-        the number of blocks it rests on."""
+        better answer than dividing by an assumed coverage, because it is the
+        same city's own practice — and it comes with the number of blocks
+        behind it, so a ratio nobody has built much at reads as thin.
+
+        It is usually narrower too: against the real land use layer the fitted
+        band is tighter than the coverage guess at 9 of the 11 ratios with
+        enough blocks to fit. Not all of them, though — the two widest-ratio
+        fits rest on 130 and 41 blocks and come out slightly wider — so that
+        is not asserted as a property.
+        """
         fitted = height_band(2.8, {2.8: (18, 26, 431)})
-        guessed = height_band(2.8)
         assert fitted.basis == "fitted" and fitted.n_blocks == 431
-        assert (fitted.high - fitted.low) < (guessed.high - guessed.low)
+        assert (fitted.low, fitted.high) == (18, 26)
         assert "431 HDB blocks" in fitted.note
+        assert height_band(2.8).basis == "coverage"
 
     def test_a_nearby_ratio_is_used_but_not_a_distant_one(self):
         fitted = {2.8: (18, 26, 431)}

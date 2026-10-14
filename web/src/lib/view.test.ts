@@ -122,8 +122,8 @@ describe('the view and the sun are the same geometry', () => {
     const west = one(16, 40, 270);
     const low = viewFrom(west, 4, constants);
     const high = viewFrom(west, 16, constants);
-    const lowSun = exposure('W', sunGolden.track, constants, obstructionsFor(low, west, constants));
-    const highSun = exposure('W', sunGolden.track, constants, obstructionsFor(high, west, constants));
+    const lowSun = exposure('W', sunGolden.track, constants, obstructionsFor(low, constants));
+    const highSun = exposure('W', sunGolden.track, constants, obstructionsFor(high, constants));
     expect(lowSun.net_low_hours).toBe(0);
     expect(highSun.net_low_hours).toBeGreaterThan(600);
   });
@@ -131,12 +131,12 @@ describe('the view and the sun are the same geometry', () => {
   it('names the block that shades it', () => {
     const west = one(25, 55, 270);
     const view = viewFrom(west, 4, constants);
-    const sun = exposure('W', sunGolden.track, constants, obstructionsFor(view, west, constants));
+    const sun = exposure('W', sunGolden.track, constants, obstructionsFor(view, constants));
     expect(Object.keys(sun.shaded_by)).toContain('block X');
   });
 
   it('has nothing to shade with when the floor is unknown', () => {
     const view = viewFrom(one(25), null, constants);
-    expect(obstructionsFor(view, one(25), constants)).toEqual([]);
+    expect(obstructionsFor(view, constants)).toEqual([]);
   });
 });

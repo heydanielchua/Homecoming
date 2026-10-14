@@ -202,21 +202,21 @@ export function viewFrom(
  */
 export function obstructionsFor(
   view: ViewData,
-  neighbours: NeighbourData[],
   constants: SunConstants,
 ): Obstruction[] {
   if (view.eye_height_m === null) return [];
+  const eye = view.eye_height_m;
   const out: Obstruction[] = [];
-  const order = [...view.blocked, ...view.clear];
-  const known = new Set(order.map((n) => `${n.name}|${n.distance_m}`));
-  for (const item of order.length > 0 ? order : neighbours) {
-    if (order.length > 0 && !known.has(`${item.name}|${item.distance_m}`)) continue;
+  // Blocked and clear together: `view_from` leaves out only the neighbours
+  // whose storey count HDB does not publish, and those have no roof height to
+  // shade with either.
+  for (const item of [...view.blocked, ...view.clear]) {
     const roof = roofHeight(item, constants);
     if (roof === null) continue;
     out.push({
       bearing: item.bearing,
       distance_m: item.distance_m,
-      height_m: roof - view.eye_height_m,
+      height_m: roof - eye,
       half_width: halfWidthDeg(item, constants),
       label: `block ${item.name}`,
     });

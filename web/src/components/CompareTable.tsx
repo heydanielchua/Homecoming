@@ -71,7 +71,7 @@ function buildGroups(units: LoadedUnit[], meta: Meta): Group[] {
           unit.facing,
           meta.sun.track,
           constants,
-          obstructionsFor(view, report.surroundings.neighbours, constants),
+          obstructionsFor(view, constants),
         )
       : null;
     const trend = section?.trend.block ?? [];

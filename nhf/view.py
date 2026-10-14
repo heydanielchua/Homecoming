@@ -174,6 +174,11 @@ class View:
     open_directions: list[str] = field(default_factory=list)
     above_everything: bool = False
 
+    @property
+    def neighbours(self) -> list[Neighbour]:
+        """Every neighbour with a published height, blocking or not."""
+        return [b.neighbour for b in self.blocked] + list(self.clear)
+
     def obstructions(self) -> list[Obstruction]:
         """Every neighbour, as the sun calculation wants them.
 
@@ -185,21 +190,17 @@ class View:
         """
         if self.eye_height_m is None:
             return []
-        out = []
-        for item in self.blocked + [
-            BlockedNeighbour(n, 0.0, 0.0) for n in self.clear
-        ]:
-            roof = item.neighbour.roof_m
-            if roof is None:
-                continue
-            out.append(Obstruction(
-                bearing=item.neighbour.bearing,
-                distance_m=item.neighbour.distance_m,
-                height_m=roof - self.eye_height_m,
-                half_width=item.neighbour.half_width_deg,
-                label=f"block {item.neighbour.name}",
-            ))
-        return out
+        return [
+            Obstruction(
+                bearing=item.bearing,
+                distance_m=item.distance_m,
+                height_m=item.roof_m - self.eye_height_m,
+                half_width=item.half_width_deg,
+                label=f"block {item.name}",
+            )
+            for item in self.neighbours
+            if item.roof_m is not None
+        ]
 
     def as_dict(self) -> dict:
         return {
