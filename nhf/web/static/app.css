@@ -1,23 +1,37 @@
 /* Mobile first: one column, big tap targets, a bottom tab bar within thumb
-   reach, and enough contrast to read at a viewing in the afternoon sun. */
+   reach, and enough contrast to read at a viewing in the afternoon sun.
+
+   Colour, type and spacing come from the Singapore Government Design System,
+   vendored under static/sgds/ (see the README there). Only its tokens are
+   used: they are plain custom properties, so every template below is styled
+   without changing a line of markup. The components in that package are Lit
+   custom elements and would have meant a JavaScript runtime and a rewrite.
+
+   Everything in this file reads these ten names, so remapping them onto the
+   SGDS semantic tokens restyles the served app and the published copy alike.
+   The tokens resolve per theme, which is why there is no second set here. */
+@import "sgds/root.css";
+@import "sgds/day.css";
+@import "sgds/night.css";
+
 :root {
-  --bg: #0f1115;
-  --card: #171a21;
-  --line: #262a34;
-  --text: #e8eaf0;
-  --muted: #9aa1ad;
-  --accent: #7aa2f7;
-  --ok: #3ddc97;
-  --mid: #f5c451;
-  --bad: #f2726f;
-  --radius: 14px;
-  color-scheme: dark light;
-}
-@media (prefers-color-scheme: light) {
-  :root {
-    --bg: #f6f7f9; --card: #ffffff; --line: #e3e6ec; --text: #171a21;
-    --muted: #5d6572; --accent: #2f5fd0;
-  }
+  /* Page sits a shade back from the cards, in both themes: day puts gray-50
+     behind white, night puts gray-1100 behind gray-900. */
+  --bg: var(--sgds-bg-alternate);
+  --card: var(--sgds-surface-default);
+  --line: var(--sgds-border-color-default);
+  --text: var(--sgds-color-default);
+  --muted: var(--sgds-color-subtle);
+  --accent: var(--sgds-primary-color-default);
+  /* Best / Acceptable / Flagged, on the system's own feedback colours rather
+     than three hand-picked ones, so the three levels carry the contrast the
+     design system has already checked. */
+  --ok: var(--sgds-success-color-default);
+  --mid: var(--sgds-warning-color-default);
+  --bad: var(--sgds-danger-color-default);
+  --radius: var(--sgds-border-radius-lg);
+  /* Readable on the primary fill. */
+  --on-accent: var(--sgds-color-fixed-light);
 }
 
 * { box-sizing: border-box; }
@@ -27,7 +41,8 @@ body {
   padding: 0 0 5.5rem;
   background: var(--bg);
   color: var(--text);
-  font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font: var(--sgds-font-size-16, 16px)/1.5 var(--sgds-font-family-brand,
+        -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
 }
 
 .topbar {
@@ -135,7 +150,8 @@ input, select, textarea, button {
 }
 input[type="checkbox"] { width: auto; min-height: 0; margin-right: 0.5rem; vertical-align: middle; }
 input[type="range"] { padding: 0; accent-color: var(--accent); }
-button { background: var(--accent); color: #0b0d12; border: none; font-weight: 650; cursor: pointer; margin-top: 0.8rem; }
+button { background: var(--accent); color: var(--on-accent); border: none;
+  font-weight: var(--sgds-font-weight-semibold, 650); cursor: pointer; margin-top: 0.8rem; }
 .card.danger button { background: var(--bad); }
 .link { width: auto; min-height: 0; }
 fieldset { border: 1px solid var(--line); border-radius: 10px; padding: 0.4rem 0.8rem 0.8rem; margin: 0.8rem 0; }
@@ -180,8 +196,9 @@ h2.group { margin: 0.5rem 0 -0.4rem; font-size: 0.8rem; text-transform: uppercas
   font-size: 0.78rem; color: var(--muted); }
 .dot { width: 0.7rem; height: 0.7rem; border-radius: 50%; display: inline-block; margin-right: 0.2rem; }
 .dot.c-hi { background: var(--ok); } .dot.c-mid { background: var(--mid); }
-.dot.c-lo { background: var(--bad); } .dot.station { background: #7aa2f7; }
-.dot.future { border: 2px solid #c58af9; }
+.dot.c-lo { background: var(--bad); }
+.dot.station { background: var(--sgds-blue-600, #0269d0); }
+.dot.future { border: 2px solid var(--sgds-purple-600, #ac1cdb); }
 
 .photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr)); gap: 0.5rem; }
 .photos figure { margin: 0; }
@@ -190,7 +207,7 @@ h2.group { margin: 0.5rem 0 -0.4rem; font-size: 0.8rem; text-transform: uppercas
 
 .tabbar {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 30;
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
   background: color-mix(in srgb, var(--card) 94%, transparent);
   backdrop-filter: blur(12px);
   border-top: 1px solid var(--line);

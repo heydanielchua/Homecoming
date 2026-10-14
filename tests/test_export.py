@@ -204,3 +204,43 @@ def test_guard_rejects_an_empty_directory(tmp_path):
     empty = tmp_path / "nothing"
     empty.mkdir()
     assert scan(empty)
+
+
+# --- the design system travels with the export ----------------------------
+def test_export_ships_the_design_system_tokens(exported):
+    """app.css @imports these. Published without them the site loads and is
+    entirely unstyled, which no other test would notice."""
+    _, out = exported
+    for name in ("root.css", "day.css", "night.css"):
+        assert (out / "static" / "sgds" / name).exists(), f"sgds/{name} missing"
+
+
+def test_every_sgds_token_the_stylesheet_uses_is_defined(exported):
+    """A token that resolves to nothing falls back to an empty value, so the
+    rule is dropped and the page degrades quietly rather than failing."""
+    import re
+
+    _, out = exported
+    defined = set()
+    for name in ("root.css", "day.css", "night.css"):
+        text = (out / "static" / "sgds" / name).read_text()
+        defined |= set(re.findall(r"(--sgds-[a-z0-9-]+)\s*:", text))
+
+    used = set(re.findall(
+        r"var\((--sgds-[a-z0-9-]+)", (out / "static" / "app.css").read_text()
+    ))
+    assert used, "app.css should be using the design system"
+    assert not (used - defined), f"undefined tokens: {sorted(used - defined)}"
+
+
+def test_offline_shell_caches_what_the_stylesheet_imports(exported):
+    """The service worker exists for the lift lobby; a shell that caches
+    app.css without its imports comes back unstyled there."""
+    import re
+
+    _, out = exported
+    css = (out / "static" / "app.css").read_text()
+    imported = re.findall(r'@import\s+"([^"]+)"', css)
+    shell = (out / "static" / "sw.js").read_text()
+    for ref in imported:
+        assert ref.split("/")[-1] in shell, f"{ref} is imported but not cached"

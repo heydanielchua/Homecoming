@@ -484,8 +484,9 @@ def create_app(db_path: str | Path | None = None, conn: sqlite3.Connection | Non
             "short_name": "Next Home",
             "start_url": "/",
             "display": "standalone",
-            "background_color": "#0f1115",
-            "theme_color": "#0f1115",
+            # SGDS gray-1100, the night theme's page background.
+            "background_color": "#0e0e0e",
+            "theme_color": "#0e0e0e",
             "icons": [
                 {"src": url_for("static", filename="icon.svg"),
                  "sizes": "any", "type": "image/svg+xml"},

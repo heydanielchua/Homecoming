@@ -1,7 +1,16 @@
 // Keeps the shell openable at a viewing when the signal drops in a lift
 // lobby. Data pages are always fetched fresh when the network is there.
-const CACHE = 'nhf-v1';
-const SHELL = ['/static/app.css', '/static/icon.svg'];
+const CACHE = 'nhf-v2';
+// app.css @imports the design system tokens, so caching it alone would bring
+// the shell back unstyled in the lift lobby this cache exists for. Bump CACHE
+// whenever this list changes, or the old cache is served instead.
+const SHELL = [
+  '/static/app.css',
+  '/static/sgds/root.css',
+  '/static/sgds/day.css',
+  '/static/sgds/night.css',
+  '/static/icon.svg',
+];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)));
