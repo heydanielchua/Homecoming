@@ -19,3 +19,7 @@ data/*.json
 # database and its JSON every month would grow the repository for ever.
 dist/
 web/node_modules/
+
+# The publisher's own git directory, for pushing dist/ to the public
+# repository. Not this repository's history.
+.publish.git/

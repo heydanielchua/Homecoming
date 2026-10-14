@@ -273,6 +273,13 @@ Stated so it is never quietly promised:
 | `nhf status` | Data freshness summary |
 | `nhf geocode [--blocks] [--schools]` | The OneMap steps on their own |
 
+And the two shell scripts, which wrap the above:
+
+| Command | What it does |
+| --- | --- |
+| `./scripts/build_site.sh dist` | The page and the data into `dist/` |
+| `./scripts/publish.sh [--data]` | Rebuild and publish to the public repository |
+
 `nhf rank`, `nhf value`, `nhf backtest`, `nhf export` and `nhf serve` belong to
 the superseded ranked-list product.
 
@@ -345,18 +352,110 @@ file — so a change to one side without the other fails a test instead of
 producing two plausible numbers. Run it after changing `nhf/sun.py`,
 `nhf/view.py` or `nhf/listing.py`, and commit the result.
 
-## Publishing
+## Two repositories, and why
 
-`./scripts/build_site.sh dist` writes the page and then the data beside it, in
-that order — Vite empties its output directory, so the data has to go in after.
-Everything in `dist/` is static files; any host that serves files will do.
-
-**A free GitHub Pages site is public, and has no login.** Everything the site
+A free GitHub Pages site is public and has no login. Everything the site
 publishes is derived from public government data and none of it is ours, so
-that is survivable — but this repository holds `docs/PRD.md` and
-`config/criteria.yml`, which are. To keep those private, keep this repository
-private and push only `dist/` to a second, public repository.
+that part is survivable. This repository is a different matter: `docs/PRD.md`
+and `config/criteria.yml` hold the budget, both office postal codes, and when
+the MOP ends. So the split is:
 
-`nhf site` runs its own check over the output and fails the build if a field
-from the superseded product reappears or a block report grows a key nobody
-meant to publish.
+| | holds | visibility |
+|---|---|---|
+| `Homecoming` (this one) | the code, the PRD, the criteria, the database | **private** |
+| the site repository | `dist/` only — the page and the derived data | public, serves Pages |
+
+Nothing crosses that line by hand. `scripts/publish.sh` publishes `dist/` and
+only `dist/`, and `nhf.site.verify` runs over the output first and refuses to
+publish if a field from the superseded product reappears, or a block report
+grows a key nobody meant to publish. There is no path by which a change to
+this repository's private files reaches the public one, because the publisher
+never reads them — it copies a directory.
+
+### The two manual steps
+
+Neither can be done from here; both are one-time.
+
+1. **Make this repository private** — Settings → General → Danger Zone →
+   Change repository visibility. Do this first: until it is done, the budget
+   and the postal codes are readable by anyone.
+2. **Create the public repository** — new, public, no README, no licence
+   (the first publish replaces the whole tree anyway). Then publish once with
+   its URL, and the remote is remembered after that:
+
+   ```sh
+   ./scripts/publish.sh --remote git@github.com:<you>/<site-repo>.git
+   ```
+
+   Then turn Pages on in that repository: Settings → Pages → Deploy from
+   branch → `main`, `/ (root)`.
+
+## Iterating on the design
+
+The loop is meant to be short, because the design is the part that will change
+most often.
+
+```sh
+npm run dev --prefix web      # http://localhost:5173
+```
+
+The dev server reads the real `dist/data` off the disk — all 9,222 block
+reports — so what is on the screen is a real flat with real figures, not a
+fixture. Save a change and the page updates without a reload.
+
+When it looks right:
+
+```sh
+./scripts/publish.sh          # about a second, then live in a minute
+```
+
+That rebuilds the page and publishes it. **It does not touch the data**, which
+is the whole point: the page is three files and half a megabyte, the data is
+123 MB across 12,000 of them. A design change uploads the three.
+
+| command | rebuilds | takes |
+|---|---|---|
+| `./scripts/publish.sh` | the page | seconds |
+| `./scripts/publish.sh --data` | the page and every block report | ~45 minutes |
+| `./scripts/publish.sh --no-build` | nothing; publishes what is in `dist/` | seconds |
+| `./scripts/publish.sh --dry-run` | builds and stages, never pushes | seconds |
+
+The data only needs `--data` when the database has changed, which is once a
+month — and `.github/workflows/publish.yml` does that on a schedule, so in
+practice you never type it.
+
+**The public repository keeps no history.** Each publish force-pushes a single
+orphan commit. That is deliberate: with ordinary history a monthly refresh
+would add 123 MB of objects permanently, git never forgets, and the repository
+would pass GitHub's one-gigabyte guideline inside a year. The public
+repository is a deployment artifact; the record is this repository, which has
+the code that produced it. Re-publishing unchanged files is still cheap —
+the new commit names the same blobs, the remote already has them, and only
+what actually changed goes over the wire.
+
+## The monthly refresh
+
+`.github/workflows/publish.yml` runs `sync` → `build --curves-only` →
+`build_site.sh` → `publish.sh --no-build` on the 1st, and on demand. Two
+settings it needs, because a workflow cannot grant itself access to another
+repository:
+
+- secret `PUBLIC_SITE_TOKEN` — a fine-grained PAT with *Contents: read and
+  write* on the public repository only.
+- variable `PUBLIC_SITE_REPO` — `<owner>/<site-repo>`.
+
+Without them the job stops at its first step and says which is missing, rather
+than half-publishing. It caches `data/nhf.db` (283 MB) between runs, which
+matters more than it looks: the database carries the geocodes, and finding
+those takes about two hours through OneMap and never needs doing twice.
+
+Two layers sit out of the monthly run, and `nhf sync` leaves them out unless
+asked for by name — the land use plan, which is 174 MB of a document revised
+every few years, and rainfall, which is 704 pages of five-minute readings
+behind a figure that moves once a year. Both are already in the cached
+database. To re-download them, dispatch the workflow with **Also re-download
+land use and a year of rainfall** ticked, or locally:
+
+```sh
+nhf sync --step land_use --step rainfall
+```

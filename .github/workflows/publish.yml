@@ -1,15 +1,25 @@
-# Monthly refresh, published to GitHub Pages.
+# Monthly data refresh, published to the public repository that serves Pages.
 #
-# This is the crontab line from the README, moved onto a runner: sync the
-# datasets, rebuild the curves and scores, then export the read-only half of
-# the app as files. Nothing is committed — the site is handed to Pages as a
-# build artifact, because committing a rebuilt database every month would
-# grow the repository without limit and git keeps every version for ever.
+# This repository is private — it holds docs/PRD.md and config/criteria.yml.
+# Only `dist/` goes to the public one, and everything in `dist/` is derived
+# from public government data on data.gov.sg.
 #
-# The published copy is public, so the export deliberately leaves out the
-# budget, both offices and the shortlist. See the docstring in nhf/export.py.
+# This job is for the DATA, which changes once a month. A design change does
+# not need it and should not wait for it: run `./scripts/publish.sh` locally
+# and the new page is live in about a minute.
+#
+# One manual step before this can run, because a workflow cannot grant itself
+# access to another repository:
+#
+#   1. Create a fine-grained personal access token with
+#      "Contents: read and write" on the public repository only.
+#   2. Add it to THIS repository as the secret PUBLIC_SITE_TOKEN.
+#   3. Set the variable PUBLIC_SITE_REPO to "<owner>/<public-repo>".
+#
+# Until those exist the job stops at the first step with a clear message
+# rather than half-publishing.
 
-name: Publish the ranked list
+name: Publish the site
 
 on:
   schedule:
@@ -19,110 +29,122 @@ on:
   workflow_dispatch:
     inputs:
       skip_sync:
-        description: "Reuse the cached datasets instead of downloading"
+        description: "Reuse the cached database instead of downloading"
+        type: boolean
+        default: false
+      refresh_slow:
+        description: "Also re-download land use (174 MB) and a year of rainfall"
         type: boolean
         default: false
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
-# A half-finished deploy is worse than a late one, so let a running publish
-# finish rather than cancelling it mid-way.
+# A half-finished publish is worse than a late one, so a running job finishes
+# rather than being cancelled by the next.
 concurrency:
-  group: pages
+  group: publish
   cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    # Measured on the real data: about 20 minutes to sync 663k transactions
-    # over a paged API, 3 to build, and 12 to export 14,093 block pages
-    # (186 MB). The rest is headroom for a slow API day.
-    timeout-minutes: 180
+    # Measured on the real data: about 22 minutes to page 663k transactions
+    # out of the datastore, 2 to fit the curves, 45 to write 9,222 block
+    # reports, and — on a first run only — around two hours to geocode 11,000
+    # block addresses through OneMap. Later runs keep the geocodes.
+    timeout-minutes: 300
+
     steps:
+      - name: Check the publishing secrets exist
+        env:
+          TOKEN: ${{ secrets.PUBLIC_SITE_TOKEN }}
+          REPO: ${{ vars.PUBLIC_SITE_REPO }}
+        run: |
+          missing=0
+          [ -n "$TOKEN" ] || { echo "::error::secret PUBLIC_SITE_TOKEN is not set"; missing=1; }
+          [ -n "$REPO" ]  || { echo "::error::variable PUBLIC_SITE_REPO is not set"; missing=1; }
+          if [ "$missing" = 1 ]; then
+            echo "See the comment at the top of .github/workflows/publish.yml."
+            exit 1
+          fi
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.13"
+          cache: pip
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
 
       - name: Install
-        run: pip install -e ".[dev]"
-
-      # Only the 1st of the month is the real run; the 28-31 schedule above
-      # fires on days that are not the last of the month in most months.
-      - name: Is this the last day of the month?
-        id: when
         run: |
-          if [ "$(date -u -d tomorrow +%d)" = "01" ] || \
-             [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "run=yes" >> "$GITHUB_OUTPUT"
-          else
-            echo "run=no" >> "$GITHUB_OUTPUT"
-            echo "Not the last day of the month; nothing to do."
-          fi
+          pip install -e ".[dev]"
+          npm ci --prefix web
 
-      - name: Tests
-        if: steps.when.outputs.run == 'yes'
-        run: python -m pytest -q
-
-      # The store is rebuildable from the APIs, so a cache miss costs time
-      # and nothing else.
-      - name: Restore the store
-        if: steps.when.outputs.run == 'yes'
+      # The database is what makes a later run quick: it carries the geocodes,
+      # which cost two hours to find and never change. Restoring it is the
+      # difference between a 70-minute job and a four-hour one.
+      - name: Restore the database
+        id: db
         uses: actions/cache@v4
         with:
           path: data/nhf.db
-          key: nhf-store-${{ github.run_id }}
-          restore-keys: nhf-store-
+          key: nhf-db-${{ github.run_id }}
+          restore-keys: nhf-db-
+
+      - name: Prepare the store
+        run: python -m nhf.cli init
 
       - name: Sync
-        if: steps.when.outputs.run == 'yes' && !inputs.skip_sync
+        if: ${{ !inputs.skip_sync }}
         env:
-          # Optional: raises the data.gov.sg rate limit. The sync works
-          # without it, so an unset secret is not a failure.
           DATAGOV_API_KEY: ${{ secrets.DATAGOV_API_KEY }}
-          # Optional: without these, drive times stay unknown and the app
-          # says so rather than guessing.
-          ONEMAP_EMAIL: ${{ secrets.ONEMAP_EMAIL }}
-          ONEMAP_PASSWORD: ${{ secrets.ONEMAP_PASSWORD }}
+        run: python -m nhf.cli sync
+
+      # Deliberately not monthly, and `nhf sync` leaves both out unless named:
+      # the land use plan is 174 MB of a document revised every few years, and
+      # rainfall is 704 pages of five-minute readings behind a figure that
+      # moves once a year. The cached database keeps what the last run found,
+      # so re-downloading them every month would cost an hour to learn nothing.
+      - name: Refresh the slow layers
+        if: ${{ inputs.refresh_slow }}
+        env:
+          DATAGOV_API_KEY: ${{ secrets.DATAGOV_API_KEY }}
         run: |
-          nhf init
-          nhf sync
+          python -m nhf.cli sync --step land_use
+          python -m nhf.cli sync --step rainfall
 
       - name: Build
-        if: steps.when.outputs.run == 'yes'
-        run: nhf build
+        run: python -m nhf.cli build --curves-only
 
-      - name: Show the fitted curves in the log
-        if: steps.when.outputs.run == 'yes'
-        run: nhf fit
+      - name: Render the site
+        run: ./scripts/build_site.sh dist
 
-      # Informational: the backtest grades the growth weights against
-      # history. A failing grade is the signal to revise the weights, not a
-      # reason to withhold the published list, so it does not fail the job.
-      - name: Backtest
-        if: steps.when.outputs.run == 'yes'
-        continue-on-error: true
-        run: nhf backtest
+      - name: Publish
+        env:
+          GIT_AUTHOR_NAME: github-actions
+          GIT_AUTHOR_EMAIL: github-actions@github.com
+          GIT_COMMITTER_NAME: github-actions
+          GIT_COMMITTER_EMAIL: github-actions@github.com
+        run: |
+          ./scripts/publish.sh --no-build \
+            --remote "https://x-access-token:${{ secrets.PUBLIC_SITE_TOKEN }}@github.com/${{ vars.PUBLIC_SITE_REPO }}.git"
 
-      - name: Export
-        if: steps.when.outputs.run == 'yes'
-        run: nhf export --out dist
-
-      - name: Check nothing personal is in the export
-        if: steps.when.outputs.run == 'yes'
-        run: python scripts/check_export.py dist
-
-      - name: Upload
-        if: steps.when.outputs.run == 'yes'
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-      - name: Deploy
-        if: steps.when.outputs.run == 'yes'
-        id: deploy
-        uses: actions/deploy-pages@v4
+      - name: Say what was published
+        run: |
+          python - <<'PY'
+          import json
+          m = json.load(open("dist/data/manifest.json"))
+          print(f"sales to {m['as_of']['month']}")
+          print(f"{m['counts']['reports']:,} block reports")
+          print(f"{m['counts']['aliases']:,} street spellings indexed")
+          for d in m["datasets"]:
+              if d["status"] != "ok":
+                  print(f"::warning::{d['dataset']}: {d['status']} — {d['message']}")
+          PY
