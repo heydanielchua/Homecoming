@@ -272,20 +272,29 @@ ZONE_GROUPS: dict[str, tuple[str, ...]] = {
         "UTILITY", "TRANSPORT FACILITIES", "MASS RAPID TRANSIT",
         "LIGHT RAPID TRANSIT", "PORT / AIRPORT", "CEMETERY", "AGRICULTURE",
     ),
+    # Ground, not a zoning decision. These were left out while the only
+    # reader was the flat map, which has a basemap under it and certainly
+    # has roads; drawing them a second time there buried everything else.
+    # The three-dimensional view has no basemap, so without them a city of
+    # towers stands on blank ground with no streets to place it against.
+    # Written once, into the cells both views read; the flat map skips a
+    # group it has no colour for, which is how it ignores these.
+    "road": ("ROAD",),
+    "water": ("WATERBODY",),
 }
-
-# Drawn by the basemap already, and drawing them again buries everything else:
-# roads alone are 6,623 parcels and they are the one thing OneMap is certain
-# to have under the pins.
-ZONE_SKIP = ("ROAD", "WATERBODY")
 
 _ZONE_OF = {use: group for group, uses in ZONE_GROUPS.items() for use in uses}
 
 
 def zone_group(land_use: str | None) -> str | None:
-    """Which group a parcel is drawn in, or None if it is not drawn."""
+    """Which group a parcel is drawn in, or None if it has no land use at all.
+
+    An unrecognised use falls into "civic" rather than disappearing, because
+    a parcel drawn in the wrong colour is a question somebody asks, and one
+    that is not drawn is a hole nobody notices.
+    """
     use = (land_use or "").strip().upper()
-    if not use or use in ZONE_SKIP:
+    if not use:
         return None
     return _ZONE_OF.get(use, "civic")
 

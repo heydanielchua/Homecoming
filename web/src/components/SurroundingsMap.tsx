@@ -73,7 +73,9 @@ const KINDS: Record<
  * parcels come out black or not at all. So the variables are read off the
  * element once, resolved to real values, and re-read when the theme changes.
  */
-function resolveZones(el: HTMLElement): Record<ZoneGroup, { fill: string; line: string }> {
+function resolveZones(
+  el: HTMLElement,
+): Partial<Record<ZoneGroup, { fill: string; line: string }>> {
   const style = getComputedStyle(el);
   const read = (name: string, fallback: string) =>
     style.getPropertyValue(name).trim() || fallback;
@@ -87,9 +89,14 @@ function resolveZones(el: HTMLElement): Record<ZoneGroup, { fill: string; line: 
   };
 }
 
-const ZONES: Record<
-  ZoneGroup,
-  { label: string; fill: string; line: string; alpha: number }
+/**
+ * Partial on purpose. Roads and water are in the cells for the massing view,
+ * which has no basemap under it; this map does, and drawing them again would
+ * bury everything else. A group with no entry here is skipped below rather
+ * than drawn in some default colour.
+ */
+const ZONES: Partial<
+  Record<ZoneGroup, { label: string; fill: string; line: string; alpha: number }>
 > = {
   // Seven parcels in ten. At the weight the others carry it stops being a
   // ground and becomes a grey sheet over the streets, so it gets a sixth of
@@ -501,13 +508,13 @@ export function SurroundingsMap({
           Master Plan zoning
         </button>
         {zoningOn
-          ? ZONE_GROUPS.filter((g) => zoningSeen.has(g)).map((g) => (
+          ? ZONE_GROUPS.filter((g) => zoningSeen.has(g) && ZONES[g]).map((g) => (
               <span key={g} className="map-zone-key">
                 <span
                   className={`map-zone-swatch map-zone-swatch--${g}`}
                   aria-hidden="true"
                 />
-                {ZONES[g].label}
+                {ZONES[g]?.label}
               </span>
             ))
           : null}

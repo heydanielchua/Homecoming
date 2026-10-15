@@ -1411,6 +1411,12 @@ tbody tr:hover {
   --zone-4: #eb6834;
   --zone-civic: #8d8d8d;
   --zone-civic-line: #6f6f6f;
+  /* Ground, not zoning. Only the massing draws these — the flat map leaves
+     them to its basemap — so they live here and not beside the map's. A road
+     is lighter than the ground it cuts through, which is how a street reads
+     as a street rather than as another parcel. */
+  --zone-road: #efeeeb;
+  --zone-water: #a9c6d6;
 
   --massing-sky: #dfe3e6;
   --massing-ground: #d8d6d2;
@@ -1437,6 +1443,8 @@ tbody tr:hover {
     --zone-4: #d95926;
     --zone-civic: #7b7b7b;
     --zone-civic-line: #9a9a9a;
+    --zone-road: #343331;
+    --zone-water: #2c4453;
     --massing-sky: #121417;
     --massing-ground: #1b1b1a;
     --massing-built: #3a3936;
@@ -1456,6 +1464,8 @@ tbody tr:hover {
   --zone-4: #d95926;
   --zone-civic: #7b7b7b;
   --zone-civic-line: #9a9a9a;
+  --zone-road: #343331;
+  --zone-water: #2c4453;
   --massing-sky: #121417;
   --massing-ground: #1b1b1a;
   --massing-built: #3a3936;

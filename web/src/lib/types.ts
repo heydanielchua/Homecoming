@@ -230,6 +230,10 @@ export const ZONE_GROUPS = [
   'park',
   'reserve',
   'civic',
+  // Ground rather than a zoning decision, and drawn only by the view that
+  // has no basemap under it. Mirrors ZONE_GROUPS in nhf/site.py.
+  'road',
+  'water',
 ] as const;
 
 export type ZoneGroup = (typeof ZONE_GROUPS)[number];

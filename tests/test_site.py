@@ -26,7 +26,6 @@ import pytest
 from nhf.listing import parse_link
 from nhf.site import (
     ZONE_GROUPS,
-    ZONE_SKIP,
     ZONING_CELL,
     block_slug,
     build_site,
@@ -93,17 +92,23 @@ class TestZoning:
     about, because the map must still draw it once.
     """
 
-    def test_every_published_land_use_has_a_group(self):
-        """URA publishes 33 values. An unmapped one would be drawn as civic
-        for ever without anyone noticing, so the mapping is asserted whole
-        rather than sampled."""
-        mapped = {use for uses in ZONE_GROUPS.values() for use in uses}
-        overlap = mapped & set(ZONE_SKIP)
-        assert not overlap, f"drawn and skipped at once: {overlap}"
+    def test_no_land_use_is_in_two_groups_at_once(self):
+        """URA publishes 33 values. One listed twice would be drawn in
+        whichever group the dict happened to build last, so the mapping is
+        asserted whole rather than sampled."""
+        seen: dict[str, str] = {}
+        for group, uses in ZONE_GROUPS.items():
+            for use in uses:
+                assert use not in seen, f"{use} is in both {seen[use]} and {group}"
+                seen[use] = group
 
-    def test_roads_and_water_are_left_to_the_basemap(self):
-        assert zone_group("ROAD") is None
-        assert zone_group("WATERBODY") is None
+    def test_roads_and_water_are_drawn_as_ground(self):
+        """They carry no zoning decision, but the three-dimensional view has
+        no basemap under it: without them the towers stand on a blank plane
+        with no streets to place them against. The flat map, which does have
+        a basemap, skips a group it has no colour for."""
+        assert zone_group("ROAD") == "road"
+        assert zone_group("WATERBODY") == "water"
 
     def test_the_groups_are_what_the_map_colours(self):
         assert zone_group("RESIDENTIAL") == "residential"

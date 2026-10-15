@@ -66,14 +66,25 @@ type Layer = 'now' | 'worst';
  * parcel was pink in one view and purple in the other, so the tokens are the
  * map's, read from `.massing` where they are redeclared.
  */
-const ZONES: Record<ZoneGroup, { label: string; css: string; ground?: boolean }> = {
+const ZONES: Record<
+  ZoneGroup,
+  { label: string; css: string; ground?: boolean; surface?: boolean }
+> = {
   residential: { label: 'Residential', css: '--zone-ground', ground: true },
   commercial: { label: 'Commercial', css: '--zone-1' },
   business: { label: 'Business', css: '--zone-2' },
   park: { label: 'Park', css: '--zone-3' },
   reserve: { label: 'Reserve site', css: '--zone-4' },
   civic: { label: 'Civic', css: '--zone-civic' },
+  // `surface` means it is the ground itself rather than a use drawn over it:
+  // laid down nearly solid, and never given an envelope, because nothing is
+  // ever built to a plot ratio on a road.
+  road: { label: 'Road', css: '--zone-road', surface: true },
+  water: { label: 'Water', css: '--zone-water', surface: true },
 };
+
+/** The groups that carry a zoning decision, so can grow an envelope. */
+const BUILDABLE_ZONES = ZONE_GROUPS.filter((g) => !ZONES[g].surface);
 
 interface Props {
   meta: Meta;
@@ -313,7 +324,7 @@ export function Massing({ meta, lat, lon, slug, storey, facing }: Props) {
       </div>
 
       <div className="massing-legend-row">
-        {ZONE_GROUPS.map((group) => (
+        {BUILDABLE_ZONES.map((group) => (
           <button
             key={group}
             type="button"
@@ -515,7 +526,7 @@ async function build(
       transparent: true,
       // Seven parcels in ten are residential. At the weight the others carry
       // it stops being a ground and becomes a sheet over the streets.
-      opacity: ZONES[group].ground ? 0.22 : 0.5,
+      opacity: ZONES[group].surface ? 0.9 : ZONES[group].ground ? 0.22 : 0.5,
       depthWrite: false,
       side: THREE.DoubleSide,
     });
@@ -526,7 +537,10 @@ async function build(
       if (!shapes.length) continue;
       const geom = new THREE.ShapeGeometry(shapes);
       geom.rotateX(-Math.PI / 2);
-      geom.translate(0, 0.12, 0);
+      // A hand's width above the ground plane, and the surfaces a touch
+      // below the uses: two coplanar faces fight for the same depth and
+      // flicker, and a road drawn over a park hides the park.
+      geom.translate(0, ZONES[group].surface ? 0.08 : 0.16, 0);
       groupNode.add(new THREE.Mesh(geom, material));
     }
     zoning.add(groupNode);
@@ -583,7 +597,7 @@ async function build(
   const matGhost = {} as Record<ZoneGroup, InstanceType<typeof THREE.MeshLambertMaterial>>;
   const matGhostOver = {} as Record<ZoneGroup, InstanceType<typeof THREE.MeshLambertMaterial>>;
   const matGhostEdge = {} as Record<ZoneGroup, InstanceType<typeof THREE.LineBasicMaterial>>;
-  for (const group of ZONE_GROUPS) {
+  for (const group of BUILDABLE_ZONES) {
     const tone = colour(ZONES[group].css, '#eb6834');
     matGhost[group] = new THREE.MeshLambertMaterial({
       color: tone, transparent: true, opacity: 0.17, depthWrite: false,
@@ -622,7 +636,7 @@ async function build(
     const shapes = shapesOf(e.parcel.m as Geom);
     if (!shapes.length) continue;
     const group = e.parcel.g;
-    if (!ZONES[group]) continue;
+    if (!matGhost[group]) continue;   // a road has no plot ratio to reach
     const geom = extrude(shapes, e.topM - e.baseM);
     geom.translate(0, e.baseM, 0); // start at the roofline, not the ground
     const mesh = new THREE.Mesh(geom, matGhost[group]);
