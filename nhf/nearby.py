@@ -21,6 +21,7 @@ things not to promise.
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from dataclasses import dataclass, field
 
@@ -34,6 +35,38 @@ from .geo import bearing_deg, compass_point, distance_to_box_m, haversine_m
 SEARCH_RADIUS_M = 2000.0
 WALKING_M = 400.0
 SCHOOL_BAND_M = 1000.0
+
+# Secondary school is a different question from primary and gets a different
+# band. Primary admission has a distance ballot — one kilometre and two
+# kilometres are the phases, which is why a primary school moves a resale
+# price. Secondary admission is by PSLE score and distance buys nothing, so
+# what is left is simply how far a teenager travels. Two kilometres is the
+# distance at which that stops being a walk or a short bus ride.
+SECONDARY_BAND_M = 2000.0
+
+# MOE publishes the level as free text and there are eight spellings of it in
+# 337 schools: PRIMARY, SECONDARY (S1-S5), SECONDARY (S1-S4), JUNIOR COLLEGE,
+# CENTRALISED INSTITUTE, MIXED LEVEL (P1-S4), MIXED LEVEL (S1-JC2) and
+# MIXED LEVEL (S1-S5, JC1-JC2). A mixed-level school really is both, so this
+# returns a set and the P1-S4 schools are counted under each.
+def school_levels(subtype: str | None) -> frozenset[str]:
+    """Which levels a school teaches, from MOE's free-text level field.
+
+    The year ranges are what carry the answer, not the words. MIXED LEVEL
+    (P1-S4) is the case that catches a reader out: it says PRIMARY nowhere
+    and the school takes pupils to secondary four, so matching on the word
+    alone files three schools under primary only and loses them from every
+    secondary answer.
+    """
+    text = (subtype or "").upper()
+    levels = set()
+    if "PRIMARY" in text or re.search(r"\bP\d", text):
+        levels.add("primary")
+    if "SECONDARY" in text or re.search(r"\bS\d", text):
+        levels.add("secondary")
+    if "JUNIOR COLLEGE" in text or "CENTRALISED INSTITUTE" in text or "JC" in text:
+        levels.add("junior_college")
+    return frozenset(levels)
 
 # The park facility classes worth counting within walking distance. The layer
 # is 63% car parks; a car park is not an amenity you choose a flat for.
@@ -105,6 +138,8 @@ class Nearby:
     park: Place | None = None
     primary_school: Place | None = None
     schools_within_1km: int | None = None
+    secondary_school: Place | None = None
+    secondary_within_2km: int | None = None
     preschools_within_walk: int | None = None
     facilities: dict[str, int] = field(default_factory=dict)
     nearest_facility: dict[str, Place] = field(default_factory=dict)
@@ -125,6 +160,10 @@ class Nearby:
                 self.primary_school.as_dict() if self.primary_school else None
             ),
             "schools_within_1km": self.schools_within_1km,
+            "secondary_school": (
+                self.secondary_school.as_dict() if self.secondary_school else None
+            ),
+            "secondary_within_2km": self.secondary_within_2km,
             "preschools_within_walk": self.preschools_within_walk,
             "facilities": dict(self.facilities),
             "nearest_facility": {
@@ -234,7 +273,7 @@ MAP_LIMITS = {
     "bus_stop": 6,
     "hawker_centre": 3,
     "park": 3,
-    "school": 6,
+    "school": 8,
     "preschool": 6,
 }
 
@@ -306,13 +345,19 @@ def nearby_for(
     if parks:
         result.park = parks[0]
 
-    schools = _places(conn, lat, lon, "school", radius_m=SCHOOL_BAND_M * 2)
-    primaries = [s for s in schools if (s.subtype or "") == "PRIMARY"]
+    schools = _places(conn, lat, lon, "school", radius_m=SECONDARY_BAND_M)
+    primaries = [s for s in schools if "primary" in school_levels(s.subtype)]
+    secondaries = [s for s in schools if "secondary" in school_levels(s.subtype)]
     if primaries:
         result.primary_school = primaries[0]
+    if secondaries:
+        result.secondary_school = secondaries[0]
     if "school" in loaded:
         result.schools_within_1km = sum(
             1 for s in primaries if s.distance_m <= SCHOOL_BAND_M
+        )
+        result.secondary_within_2km = sum(
+            1 for s in secondaries if s.distance_m <= SECONDARY_BAND_M
         )
 
     if "preschool" in loaded:
@@ -338,7 +383,12 @@ def nearby_for(
         "bus_stop": stops,
         "hawker_centre": open_hawkers,
         "park": parks,
-        "school": primaries,
+        # Both levels on the map, nearest first and interleaved by distance:
+        # taking the primaries first would let one 1.8 km away crowd out a
+        # secondary across the road.
+        "school": sorted(
+            primaries[:4] + secondaries[:4], key=lambda s: s.distance_m
+        ),
     }
     if "preschool" in loaded:
         found["preschool"] = _places(

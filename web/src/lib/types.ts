@@ -268,6 +268,8 @@ export interface Nearby {
   park: Place | null;
   primary_school: Place | null;
   schools_within_1km: number | null;
+  secondary_school: Place | null;
+  secondary_within_2km: number | null;
   preschools_within_walk: number | null;
   facilities: Record<string, number>;
   nearest_facility: Record<string, Place>;

@@ -16,6 +16,8 @@ from nhf.nearby import (
     MAP_LIMITS,
     MIN_RAIN_READINGS,
     SCHOOL_BAND_M,
+    SECONDARY_BAND_M,
+    school_levels,
     WALKING_M,
     nearby_for,
     nearest_point_on_box,
@@ -297,3 +299,37 @@ def test_the_school_band_is_the_one_the_prd_asks_for():
     """Within 1 km of a primary school is the band that moves a resale price,
     which is why it is the band reported rather than our own walk."""
     assert SCHOOL_BAND_M == 1000.0
+
+class TestSchoolLevels:
+    """MOE publishes the level as free text, in eight spellings across 337
+    schools. Getting one wrong loses a school from an answer silently."""
+
+    def test_the_plain_spellings(self):
+        assert school_levels("PRIMARY") == frozenset({"primary"})
+        assert school_levels("SECONDARY (S1-S5)") == frozenset({"secondary"})
+        assert school_levels("SECONDARY (S1-S4)") == frozenset({"secondary"})
+
+    def test_a_mixed_level_school_is_both(self):
+        """MIXED LEVEL (P1-S4) says PRIMARY nowhere and teaches to secondary
+        four. Matching on the word alone filed three schools under primary
+        only and dropped them from every secondary answer."""
+        assert school_levels("MIXED LEVEL (P1-S4)") == frozenset(
+            {"primary", "secondary"}
+        )
+
+    def test_junior_college_is_not_secondary_on_its_own(self):
+        assert school_levels("JUNIOR COLLEGE") == frozenset({"junior_college"})
+        assert school_levels("CENTRALISED INSTITUTE") == frozenset({"junior_college"})
+
+    def test_a_mixed_secondary_and_college_is_both(self):
+        assert school_levels("MIXED LEVEL (S1-JC2)") == frozenset(
+            {"secondary", "junior_college"}
+        )
+        assert school_levels("MIXED LEVEL (S1-S5, JC1-JC2)") == frozenset(
+            {"secondary", "junior_college"}
+        )
+
+    def test_a_missing_level_is_no_level_rather_than_a_guess(self):
+        assert school_levels(None) == frozenset()
+        assert school_levels("") == frozenset()
+        assert school_levels("SOMETHING NEW MOE STARTS PUBLISHING") == frozenset()

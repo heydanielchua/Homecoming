@@ -638,6 +638,20 @@ export function Report({
               </div>
             </li>
           ) : null}
+          <PlaceRow
+            label="Nearest secondary school"
+            place={nearby.secondary_school}
+          />
+          {nearby.secondary_within_2km !== null ? (
+            <li className="place">
+              <div className="muted">Secondary schools within 2 km</div>
+              <div className="place-name">{nearby.secondary_within_2km}</div>
+              <div className="place-distance">
+                Secondary places go by PSLE score, not by distance, so this is
+                how far a teenager travels rather than a claim on admission.
+              </div>
+            </li>
+          ) : null}
           {Object.entries(nearby.nearest_facility).map(([kind, place]) => (
             <PlaceRow
               key={kind}
