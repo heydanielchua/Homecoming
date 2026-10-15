@@ -401,11 +401,15 @@ export function Report({
         summary={
           !report.surroundings.located
             ? 'this block has no geocode'
-            : storey === null
-            ? 'type a floor to see it'
-            : view.above_everything
-              ? 'above everything within 300 m'
-              : `${view.blocked.length} block${view.blocked.length === 1 ? '' : 's'} above you`
+            : // No floor typed yet is not worth a line in the header. The
+              // section already says what it needs where the figures are, and
+              // a prompt up here only tells a reader off for not having
+              // filled in a field they can see.
+              storey === null
+              ? undefined
+              : view.above_everything
+                ? 'above everything within 300 m'
+                : `${view.blocked.length} block${view.blocked.length === 1 ? '' : 's'} above you`
         }
       >
         {view.unknown ? (
