@@ -511,6 +511,9 @@ async function build(
   // The Master Plan under the massing, so a volume can be read against the
   // land it would stand on. Drawn a hand's width above the ground plane
   // because two coplanar surfaces fight for the same depth and flicker.
+  const groundOpacity = (group: ZoneGroup) =>
+    ZONES[group].surface ? 0.9 : ZONES[group].ground ? 0.22 : 0.5;
+
   const zoning = new THREE.Group();
   world.add(zoning);
   const byZone = new Map<ZoneGroup, ZoningParcel[]>();
@@ -526,7 +529,7 @@ async function build(
       transparent: true,
       // Seven parcels in ten are residential. At the weight the others carry
       // it stops being a ground and becomes a sheet over the streets.
-      opacity: ZONES[group].surface ? 0.9 : ZONES[group].ground ? 0.22 : 0.5,
+      opacity: groundOpacity(group),
       depthWrite: false,
       side: THREE.DoubleSide,
     });
@@ -591,39 +594,41 @@ async function build(
 
   // --- what could stand ----------------------------------------------------
   const bands = meta.height_bands;
-  // An envelope takes the colour of the land it stands on. A residential
-  // block going up next door and a business one are different news, and one
-  // colour for both hides which it is.
-  const matGhost = {} as Record<ZoneGroup, InstanceType<typeof THREE.MeshLambertMaterial>>;
-  const matGhostOver = {} as Record<ZoneGroup, InstanceType<typeof THREE.MeshLambertMaterial>>;
-  const matGhostEdge = {} as Record<ZoneGroup, InstanceType<typeof THREE.LineBasicMaterial>>;
-  for (const group of BUILDABLE_ZONES) {
-    const tone = colour(ZONES[group].css, '#eb6834');
-    matGhost[group] = new THREE.MeshLambertMaterial({
-      color: tone, transparent: true, opacity: 0.17, depthWrite: false,
-    });
-    // Above your eye line it earns more ink: that is the part that can block.
-    matGhostOver[group] = new THREE.MeshLambertMaterial({
-      color: tone, transparent: true, opacity: 0.3, depthWrite: false,
-    });
-    matGhostEdge[group] = new THREE.LineBasicMaterial({
-      // The residential ground tone is a pale taupe and vanishes as an edge,
-      // so its outline borrows the building line instead.
-      color: ZONES[group].ground ? colour('--massing-line', '#b4b0a8') : tone,
-      transparent: true,
-      opacity: 0.45,
-    });
-  }
+  // The envelope is drawn in one ink, not in the colour of the land it
+  // stands on. Zone-colouring it put a pink volume on pink ground and a
+  // taupe one on taupe ground: the two compounded into a single mass on the
+  // east and vanished entirely on the west, which is the side you live on.
+  // What the land is, the ground and the readout already say; what the
+  // volume has to say is how high it goes.
+  // Edges, with no solid face. A translucent mass over translucent ground
+  // was the whole problem: filled, these read as haze and hid the buildings
+  // standing inside them. As a cage the volume says "not built yet" the way
+  // a survey drawing does, and what stands is still visible through it.
+  const limitTone = colour('--massing-limit', '#2b2b2b');
+  const matLimitEdge = new THREE.LineBasicMaterial({
+    color: limitTone, transparent: true, opacity: 0.3,
+  });
+  // Above your eye line it earns more ink: that is the part that can block.
+  const matLimitEdgeOver = new THREE.LineBasicMaterial({
+    color: limitTone, transparent: true, opacity: 0.75,
+  });
+  const matHidden = new THREE.MeshBasicMaterial({
+    // Invisible, and only there to be what the pointer lands on: a cage has
+    // no face to hover, and hit-testing its edges would be unusable.
+    transparent: true, opacity: 0, depthWrite: false,
+  });
 
   const allowed = new THREE.Group();
   allowed.visible = false;
   world.add(allowed);
 
+  // Two lists with two jobs: the edges are what gets restyled at the eye
+  // line, and the invisible meshes are what the pointer can land on.
   const volumes: {
-    mesh: InstanceType<typeof THREE.Mesh>;
+    edges: InstanceType<typeof THREE.LineSegments>;
     top: number;
-    group: ZoneGroup;
   }[] = [];
+  const limitTargets: InstanceType<typeof THREE.Mesh>[] = [];
   const found = envelopesFor(
     parcels,
     centresOf(buildings, lon, lat),
@@ -636,16 +641,20 @@ async function build(
     const shapes = shapesOf(e.parcel.m as Geom);
     if (!shapes.length) continue;
     const group = e.parcel.g;
-    if (!matGhost[group]) continue;   // a road has no plot ratio to reach
+    if (ZONES[group].surface) continue;   // nothing is built on a road
+
     const geom = extrude(shapes, e.topM - e.baseM);
     geom.translate(0, e.baseM, 0); // start at the roofline, not the ground
-    const mesh = new THREE.Mesh(geom, matGhost[group]);
+    const mesh = new THREE.Mesh(geom, matHidden);
     mesh.userData = { label: e.label, detail: e.detail, zone: group };
     allowed.add(mesh);
-    allowed.add(
-      new THREE.LineSegments(new THREE.EdgesGeometry(geom, 25), matGhostEdge[group]),
+    limitTargets.push(mesh);
+
+    const edges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(geom, 25), matLimitEdge,
     );
-    volumes.push({ mesh, top: e.topM, group });
+    allowed.add(edges);
+    volumes.push({ edges, top: e.topM });
   }
   const summary = found.summary;
 
@@ -806,7 +815,7 @@ async function build(
     pointer.y = -((e.clientY - r.top) / r.height) * 2 + 1;
     ray.setFromCamera(pointer, camera);
     const targets = allowed.visible
-      ? [...pickable, ...volumes.map((v) => v.mesh)]
+      ? [...pickable, ...limitTargets]
       : pickable;
     const hit = ray.intersectObjects(targets, false)[0];
     const key = hit ? String(hit.object.id) : null;
@@ -875,8 +884,22 @@ async function build(
         t.mesh.material = eye !== null && t.top > eye + 0.5 ? matOver : matPlain;
       }
       for (const v of volumes) {
-        v.mesh.material =
-          eye !== null && v.top > eye + 0.5 ? matGhostOver[v.group] : matGhost[v.group];
+        // Drawing only what breaks the eye line was the obvious way to thin
+        // this out and it does nothing: on floor 12 the eye line is 34.5 m
+        // and the commonest envelope here is 17 storeys, so all 275 of them
+        // clear it. Height does not separate these; distance would.
+        v.edges.material =
+          eye !== null && v.top > eye + 0.5 ? matLimitEdgeOver : matLimitEdge;
+      }
+      // The ground steps back while the volumes are up, so the two layers
+      // are figure and ground rather than two things at full strength.
+      for (const node of zoning.children) {
+        const group = node.name as ZoneGroup;
+        const material = (node.children[0] as { material?: { opacity: number } })
+          ?.material;
+        if (material) {
+          material.opacity = groundOpacity(group) * (layer === 'worst' ? 0.45 : 1);
+        }
       }
 
       wedge.visible = facing !== null;
