@@ -21,6 +21,7 @@
 
 import { Field } from '@base-ui/react/field';
 
+import { extractListing, isBareLink } from '../lib/listing';
 import type { Facing } from '../lib/types';
 
 export interface Inputs {
@@ -50,6 +51,8 @@ interface Props {
   inputs: Inputs;
   onChange: (next: Inputs) => void;
   onSubmit: () => void;
+  /** Figures read out of a pasted listing, when the paste carried any. */
+  onListing: (found: { price: number | null; flatType: string | null }) => void;
   busy: boolean;
   /** Set when the link could not be resolved, so the fallback fields show. */
   needsAddress: boolean;
@@ -64,6 +67,7 @@ export function UnitForm({
   inputs,
   onChange,
   onSubmit,
+  onListing,
   busy,
   needsAddress,
   onUseAddress,
@@ -96,10 +100,24 @@ export function UnitForm({
             placeholder="https://www.99.co/singapore/sale/property/…"
             value={inputs.link}
             onChange={(event) => onChange({ ...inputs, link: event.target.value })}
+            onPaste={(event) => {
+              // A link pasted on its own is the common case and goes through
+              // untouched. Anything longer is the listing itself, and the
+              // asking price is in it — which is the only way this page can
+              // ever know a price, since it cannot fetch the listing and the
+              // URL does not carry one.
+              const text = event.clipboardData.getData('text');
+              if (!text || isBareLink(text)) return;
+              const found = extractListing(text);
+              if (found.price === null && found.url === null) return;
+              event.preventDefault();
+              onChange({ ...inputs, link: found.url ?? inputs.link });
+              onListing({ price: found.price, flatType: found.flatType });
+            }}
           />
           <Field.Description className="hint">
-            From PropertyGuru or 99.co. The page is never fetched — only the
-            address in the link is read.
+            Paste the link, or the whole listing to read its asking price off
+            it. The page is never fetched — only what you paste is read.
           </Field.Description>
         </Field.Root>
 

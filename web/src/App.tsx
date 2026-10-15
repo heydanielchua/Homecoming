@@ -158,6 +158,29 @@ export function App() {
    */
   const loadedSlug = React.useRef<string | null>(null);
 
+  /**
+   * Figures read off a pasted listing, waiting for the block to resolve.
+   *
+   * The paste arrives before the report does, and the flat type it names only
+   * means something once the block's own types are known — a listing saying
+   * "4 Room" is worth nothing against a block that has only sold 3-roomers.
+   */
+  const pastedListing = React.useRef<{
+    price: number | null;
+    flatType: string | null;
+  } | null>(null);
+
+  /**
+   * Whether the asking price in the header was read off a pasted listing.
+   *
+   * Only the note under the figure changes, but the note is the whole point:
+   * a price that came off the listing must not sit under "type what the
+   * listing asks", which tells the reader to supply something already there
+   * and leaves them unsure whether what they are looking at is the seller's
+   * number or a leftover of their own.
+   */
+  const [askingFromListing, setAskingFromListing] = React.useState(false);
+
   const openSlug = React.useCallback(
     async (slug: string) => {
       const payload = await fetchBlock(slug);
@@ -183,15 +206,27 @@ export function App() {
 
       setReport(payload);
       setTown(await fetchTown(payload.town_slug));
+      const pasted = pastedListing.current;
+      pastedListing.current = null;
+      if (pasted?.price != null) setAskingFromListing(true);
+      else if (switching) setAskingFromListing(false);
+
       setInputs((current) => ({
         ...current,
         ...(switching
           ? { size: '', asking: '', storey: '', facing: null }
           : null),
+        // A price read off the listing describes the flat being opened, so it
+        // survives the clearing above rather than being wiped by it.
+        ...(pasted?.price != null ? { asking: String(pasted.price) } : null),
         flatType:
-          !switching && current.flatType && payload.flat_types[current.flatType]
-            ? current.flatType
-            : (Object.keys(payload.flat_types)[0] ?? ''),
+          // What the listing called itself, but only if this block has sold
+          // one: a type with no sales here has nothing to compare against.
+          pasted?.flatType && payload.flat_types[pasted.flatType]
+            ? pasted.flatType
+            : !switching && current.flatType && payload.flat_types[current.flatType]
+              ? current.flatType
+              : (Object.keys(payload.flat_types)[0] ?? ''),
       }));
       return payload;
     },
@@ -208,6 +243,7 @@ export function App() {
       const payload = await openSlug(shared.slug);
       if (payload) {
         setResolution({ status: 'resolved', slug: shared.slug });
+        setAskingFromListing(false);
         setInputs({
           link: shared.url,
           size: shared.size ? String(shared.size) : '',
@@ -439,6 +475,15 @@ export function App() {
         inputs={inputs}
         onChange={setInputs}
         onSubmit={check}
+        onListing={(found) => {
+          // Held until the block resolves, because the flat type can only be
+          // matched against the types this block has actually sold.
+          pastedListing.current = found;
+          if (found.price !== null) {
+            setAskingFromListing(true);
+            setInputs((current) => ({ ...current, asking: String(found.price) }));
+          }
+        }}
         busy={busy}
         needsAddress={
           addressOpen || (resolution !== null && resolution.status !== 'resolved')
@@ -538,12 +583,17 @@ export function App() {
                       placeholder="—"
                       group
                       width="10ch"
-                      onChange={(asking) =>
-                        setInputs({ ...inputs, asking: asking.replace(/[^\d]/g, '') })
-                      }
+                      onChange={(asking) => {
+                        setAskingFromListing(false);
+                        setInputs({ ...inputs, asking: asking.replace(/[^\d]/g, '') });
+                      }}
                     />
                   </span>
-                  <span className="unit-figure-note">type what the listing asks</span>
+                  <span className="unit-figure-note">
+                    {askingFromListing && asking !== null
+                      ? 'read off the listing you pasted'
+                      : 'paste the listing, or type what it asks'}
+                  </span>
                 </label>
 
                 <div className="unit-figure unit-figure--derived">
@@ -641,6 +691,7 @@ export function App() {
                     type="button"
                     className="button button--quiet"
                     onClick={() => {
+                      setAskingFromListing(false);
                       setInputs({
                         link: unit.url,
                         size: unit.size ? String(unit.size) : '',
