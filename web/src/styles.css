@@ -1400,6 +1400,18 @@ tbody tr:hover {
  * canvas and hands the renderer real colours.
  */
 .massing {
+  /* The map's zoning palette, redeclared here so the renderer can read it off
+     the canvas. Same tokens, same values: a parcel that is pink on the flat
+     map above must not be purple in the model below it. */
+  --zone-ground: #b9b2a6;
+  --zone-ground-line: #9d9589;
+  --zone-1: #2a78d6;
+  --zone-2: #d4488f;
+  --zone-3: #1baf7a;
+  --zone-4: #eb6834;
+  --zone-civic: #8d8d8d;
+  --zone-civic-line: #6f6f6f;
+
   --massing-sky: #dfe3e6;
   --massing-ground: #c9c6bf;
   --massing-built: #eae7e1;
@@ -1413,6 +1425,14 @@ tbody tr:hover {
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) .massing {
+    --zone-ground: #6c655b;
+    --zone-ground-line: #8a8277;
+    --zone-1: #3987e5;
+    --zone-2: #e06aa6;
+    --zone-3: #199e70;
+    --zone-4: #d95926;
+    --zone-civic: #7b7b7b;
+    --zone-civic-line: #9a9a9a;
     --massing-sky: #121417;
     --massing-ground: #232220;
     --massing-built: #46443f;
@@ -1424,6 +1444,14 @@ tbody tr:hover {
 }
 
 :root[data-theme='dark'] .massing {
+  --zone-ground: #6c655b;
+  --zone-ground-line: #8a8277;
+  --zone-1: #3987e5;
+  --zone-2: #e06aa6;
+  --zone-3: #199e70;
+  --zone-4: #d95926;
+  --zone-civic: #7b7b7b;
+  --zone-civic-line: #9a9a9a;
   --massing-sky: #121417;
   --massing-ground: #232220;
   --massing-built: #46443f;
@@ -1504,12 +1532,15 @@ tbody tr:hover {
   color: var(--text-secondary);
 }
 
+/* Its own line. Wedged between the checkbox and the reset button the two
+   sliders got about 90px each, which is not enough to put a thumb on. */
 .massing-sliders {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  flex: 1 1 260px;
+  gap: 16px;
+  flex: 1 0 100%;
   min-width: 0;
+  order: 1;
 }
 
 .massing-sliders label {
@@ -1578,4 +1609,44 @@ tbody tr:hover {
 .massing-seg button[aria-pressed='true'] {
   background: var(--text-primary);
   color: var(--surface-1);
+}
+
+/* The zoning key under the model. These double as toggles: the Master Plan
+   under a dense estate is a lot of colour at once, and turning a group off is
+   how you read the one you came for. */
+.massing-legend-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.massing-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px 4px 5px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.massing-chip[aria-pressed='false'] {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.massing-chip--static {
+  cursor: default;
+}
+
+.massing-swatch {
+  width: 15px;
+  height: 15px;
+  border-radius: 5px;
+  flex: none;
 }

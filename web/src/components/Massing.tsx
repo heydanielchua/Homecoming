@@ -36,7 +36,7 @@ import {
   type Geom,
   type Rings,
 } from '../lib/massing';
-import type { Building, Facing, Meta, ZoningParcel } from '../lib/types';
+import { ZONE_GROUPS, type Building, type Facing, type Meta, type ZoneGroup, type ZoningParcel } from '../lib/types';
 
 /**
  * How far out to draw. Beyond this a block is skyline rather than something
@@ -56,6 +56,24 @@ const MONTHS = [
 ];
 
 type Layer = 'now' | 'worst';
+
+/**
+ * The zoning palette, and it is the map's own.
+ *
+ * The flat map above already draws these parcels in these colours, validated
+ * all-pairs for colour-vision deficiency — six hues failed that and four hues
+ * with two neutrals passed. A second palette down here would mean the same
+ * parcel was pink in one view and purple in the other, so the tokens are the
+ * map's, read from `.massing` where they are redeclared.
+ */
+const ZONES: Record<ZoneGroup, { label: string; css: string; ground?: boolean }> = {
+  residential: { label: 'Residential', css: '--zone-ground', ground: true },
+  commercial: { label: 'Commercial', css: '--zone-1' },
+  business: { label: 'Business', css: '--zone-2' },
+  park: { label: 'Park', css: '--zone-3' },
+  reserve: { label: 'Reserve site', css: '--zone-4' },
+  civic: { label: 'Civic', css: '--zone-civic' },
+};
 
 interface Props {
   meta: Meta;
@@ -86,9 +104,12 @@ export function Massing({ meta, lat, lon, slug, storey, facing }: Props) {
   const [data, setData] = React.useState<Loaded | null>(null);
   const [failed, setFailed] = React.useState<string | null>(null);
   const [layer, setLayer] = React.useState<Layer>('now');
-  const [sunOn, setSunOn] = React.useState(false);
+  // The sun is on to begin with. Without it the scene is lit flat and reads
+  // as grey chips: the shadows are what make one volume sit behind another.
+  const [sunOn, setSunOn] = React.useState(true);
   const [hour, setHour] = React.useState(17);
   const [month, setMonth] = React.useState(12);
+  const [hiddenZones, setHiddenZones] = React.useState<Partial<Record<ZoneGroup, boolean>>>({});
   const [readout, setReadout] = React.useState<Readout | null>(null);
   const [summary, setSummary] = React.useState<string | null>(null);
   /**
@@ -194,8 +215,9 @@ export function Massing({ meta, lat, lon, slug, storey, facing }: Props) {
       storey,
       facing,
       sun: sunOn ? { month, hour } : null,
+      hiddenZones,
     });
-  }, [layer, storey, facing, sunOn, month, hour, built]);
+  }, [layer, storey, facing, sunOn, month, hour, hiddenZones, built]);
 
   const eye = viewerHeightM(storey, meta.sun.constants.storey_height_m);
 
@@ -290,6 +312,30 @@ export function Massing({ meta, lat, lon, slug, storey, facing }: Props) {
         </button>
       </div>
 
+      <div className="massing-legend-row">
+        {ZONE_GROUPS.map((group) => (
+          <button
+            key={group}
+            type="button"
+            className="massing-chip"
+            aria-pressed={!hiddenZones[group]}
+            onClick={() =>
+              setHiddenZones((current) => ({ ...current, [group]: !current[group] }))
+            }
+          >
+            <span
+              className="massing-swatch"
+              style={{ background: `var(${ZONES[group].css})` }}
+            />
+            {ZONES[group].label}
+          </button>
+        ))}
+        <span className="massing-chip massing-chip--static">
+          <span className="massing-swatch" style={{ background: 'var(--massing-mine)' }} />
+          This block
+        </span>
+      </div>
+
       <p className="muted massing-legend">
         {eye === null
           ? 'Type a floor and the plane through the model becomes your eye line: anything above it can block the view.'
@@ -319,6 +365,7 @@ interface SceneState {
   storey: number | null;
   facing: Facing | null;
   sun: { month: number; hour: number } | null;
+  hiddenZones: Partial<Record<ZoneGroup, boolean>>;
 }
 
 interface SceneHandle {
@@ -444,6 +491,42 @@ async function build(
   ground.receiveShadow = true;
   world.add(ground);
 
+  // --- the zoning, flat on the ground --------------------------------------
+  // The Master Plan under the massing, so a volume can be read against the
+  // land it would stand on. Drawn a hand's width above the ground plane
+  // because two coplanar surfaces fight for the same depth and flicker.
+  const zoning = new THREE.Group();
+  world.add(zoning);
+  const byZone = new Map<ZoneGroup, ZoningParcel[]>();
+  for (const p of parcels) {
+    if (!ZONES[p.g]) continue;
+    const list = byZone.get(p.g);
+    if (list) list.push(p);
+    else byZone.set(p.g, [p]);
+  }
+  for (const [group, list] of byZone) {
+    const material = new THREE.MeshBasicMaterial({
+      color: colour(ZONES[group].css, '#b9b2a6'),
+      transparent: true,
+      // Seven parcels in ten are residential. At the weight the others carry
+      // it stops being a ground and becomes a sheet over the streets.
+      opacity: ZONES[group].ground ? 0.3 : 0.42,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const groupNode = new THREE.Group();
+    groupNode.name = group;
+    for (const p of list) {
+      const shapes = shapesOf(p.m as Geom);
+      if (!shapes.length) continue;
+      const geom = new THREE.ShapeGeometry(shapes);
+      geom.rotateX(-Math.PI / 2);
+      geom.translate(0, 0.12, 0);
+      groupNode.add(new THREE.Mesh(geom, material));
+    }
+    zoning.add(groupNode);
+  }
+
   // --- what stands ---------------------------------------------------------
   const mineTone = colour('--massing-mine', '#d6ff4e');
   const plainTone = colour('--massing-built', '#eae7e1');
@@ -489,22 +572,39 @@ async function build(
 
   // --- what could stand ----------------------------------------------------
   const bands = meta.height_bands;
-  const ghostTone = colour('--massing-ghost', '#eb6834');
-  const matGhost = new THREE.MeshLambertMaterial({
-    color: ghostTone, transparent: true, opacity: 0.26, depthWrite: false,
-  });
-  const matGhostOver = new THREE.MeshLambertMaterial({
-    color: ghostTone, transparent: true, opacity: 0.44, depthWrite: false,
-  });
-  const matGhostEdge = new THREE.LineBasicMaterial({
-    color: ghostTone, transparent: true, opacity: 0.6,
-  });
+  // An envelope takes the colour of the land it stands on. A residential
+  // block going up next door and a business one are different news, and one
+  // colour for both hides which it is.
+  const matGhost = {} as Record<ZoneGroup, InstanceType<typeof THREE.MeshLambertMaterial>>;
+  const matGhostOver = {} as Record<ZoneGroup, InstanceType<typeof THREE.MeshLambertMaterial>>;
+  const matGhostEdge = {} as Record<ZoneGroup, InstanceType<typeof THREE.LineBasicMaterial>>;
+  for (const group of ZONE_GROUPS) {
+    const tone = colour(ZONES[group].css, '#eb6834');
+    matGhost[group] = new THREE.MeshLambertMaterial({
+      color: tone, transparent: true, opacity: 0.24, depthWrite: false,
+    });
+    // Above your eye line it earns more ink: that is the part that can block.
+    matGhostOver[group] = new THREE.MeshLambertMaterial({
+      color: tone, transparent: true, opacity: 0.42, depthWrite: false,
+    });
+    matGhostEdge[group] = new THREE.LineBasicMaterial({
+      // The residential ground tone is a pale taupe and vanishes as an edge,
+      // so its outline borrows the building line instead.
+      color: ZONES[group].ground ? colour('--massing-line', '#8f8a80') : tone,
+      transparent: true,
+      opacity: 0.6,
+    });
+  }
 
   const allowed = new THREE.Group();
   allowed.visible = false;
   world.add(allowed);
 
-  const volumes: { mesh: InstanceType<typeof THREE.Mesh>; top: number }[] = [];
+  const volumes: {
+    mesh: InstanceType<typeof THREE.Mesh>;
+    top: number;
+    group: ZoneGroup;
+  }[] = [];
   const found = envelopesFor(
     parcels,
     centresOf(buildings, lon, lat),
@@ -516,13 +616,17 @@ async function build(
   for (const e of found.envelopes) {
     const shapes = shapesOf(e.parcel.m as Geom);
     if (!shapes.length) continue;
+    const group = e.parcel.g;
+    if (!ZONES[group]) continue;
     const geom = extrude(shapes, e.topM - e.baseM);
     geom.translate(0, e.baseM, 0); // start at the roofline, not the ground
-    const mesh = new THREE.Mesh(geom, matGhost);
-    mesh.userData = { label: e.label, detail: e.detail };
+    const mesh = new THREE.Mesh(geom, matGhost[group]);
+    mesh.userData = { label: e.label, detail: e.detail, zone: group };
     allowed.add(mesh);
-    allowed.add(new THREE.LineSegments(new THREE.EdgesGeometry(geom, 25), matGhostEdge));
-    volumes.push({ mesh, top: e.topM });
+    allowed.add(
+      new THREE.LineSegments(new THREE.EdgesGeometry(geom, 25), matGhostEdge[group]),
+    );
+    volumes.push({ mesh, top: e.topM, group });
   }
   const summary = found.summary;
 
@@ -730,8 +834,11 @@ async function build(
       place();
       draw();
     },
-    apply({ layer, storey, facing, sun: at }: SceneState) {
+    apply({ layer, storey, facing, sun: at, hiddenZones }: SceneState) {
       allowed.visible = layer === 'worst';
+      for (const node of zoning.children) {
+        node.visible = !hiddenZones[node.name as ZoneGroup];
+      }
 
       const eye =
         storey !== null && storey >= 1 ? (storey - 1) * storeyM + EYE_HEIGHT_M : null;
@@ -749,7 +856,8 @@ async function build(
         t.mesh.material = eye !== null && t.top > eye + 0.5 ? matOver : matPlain;
       }
       for (const v of volumes) {
-        v.mesh.material = eye !== null && v.top > eye + 0.5 ? matGhostOver : matGhost;
+        v.mesh.material =
+          eye !== null && v.top > eye + 0.5 ? matGhostOver[v.group] : matGhost[v.group];
       }
 
       wedge.visible = facing !== null;
