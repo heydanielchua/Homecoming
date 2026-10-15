@@ -722,10 +722,11 @@ async function build(
   // what it has to say is "your eyes are at this height", and a disc around
   // your own block says that without walling the view off.
   const EYE_DISC_M = 170;
+  const eyeTone = colour('--massing-eye', '#6c4cf0');
   const eyeMat = new THREE.MeshBasicMaterial({
-    color: colour('--massing-eye', '#010101'),
+    color: eyeTone,
     transparent: true,
-    opacity: 0.1,
+    opacity: 0.09,
     side: THREE.DoubleSide,
     depthWrite: false,
   });
@@ -734,16 +735,21 @@ async function build(
   eyePlane.visible = false;
   world.add(eyePlane);
 
-  const eyeRim = new THREE.LineLoop(
-    new THREE.BufferGeometry().setFromPoints(
-      Array.from({ length: 65 }, (_, i) => {
-        const a = (i / 64) * Math.PI * 2;
-        return new THREE.Vector3(Math.cos(a) * EYE_DISC_M, 0, Math.sin(a) * EYE_DISC_M);
-      }),
-    ),
-    // The rim takes the colour of the block it belongs to: this line is
-    // where *your* eyes are, not a generic contour.
-    new THREE.LineBasicMaterial({ color: mineTone }),
+  // A band rather than a line. A one-pixel ring is a pixel wide however far
+  // away it is, so it read as a stray lasso dropped over the model; three
+  // metres of open cylinder has area, catches the light the rest of the
+  // scene is lit by, and says "this is a height" rather than "this is a
+  // circle". The colour is its own — a violet that appears nowhere in the
+  // zoning palette or on the buildings, so it cannot be mistaken for either.
+  const eyeRim = new THREE.Mesh(
+    new THREE.CylinderGeometry(EYE_DISC_M, EYE_DISC_M, 3, 72, 1, true),
+    new THREE.MeshBasicMaterial({
+      color: eyeTone,
+      transparent: true,
+      opacity: 0.5,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    }),
   );
   eyeRim.visible = false;
   world.add(eyeRim);

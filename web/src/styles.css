@@ -742,6 +742,10 @@ button {
   --pin-4: #eda100;
   --pin-5: #e87ba4;
   --pin-6: #6250d6;
+  /* The seventh is a slate, not a seventh hue: six is what survived the
+     all-pairs colour-vision check, and a dark neutral differs from every
+     one of them in lightness, which is the channel that survives. */
+  --pin-7: #3f4a56;
   margin-top: 4px;
 }
 
@@ -753,6 +757,7 @@ button {
     --pin-4: #c98500;
     --pin-5: #d55181;
     --pin-6: #9085e9;
+    --pin-7: #9aa7b4;
   }
 }
 
@@ -763,6 +768,7 @@ button {
   --pin-4: #c98500;
   --pin-5: #d55181;
   --pin-6: #9085e9;
+  --pin-7: #9aa7b4;
 }
 
 /* The Master Plan layer.
@@ -902,6 +908,7 @@ button {
 .map-pin--4 { background: var(--pin-4); color: #1a1200; }
 .map-pin--5 { background: var(--pin-5); color: #2a0d18; }
 .map-pin--6 { background: var(--pin-6); }
+.map-pin--7 { background: var(--pin-7); }
 
 /* The block itself is not one of the kinds - it is where you are standing,
    so it gets the ink and a bigger ring rather than a sixth hue. */
@@ -1433,7 +1440,9 @@ tbody tr:hover {
   --massing-line: #b4b0a8;
   --massing-mine: #d6ff4e;
   --massing-ghost: #eb6834;
-  --massing-eye: #010101;
+  /* Your eye level. Its own colour, absent from the zoning palette and from
+     anything built, so the band cannot be read as a parcel or a wall. */
+  --massing-eye: #6c4cf0;
   margin-top: 4px;
 }
 
@@ -1456,7 +1465,7 @@ tbody tr:hover {
     --massing-over: #4b4942;
     --massing-line: #585550;
     --massing-ghost: #d95926;
-    --massing-eye: #f2f2f2;
+    --massing-eye: #a594ff;
   }
 }
 
@@ -1478,7 +1487,7 @@ tbody tr:hover {
   --massing-over: #4b4942;
   --massing-line: #585550;
   --massing-ghost: #d95926;
-  --massing-eye: #f2f2f2;
+  --massing-eye: #a594ff;
 }
 
 .massing-stage {
@@ -1739,23 +1748,53 @@ tbody tr:hover {
 .unit-figure-input {
   display: inline-flex;
   align-items: baseline;
-  gap: 5px;
+  gap: 3px;
 }
 
-.unit-figure-input .input {
-  width: 7.5ch;
-  padding-inline: 10px;
+/* Written there, not asked for. These read as the flat's figures — the same
+   weight as the derived one beside them — and only show they are editable
+   when you reach for them. The page cannot look these up: neither portal puts
+   a price or a floor area in the URL, and the listing itself is never
+   fetched. So they are typed once and then they are simply the numbers. */
+.unit-figure-input .input,
+.unit-figure .input {
+  width: 6ch;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  font-size: 1.15rem;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
 }
 
 .unit-figure-input .input[inputmode='numeric'] {
-  width: 10ch;
+  width: 9ch;
+}
+
+.unit-figure-input .input::placeholder {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.unit-figure-input .input:hover {
+  border-bottom-color: var(--border-strong);
+}
+
+.unit-figure-input .input:focus {
+  border-bottom-color: var(--focus);
+  outline: none;
 }
 
 .unit-figure-unit {
-  font-size: 0.9rem;
-  color: var(--text-secondary);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary);
 }
+
 
 .unit-figure-value {
   font-size: 1.15rem;

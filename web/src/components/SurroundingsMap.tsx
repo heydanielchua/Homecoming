@@ -25,7 +25,8 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
 import { fetchZoning, zoningKeysFor } from '../lib/data';
-import type { MapPoint, PointKind, ZoneGroup, ZoningParcel } from '../lib/types';
+import { mapKindOf, type MapKind } from '../lib/places';
+import type { MapPoint, ZoneGroup, ZoningParcel } from '../lib/types';
 import { POINT_KINDS, ZONE_GROUPS } from '../lib/types';
 
 /**
@@ -35,7 +36,7 @@ import { POINT_KINDS, ZONE_GROUPS } from '../lib/types';
  * have: a school is aqua on every block or the colour means nothing.
  */
 const KINDS: Record<
-  PointKind,
+  MapKind,
   { label: string; plural: string; letter: string; slot: number }
 > = {
   mrt_exit: { label: 'MRT exit', plural: 'MRT exits', letter: 'M', slot: 1 },
@@ -44,7 +45,17 @@ const KINDS: Record<
   hawker_centre: { label: 'Hawker centre', plural: 'Hawker centres', letter: 'H', slot: 4 },
   preschool: { label: 'Pre-school', plural: 'Pre-schools', letter: 'P', slot: 5 },
   park: { label: 'Park', plural: 'Parks', letter: 'K', slot: 6 },
+  // The seventh is a slate rather than a seventh hue. Six was what survived
+  // validating all pairs for colour-vision deficiency, and adding a hue to
+  // that set is how a palette stops working; a dark neutral differs from
+  // every one of them in lightness, which is the channel that survives.
+  secondary_school: {
+    label: 'Secondary school', plural: 'Secondary schools', letter: 'E', slot: 7,
+  },
 };
+
+/** Every kind, in slot order, for the pills and the legend. */
+const MAP_KINDS: MapKind[] = [...POINT_KINDS, 'secondary_school'];
 
 /**
  * The zoning groups, in the order their colours are assigned.
@@ -151,7 +162,7 @@ function escapeHtml(value: string): string {
  * surface cannot be reasoned about in advance. A ring in the page's own
  * surface colour separates the mark from the tile whatever the tile is.
  */
-function pin(kind: PointKind, label: string): L.DivIcon {
+function pin(kind: MapKind, label: string): L.DivIcon {
   const { letter, slot } = KINDS[kind];
   return L.divIcon({
     className: 'map-pin-wrap',
@@ -218,17 +229,18 @@ export function SurroundingsMap({
   /** What the map should frame, kept for the resize handler to reapply. */
   const fitTo = React.useRef<L.LatLngBounds | null>(null);
   const tiles = React.useRef<L.TileLayer | null>(null);
-  const [hidden, setHidden] = React.useState<Set<PointKind>>(new Set());
+  const [hidden, setHidden] = React.useState<Set<MapKind>>(new Set());
   const [failed, setFailed] = React.useState(false);
 
   const present = React.useMemo(() => {
-    const counts = new Map<PointKind, number>();
+    const counts = new Map<MapKind, number>();
     for (const p of points) {
-      if (KINDS[p.kind]) counts.set(p.kind, (counts.get(p.kind) ?? 0) + 1);
+      const kind = mapKindOf(p);
+      if (KINDS[kind]) counts.set(kind, (counts.get(kind) ?? 0) + 1);
     }
     // Fixed order, not frequency order, so a kind keeps its colour and its
     // place in the legend from one block to the next.
-    return POINT_KINDS.filter((k) => counts.has(k)).map(
+    return MAP_KINDS.filter((k) => counts.has(k)).map(
       (k) => [k, counts.get(k)!] as const,
     );
   }, [points]);
@@ -428,13 +440,16 @@ export function SurroundingsMap({
       .bindTooltip(`${label} — this block`, { direction: 'top' })
       .addTo(group);
 
-    const shown = points.filter((p) => KINDS[p.kind] && !hidden.has(p.kind));
+    const shown = points.filter(
+      (p) => KINDS[mapKindOf(p)] && !hidden.has(mapKindOf(p)),
+    );
     for (const point of shown) {
-      const name = point.name ?? KINDS[point.kind].label;
+      const kind = mapKindOf(point);
+      const name = point.name ?? KINDS[kind].label;
       const text = `${name} · ${point.distance_m} m`;
       L.marker([point.lat, point.lon], {
-        icon: pin(point.kind, text),
-        alt: `${KINDS[point.kind].label}: ${text}`,
+        icon: pin(kind, text),
+        alt: `${KINDS[kind].label}: ${text}`,
         keyboard: false,
       })
         .bindTooltip(text, { direction: 'top' })
@@ -482,7 +497,7 @@ export function SurroundingsMap({
     );
   }
 
-  function toggle(kind: PointKind) {
+  function toggle(kind: MapKind) {
     setHidden((was) => {
       const next = new Set(was);
       if (next.has(kind)) next.delete(kind);
@@ -569,10 +584,10 @@ export function SurroundingsMap({
         <summary>List these places</summary>
         <ul>
           {points
-            .filter((p) => KINDS[p.kind])
+            .filter((p) => KINDS[mapKindOf(p)])
             .map((p, i) => (
               <li key={`${p.kind}-${p.name ?? i}`}>
-                <span className="map-list-kind">{KINDS[p.kind].label}</span>{' '}
+                <span className="map-list-kind">{KINDS[mapKindOf(p)].label}</span>{' '}
                 {p.name ?? 'unnamed'} · {p.distance_m} m
               </li>
             ))}

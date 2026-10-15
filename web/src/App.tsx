@@ -67,6 +67,43 @@ function Masthead({ manifest }: { manifest: Manifest | null }) {
   );
 }
 
+/**
+ * A number that reads as a figure and edits as a field.
+ *
+ * Grouped while you are not in it — $1,100,000 is information, 1100000 is a
+ * form value — and plain digits the moment it has focus, because separators
+ * fight the caret and every keystroke would have to re-place it.
+ */
+function FigureInput({
+  value,
+  onChange,
+  placeholder,
+  group,
+  width,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  placeholder: string;
+  group: boolean;
+  width: string;
+}) {
+  const [editing, setEditing] = React.useState(false);
+  const shown =
+    !editing && group && value ? Number(value).toLocaleString() : value;
+  return (
+    <input
+      className="input"
+      inputMode="numeric"
+      style={{ width }}
+      placeholder={placeholder}
+      value={shown}
+      onFocus={() => setEditing(true)}
+      onBlur={() => setEditing(false)}
+      onChange={(e) => onChange(e.target.value.replace(/[^\d.]/g, ''))}
+    />
+  );
+}
+
 export function App() {
   const [meta, setMeta] = React.useState<Meta | null>(null);
   const [manifest, setManifest] = React.useState<Manifest | null>(null);
@@ -418,17 +455,12 @@ export function App() {
                 <label className="unit-figure">
                   <span className="unit-figure-label">Size</span>
                   <span className="unit-figure-input">
-                    <input
-                      className="input"
-                      inputMode="decimal"
-                      placeholder="94"
+                    <FigureInput
                       value={inputs.size}
-                      onChange={(e) =>
-                        setInputs({
-                          ...inputs,
-                          size: e.target.value.replace(/[^\d.]/g, ''),
-                        })
-                      }
+                      placeholder="94"
+                      group={false}
+                      width="4.5ch"
+                      onChange={(size) => setInputs({ ...inputs, size })}
                     />
                     <span className="unit-figure-unit">m²</span>
                   </span>
@@ -443,16 +475,13 @@ export function App() {
                   <span className="unit-figure-label">Listing price</span>
                   <span className="unit-figure-input">
                     <span className="unit-figure-unit">$</span>
-                    <input
-                      className="input"
-                      inputMode="numeric"
-                      placeholder="1100000"
+                    <FigureInput
                       value={inputs.asking}
-                      onChange={(e) =>
-                        setInputs({
-                          ...inputs,
-                          asking: e.target.value.replace(/[^\d]/g, ''),
-                        })
+                      placeholder="1,100,000"
+                      group
+                      width="10ch"
+                      onChange={(asking) =>
+                        setInputs({ ...inputs, asking: asking.replace(/[^\d]/g, '') })
                       }
                     />
                   </span>
