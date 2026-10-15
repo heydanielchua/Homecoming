@@ -22,6 +22,7 @@ import { titleCase } from './lib/format';
 import { resolveAddress, resolveLink, type Resolution } from './lib/resolve';
 import { describeUnit, loadSaved, remove, storeSaved, upsert } from './lib/saved';
 import { readShared, replaceHash, shareLink } from './lib/share';
+import { flatTypeForSize, pricePerSqft, sqftOf } from './lib/unit';
 import type {
   BlockReport,
   Facing,
@@ -153,6 +154,7 @@ export function App() {
         setResolution({ status: 'resolved', slug: shared.slug });
         setInputs({
           link: shared.url,
+          size: shared.size ? String(shared.size) : '',
           asking: shared.asking ? String(shared.asking) : '',
           storey: shared.storey ? String(shared.storey) : '',
           facing: shared.facing,
@@ -206,6 +208,37 @@ export function App() {
 
   const asking = inputs.asking ? Number(inputs.asking) : null;
   const storey = inputs.storey ? Number(inputs.storey) : null;
+  const size = inputs.size ? Number(inputs.size) : null;
+
+  /**
+   * The flat type, worked out from the size against this block's own sales
+   * rather than picked from a menu. A size that matches nothing — typed in
+   * square feet, or a stray zero — leaves the earlier answer standing rather
+   * than silently moving the whole Money section to another type.
+   */
+  const flatType = React.useMemo(() => {
+    if (!report) return inputs.flatType;
+    const sizes = Object.entries(report.flat_types)
+      .map(([name, s]) => ({
+        flatType: name,
+        medianSqm: s.money?.median_sqm?.v ?? 0,
+      }))
+      .filter((s) => s.medianSqm > 0);
+    const matched = flatTypeForSize(size, sizes);
+    if (matched) return matched;
+    if (inputs.flatType && report.flat_types[inputs.flatType]) {
+      return inputs.flatType;
+    }
+    return Object.keys(report.flat_types)[0] ?? '';
+  }, [report, size, inputs.flatType]);
+
+  // Keep the carried value in step, so a share link and a saved unit record
+  // the type the page is actually showing.
+  React.useEffect(() => {
+    if (flatType && flatType !== inputs.flatType) {
+      setInputs((current) => ({ ...current, flatType }));
+    }
+  }, [flatType, inputs.flatType]);
 
   const draft = React.useMemo(() => {
     if (!report) return null;
@@ -216,7 +249,8 @@ export function App() {
       block: report.block,
       street: report.street,
       town: report.town,
-      flatType: inputs.flatType,
+      size,
+      flatType,
       asking,
       storey,
       facing: inputs.facing as Facing | null,
@@ -375,6 +409,68 @@ export function App() {
                   ? ` · ${report.dwelling_units} flats`
                   : ''}
               </p>
+
+              {/* The flat's own figures, which belong to the listing rather
+                  than to the block. Typed, because neither portal puts a
+                  price or a floor area in the URL and the page never fetches
+                  the listing itself. */}
+              <div className="unit-figures">
+                <label className="unit-figure">
+                  <span className="unit-figure-label">Size</span>
+                  <span className="unit-figure-input">
+                    <input
+                      className="input"
+                      inputMode="decimal"
+                      placeholder="94"
+                      value={inputs.size}
+                      onChange={(e) =>
+                        setInputs({
+                          ...inputs,
+                          size: e.target.value.replace(/[^\d.]/g, ''),
+                        })
+                      }
+                    />
+                    <span className="unit-figure-unit">m²</span>
+                  </span>
+                  <span className="unit-figure-note">
+                    {sqftOf(size) !== null
+                      ? `${Math.round(sqftOf(size)!).toLocaleString()} sq ft`
+                      : 'as the listing states it'}
+                  </span>
+                </label>
+
+                <label className="unit-figure">
+                  <span className="unit-figure-label">Listing price</span>
+                  <span className="unit-figure-input">
+                    <span className="unit-figure-unit">$</span>
+                    <input
+                      className="input"
+                      inputMode="numeric"
+                      placeholder="1100000"
+                      value={inputs.asking}
+                      onChange={(e) =>
+                        setInputs({
+                          ...inputs,
+                          asking: e.target.value.replace(/[^\d]/g, ''),
+                        })
+                      }
+                    />
+                  </span>
+                  <span className="unit-figure-note">what is being asked</span>
+                </label>
+
+                <div className="unit-figure unit-figure--derived">
+                  <span className="unit-figure-label">Per sq ft</span>
+                  <span className="unit-figure-value">
+                    {pricePerSqft(asking, size) !== null
+                      ? `$${Math.round(pricePerSqft(asking, size)!).toLocaleString()}`
+                      : '—'}
+                  </span>
+                  <span className="unit-figure-note">
+                    {flatType ? `read as a ${flatType.toLowerCase()}` : 'size and price'}
+                  </span>
+                </div>
+              </div>
             </div>
             <div className="row">
               <button type="button" className="button" onClick={save}>
@@ -410,7 +506,7 @@ export function App() {
                 report={report}
                 town={town}
                 meta={meta}
-                flatType={inputs.flatType}
+                flatType={flatType}
                 asking={asking}
                 storey={storey}
                 facing={inputs.facing}
@@ -457,6 +553,7 @@ export function App() {
                     onClick={() => {
                       setInputs({
                         link: unit.url,
+                        size: unit.size ? String(unit.size) : '',
                         asking: unit.asking ? String(unit.asking) : '',
                         storey: unit.storey ? String(unit.storey) : '',
                         facing: unit.facing,

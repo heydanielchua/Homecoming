@@ -420,6 +420,8 @@ export interface SavedUnit {
   block: string;
   street: string;
   town: string;
+  /** Floor area in square metres, as typed off the listing. */
+  size: number | null;
   flatType: string;
   asking: number | null;
   storey: number | null;

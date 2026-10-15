@@ -25,10 +25,12 @@ const KEYS = {
   note: 'n',
   url: 'l',
   postcode: 'c',
+  size: 'a',
 } as const;
 
 export interface SharedUnit {
   slug: string;
+  size: number | null;
   flatType: string | null;
   asking: number | null;
   storey: number | null;
@@ -41,6 +43,7 @@ export interface SharedUnit {
 export function shareParams(unit: SavedUnit | UnitDraft): URLSearchParams {
   const params = new URLSearchParams();
   params.set(KEYS.slug, unit.slug);
+  if (unit.size) params.set(KEYS.size, String(unit.size));
   if (unit.flatType) params.set(KEYS.flatType, unit.flatType);
   if (unit.asking) params.set(KEYS.asking, String(unit.asking));
   if (unit.storey) params.set(KEYS.storey, String(unit.storey));
@@ -73,9 +76,11 @@ export function readShared(hash: string): SharedUnit | null {
 
   const asking = Number(params.get(KEYS.asking));
   const storey = Number(params.get(KEYS.storey));
+  const size = Number(params.get(KEYS.size));
   const facing = params.get(KEYS.facing);
   return {
     slug,
+    size: Number.isFinite(size) && size > 0 ? size : null,
     flatType: params.get(KEYS.flatType),
     asking: Number.isFinite(asking) && asking > 0 ? asking : null,
     storey: Number.isFinite(storey) && storey >= 1 ? Math.round(storey) : null,

@@ -1707,3 +1707,71 @@ tbody tr:hover {
 .ask .hint {
   margin: 0;
 }
+
+/* --- the unit's own figures ---------------------------------------------
+ *
+ * In the header, beside the block's name, because they describe the flat
+ * rather than the building: a size, what is being asked for it, and the per
+ * square foot that falls out of the two. Size and price are typed because
+ * neither portal puts them in the URL and the page never fetches the listing.
+ */
+.unit-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  margin-top: 14px;
+}
+
+.unit-figure {
+  display: grid;
+  gap: 3px;
+  align-content: start;
+}
+
+.unit-figure-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.unit-figure-input {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.unit-figure-input .input {
+  width: 7.5ch;
+  padding-inline: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.unit-figure-input .input[inputmode='numeric'] {
+  width: 10ch;
+}
+
+.unit-figure-unit {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.unit-figure-value {
+  font-size: 1.15rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  /* Line it up with the inputs beside it, which carry the input's padding. */
+  padding-block: 7px;
+}
+
+.unit-figure-note {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+@media (max-width: 560px) {
+  .unit-figures {
+    gap: 10px 14px;
+  }
+}

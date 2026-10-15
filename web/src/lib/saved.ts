@@ -48,6 +48,7 @@ function parseUnit(raw: unknown): SavedUnit | null {
   if (typeof item.slug !== 'string' || !item.slug) return null;
   const asking = Number(item.asking);
   const storey = Number(item.storey);
+  const size = Number(item.size);
   return {
     id: typeof item.id === 'string' && item.id ? item.id : newId(),
     url: typeof item.url === 'string' ? item.url : '',
@@ -56,6 +57,9 @@ function parseUnit(raw: unknown): SavedUnit | null {
     block: typeof item.block === 'string' ? item.block : '',
     street: typeof item.street === 'string' ? item.street : '',
     town: typeof item.town === 'string' ? item.town : '',
+    // Saved before the size field existed reads as no size, which is what
+    // it is — not a zero.
+    size: Number.isFinite(size) && size > 0 ? size : null,
     flatType: typeof item.flatType === 'string' ? item.flatType : '',
     asking: Number.isFinite(asking) && asking > 0 ? asking : null,
     storey: Number.isFinite(storey) && storey >= 1 ? Math.round(storey) : null,
@@ -100,6 +104,8 @@ export interface UnitDraft {
   block: string;
   street: string;
   town: string;
+  /** Floor area in square metres, as typed off the listing. */
+  size: number | null;
   flatType: string;
   asking: number | null;
   storey: number | null;

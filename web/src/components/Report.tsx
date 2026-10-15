@@ -25,7 +25,6 @@ import type {
   TownReport,
 } from '../lib/types';
 import { Field } from '@base-ui/react/field';
-import { Select } from '@base-ui/react/select';
 import { Toggle } from '@base-ui/react/toggle';
 import { ToggleGroup } from '@base-ui/react/toggle-group';
 
@@ -288,7 +287,6 @@ export function Report({
   }
 
   const { money: m, trend, rent } = section;
-  const flatTypes = Object.keys(report.flat_types);
   const nearby = report.nearby;
 
   return (
@@ -306,48 +304,6 @@ export function Report({
             : 'no comparable sales'
         }
       >
-        <Asks>
-          {flatTypes.length > 0 ? (
-            <div className="ask">
-              <Select.Root
-                items={flatTypes.map((t) => ({ label: t, value: t }))}
-                value={inputs.flatType || null}
-                onValueChange={(value) => set('flatType', (value as string) ?? '')}
-              >
-                <Select.Label className="label">Flat type</Select.Label>
-                <Select.Trigger className="input" style={{ textAlign: 'left' }}>
-                  <Select.Value placeholder="Pick one" />
-                </Select.Trigger>
-                <Select.Portal>
-                  <Select.Positioner sideOffset={4}>
-                    <Select.Popup className="popup">
-                      <Select.List>
-                        {flatTypes.map((type) => (
-                          <Select.Item
-                            key={type}
-                            value={type}
-                            className="button button--quiet"
-                            style={{ width: '100%', justifyContent: 'flex-start' }}
-                          >
-                            <Select.ItemText>{type}</Select.ItemText>
-                          </Select.Item>
-                        ))}
-                      </Select.List>
-                    </Select.Popup>
-                  </Select.Positioner>
-                </Select.Portal>
-              </Select.Root>
-              <span className="hint">The types that have sold in this block.</span>
-            </div>
-          ) : null}
-          <NumberAsk
-            label="Asking price"
-            placeholder="620000"
-            hint="Not in the link — copy it from the listing."
-            value={inputs.asking}
-            onChange={(v) => set('asking', digits(v))}
-          />
-        </Asks>
         {asking !== null ? (
           <div className={`verdict verdict--${verdict.status}`}>
             <span className="verdict-flag">

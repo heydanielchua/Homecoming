@@ -33,6 +33,7 @@ const draft: UnitDraft = {
   block: '669C',
   street: 'JURONG WEST ST 64',
   town: 'JURONG WEST',
+  size: 94,
   flatType: '4 ROOM',
   asking: 620000,
   storey: 12,
@@ -51,8 +52,8 @@ describe('what gets saved', () => {
     const keys = Object.keys(unit!).sort();
     expect(keys).toEqual([
       'asking', 'block', 'blockKey', 'destinationPostcode', 'facing',
-      'flatType', 'id', 'note', 'savedAt', 'slug', 'storey', 'street', 'town',
-      'url',
+      'flatType', 'id', 'note', 'savedAt', 'size', 'slug', 'storey', 'street',
+      'town', 'url',
     ]);
     // Nothing from the report may ride along: it is rebuilt on open.
     for (const banned of ['fairValue', 'median', 'trend', 'rent', 'sun', 'report']) {
@@ -147,7 +148,10 @@ describe('sharing a unit', () => {
     expect(params.get('p')).toBe('620000');
     expect(params.get('f')).toBe('12');
     expect(params.get('d')).toBe('W');
-    expect([...params.keys()].sort()).toEqual(['c', 'd', 'f', 'l', 'n', 'p', 's', 't']);
+    expect(params.get('a')).toBe('94');
+    expect([...params.keys()].sort()).toEqual(
+      ['a', 'c', 'd', 'f', 'l', 'n', 'p', 's', 't'],
+    );
   });
 
   it('round-trips through a link', () => {
@@ -166,7 +170,7 @@ describe('sharing a unit', () => {
 
   it('leaves out what was not typed', () => {
     const bare: UnitDraft = {
-      ...draft, asking: null, storey: null, facing: null,
+      ...draft, asking: null, storey: null, facing: null, size: null,
       note: '', destinationPostcode: null, url: '',
     };
     expect([...shareParams(bare).keys()]).toEqual(['s', 't']);

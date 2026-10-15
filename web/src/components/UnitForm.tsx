@@ -25,15 +25,22 @@ import type { Facing } from '../lib/types';
 
 export interface Inputs {
   link: string;
+  /** Floor area in square metres, as HDB publishes it. */
+  size: string;
   asking: string;
   storey: string;
   facing: Facing | null;
+  /**
+   * Worked out from the size against this block's own sales rather than
+   * typed. Carried here so a shared link keeps it when no size came with it.
+   */
   flatType: string;
   destinationPostcode: string;
 }
 
 export const EMPTY_INPUTS: Inputs = {
   link: '',
+  size: '',
   asking: '',
   storey: '',
   facing: null,
