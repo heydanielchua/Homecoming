@@ -99,9 +99,18 @@ export interface Lease {
 export interface NeighbourData {
   name: string;
   distance_m: number;
+  /** Where the block itself is. This is what the table's direction shows. */
   bearing: number;
   direction: string;
   storeys: number | null;
+  /**
+   * How much horizon it really covers, measured from its footprint, and where
+   * that coverage is centred. Absent for a block whose footprint did not
+   * join, where the nominal slab in `view.ts` stands in.
+   */
+  covers_deg?: number;
+  covers_centre?: number;
+  covers_basis?: 'footprint' | 'nominal';
 }
 
 export interface HeightBand {

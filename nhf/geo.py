@@ -284,3 +284,61 @@ def geometry_summary(
     if not total or min_lon == float("inf"):
         return None
     return (wy / total, wx / total, min_lat, max_lat, min_lon, max_lon)
+
+
+def angular_span(
+    lat: float, lon: float, geom: dict
+) -> tuple[float, float] | None:
+    """How much horizon a footprint covers, seen from a point.
+
+    Returns (centre bearing, half-width in degrees), or None if the geometry
+    has no usable ring.
+
+    The report's older answer assumed every HDB block was a nominal sixty
+    metres end on, because the property information dataset gives a point per
+    block and no shape. Measured against the footprints that are now loaded,
+    that assumption is out by 7.6 degrees on average and by 20 at worst for
+    the blocks around one flat in Boon Keng, and it errs in both directions —
+    it over-reports a slab seen end on and under-reports one seen broadside.
+    A blocked-horizon figure built from it cannot survive being drawn next to
+    the real shapes.
+
+    The method is the widest gap between the bearings of the outline's
+    vertices: whatever that gap does not cover is what the building covers.
+    For a MultiPolygon the gap between two separate wings counts as covered,
+    which over-reports a little and is the conservative direction for a
+    question about what is in the way.
+    """
+    kind = geom.get("type")
+    if kind == "Polygon":
+        polygons = [geom.get("coordinates") or []]
+    elif kind == "MultiPolygon":
+        polygons = list(geom.get("coordinates") or [])
+    else:
+        return None
+
+    bearings: list[float] = []
+    for rings in polygons:
+        if not rings:
+            continue
+        for point in rings[0]:
+            if len(point) < 2:
+                continue
+            bearings.append(bearing_deg(lat, lon, point[1], point[0]))
+    if len(bearings) < 2:
+        return None
+
+    bearings.sort()
+    widest, at = 0.0, 0
+    for i, start in enumerate(bearings):
+        end = bearings[(i + 1) % len(bearings)]
+        gap = (end - start) % 360.0
+        if gap > widest:
+            widest, at = gap, i
+
+    span = 360.0 - widest
+    # Standing inside the footprint — your own block — covers everything.
+    if span >= 359.0:
+        return (bearings[0], 90.0)
+    centre = (bearings[(at + 1) % len(bearings)] + span / 2.0) % 360.0
+    return (centre, min(90.0, span / 2.0))

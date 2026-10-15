@@ -88,6 +88,13 @@ VIEW_NEIGHBOURS = [
      "max_floor_lvl": 4},
     {"name": "669A", "distance_m": 40.0, "bearing": 180.0, "storeys": 16,
      "max_floor_lvl": 16},
+    # One block with its footprint measured, so both implementations are held
+    # to the real-shape path and not only to the nominal fallback. The span is
+    # deliberately off-centre from the bearing: a long slab seen obliquely
+    # covers an arc whose middle is not where its centroid is, and reading the
+    # centre from the bearing is the mistake this case exists to catch.
+    {"name": "670", "distance_m": 120.0, "bearing": 45.0, "storeys": 20,
+     "max_floor_lvl": 20, "span": [58.0, 21.5]},
 ]
 VIEW_CASES = [
     {"name": "low floor", "storey": 4},
@@ -147,7 +154,14 @@ def view_fixture() -> dict:
         })
     return {
         "block_max_floor": 16,
-        "neighbours": VIEW_NEIGHBOURS,
+        # Two shapes of the same four blocks, because the two sides consume
+        # different ones. Python builds `Neighbour` objects from constructor
+        # arguments; the browser reads what a block file actually ships, which
+        # is `as_dict`. Deriving the second from the first keeps one source
+        # and stops either side being tested against its own idea of the
+        # other's input.
+        "neighbours_in": VIEW_NEIGHBOURS,
+        "neighbours": [n.as_dict() for n in neighbours],
         "cases": cases,
     }
 

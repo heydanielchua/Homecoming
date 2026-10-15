@@ -26,11 +26,12 @@ wider and labelled as the cruder guess it is.
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from dataclasses import dataclass, field
 from math import atan2, degrees
 
-from .geo import bearing_deg, compass_point, haversine_m
+from .geo import angular_span, bearing_deg, compass_point, haversine_m
 from .stats import percentile
 from .sun import EYE_HEIGHT_M, STOREY_HEIGHT_M, Obstruction, viewer_height_m
 
@@ -50,10 +51,16 @@ NEIGHBOUR_RADIUS_M = 300.0
 # are a storey apart.
 BLOCKED_SLACK_M = 0.5
 
-# A nominal HDB slab is about sixty metres end to end. The published data has
-# a point per block and no footprint, so the angular width of a neighbour is
-# worked out from this one stated length rather than from its real shape —
-# which is why a blocked arc is reported as worked out, not as fact.
+# A nominal HDB slab is about sixty metres end to end. This is the fallback
+# for a block whose footprint did not load: the property information dataset
+# gives a point per block and no shape, so without an outline the angular
+# width has to come from one stated length rather than from the real thing.
+#
+# It is a poor substitute and the numbers say so. Measured against the
+# footprints for the seventeen blocks around 8 Boon Keng Road it is out by
+# 7.6 degrees on average and by 20 at worst, in both directions: a slab seen
+# end on is over-reported and one seen broadside under-reported. Where an
+# outline exists the real shape is used and the figure is better for it.
 NOMINAL_BLOCK_LENGTH_M = 60.0
 
 # Site coverage for high-rise residential here runs from about a tenth of the
@@ -101,6 +108,9 @@ class Neighbour:
     bearing: float
     storeys: int | None = None
     max_floor_lvl: int | None = None
+    # The horizon this block really covers, as (centre bearing, half-width),
+    # measured from its footprint. None where no footprint joined to it.
+    span: tuple[float, float] | None = None
 
     @property
     def floors(self) -> int | None:
@@ -122,12 +132,39 @@ class Neighbour:
             return None
         return (floors - 1) * STOREY_HEIGHT_M
 
-    @property
-    def half_width_deg(self) -> float:
-        """How much horizon it covers, from one stated nominal length."""
+    def _raw_half_width_deg(self) -> float:
+        if self.span is not None:
+            return self.span[1]
         if self.distance_m <= 0:
             return 90.0
         return min(90.0, degrees(atan2(NOMINAL_BLOCK_LENGTH_M / 2.0, self.distance_m)))
+
+    @property
+    def half_width_deg(self) -> float:
+        """How much horizon it covers, from its footprint where there is one.
+
+        Rounded to the tenth of a degree the block file ships. The browser
+        recomputes the blocked arc from that shipped number and can see no
+        more precision than it carries, so working to more here only makes
+        the two answers differ in the last decimal — which is a failing test
+        and no better an answer.
+        """
+        return round(self._raw_half_width_deg() * 2.0, 1) / 2.0
+
+    @property
+    def arc_centre_deg(self) -> float:
+        """Where that coverage is centred.
+
+        Not the same as `bearing`, which points at the block's own position
+        and is what the table shows. A long slab seen obliquely covers an arc
+        whose middle is off to one side of its centroid, and merging arcs
+        about the wrong centre is how a blocked figure drifts.
+        """
+        return round(self.span[0] if self.span is not None else self.bearing, 1)
+
+    @property
+    def width_basis(self) -> str:
+        return "footprint" if self.span is not None else "nominal"
 
     def as_dict(self) -> dict:
         return {
@@ -136,6 +173,9 @@ class Neighbour:
             "bearing": round(self.bearing, 1),
             "direction": compass_point(self.bearing),
             "storeys": self.storeys if self.storeys is not None else self.max_floor_lvl,
+            "covers_deg": round(self.half_width_deg * 2.0, 1),
+            "covers_centre": self.arc_centre_deg,
+            "covers_basis": self.width_basis,
         }
 
 
@@ -299,7 +339,9 @@ def view_from(
         else:
             clear.append(item)
 
-    arc = _merge_arcs([(b.neighbour.bearing, b.neighbour.half_width_deg) for b in blocked])
+    arc = _merge_arcs(
+        [(b.neighbour.arc_centre_deg, b.neighbour.half_width_deg) for b in blocked]
+    )
     blocked_points = {compass_point(b.neighbour.bearing) for b in blocked}
     open_points = [
         p for p in ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
@@ -343,7 +385,7 @@ def neighbours_of(
     pad = radius_m / 110_000.0
     rows = conn.execute(
         """
-        SELECT block, street_name, block_key, lat, lon, max_floor_lvl
+        SELECT block, street_name, block_key, lat, lon, max_floor_lvl, outline
         FROM block
         WHERE block_key <> ? AND lat IS NOT NULL AND lon IS NOT NULL
           AND lat BETWEEN ? AND ? AND lon BETWEEN ? AND ?
@@ -357,11 +399,20 @@ def neighbours_of(
         distance = haversine_m(origin["lat"], origin["lon"], row["lat"], row["lon"])
         if distance > radius_m:
             continue
+        span = None
+        if row["outline"]:
+            try:
+                span = angular_span(
+                    origin["lat"], origin["lon"], json.loads(row["outline"])
+                )
+            except (ValueError, TypeError):
+                span = None
         out.append(Neighbour(
             name=row["block"],
             distance_m=distance,
             bearing=bearing_deg(origin["lat"], origin["lon"], row["lat"], row["lon"]),
             max_floor_lvl=row["max_floor_lvl"],
+            span=span,
         ))
     return sorted(out, key=lambda n: n.distance_m)
 

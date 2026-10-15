@@ -21,7 +21,8 @@ const golden = JSON.parse(
   readFileSync(join(__dirname, '../../../tests/golden/view.json'), 'utf8'),
 ) as {
   block_max_floor: number;
-  neighbours: { name: string; distance_m: number; bearing: number; storeys: number; max_floor_lvl: number }[];
+  /** Exactly what a block file ships, so nothing is reshaped on the way in. */
+  neighbours: NeighbourData[];
   cases: {
     name: string;
     storey: number | null;
@@ -32,14 +33,8 @@ const golden = JSON.parse(
 
 const constants = sunGolden.constants;
 
-/** The fixture's neighbours, in the shape the site reads them from a block file. */
-const neighbours: NeighbourData[] = golden.neighbours.map((n) => ({
-  name: n.name,
-  distance_m: n.distance_m,
-  bearing: n.bearing,
-  direction: compassPoint(n.bearing),
-  storeys: n.storeys,
-}));
+/** The fixture ships them in the block-file shape already. */
+const neighbours: NeighbourData[] = golden.neighbours;
 
 describe('the shared view fixture', () => {
   for (const testCase of golden.cases) {

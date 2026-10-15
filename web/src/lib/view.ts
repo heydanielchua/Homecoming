@@ -79,11 +79,23 @@ export function roofHeight(
   return floors * constants.storey_height_m;
 }
 
-/** How much horizon a neighbour covers, from one stated nominal length. */
+/**
+ * How much horizon a neighbour covers.
+ *
+ * Measured from its footprint where one joined to it, which is what the
+ * three-dimensional view draws. The nominal slab is the fallback for a block
+ * with no footprint, and it is a poor one — out by 7.6 degrees on average and
+ * 20 at worst across the blocks around one flat in Boon Keng, in both
+ * directions. Python computes the measured figure in `nhf/view.py`; this
+ * reads it rather than recomputing it, so the two cannot drift.
+ */
 export function halfWidthDeg(
   neighbour: NeighbourData,
   constants: SunConstants,
 ): number {
+  if (neighbour.covers_deg !== undefined) {
+    return Math.min(90, neighbour.covers_deg / 2);
+  }
   if (neighbour.distance_m <= 0) return 90;
   return Math.min(
     90,
@@ -91,6 +103,17 @@ export function halfWidthDeg(
       Math.atan2(constants.nominal_block_length_m / 2, neighbour.distance_m),
     ),
   );
+}
+
+/**
+ * Where that coverage is centred, which is not where the block is.
+ *
+ * A long slab seen obliquely covers an arc whose middle sits off to one side
+ * of its centroid, and merging arcs about the wrong centre is how a blocked
+ * figure drifts away from the picture beside it.
+ */
+export function arcCentreDeg(neighbour: NeighbourData): number {
+  return neighbour.covers_centre ?? neighbour.bearing;
 }
 
 /**
@@ -196,7 +219,7 @@ export function viewFrom(
   }
 
   const arc = mergeArcs(
-    blocked.map((b) => ({ centre: b.bearing, half: halfWidthDeg(b, constants) })),
+    blocked.map((b) => ({ centre: arcCentreDeg(b), half: halfWidthDeg(b, constants) })),
   );
   const blockedPoints = new Set(blocked.map((b) => compassPoint(b.bearing)));
 
@@ -238,7 +261,7 @@ export function obstructionsFor(
     const roof = roofHeight(item, constants);
     if (roof === null) continue;
     out.push({
-      bearing: item.bearing,
+      bearing: arcCentreDeg(item),
       distance_m: item.distance_m,
       height_m: roof - eye,
       half_width: halfWidthDeg(item, constants),

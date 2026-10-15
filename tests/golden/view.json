@@ -7,6 +7,9 @@
         "blocked": [
           {
             "bearing": 180.0,
+            "covers_basis": "nominal",
+            "covers_centre": 180.0,
+            "covers_deg": 73.7,
             "direction": "S",
             "distance_m": 40.0,
             "elevation_deg": 40.8,
@@ -17,6 +20,9 @@
           },
           {
             "bearing": 272.0,
+            "covers_basis": "nominal",
+            "covers_centre": 272.0,
+            "covers_deg": 57.2,
             "direction": "W",
             "distance_m": 55.0,
             "elevation_deg": 48.2,
@@ -26,7 +32,23 @@
             "storeys_above": 20.5
           },
           {
+            "bearing": 45.0,
+            "covers_basis": "footprint",
+            "covers_centre": 58.0,
+            "covers_deg": 43.0,
+            "direction": "NE",
+            "distance_m": 120.0,
+            "elevation_deg": 21.2,
+            "name": "670",
+            "rises_m": 46.5,
+            "storeys": 20,
+            "storeys_above": 15.5
+          },
+          {
             "bearing": 95.0,
+            "covers_basis": "nominal",
+            "covers_centre": 95.0,
+            "covers_deg": 18.9,
             "direction": "E",
             "distance_m": 180.0,
             "elevation_deg": 23.0,
@@ -36,10 +58,13 @@
             "storeys_above": 25.5
           }
         ],
-        "blocked_arc_deg": 149.9,
+        "blocked_arc_deg": 192.8,
         "clear": [
           {
             "bearing": 10.0,
+            "covers_basis": "nominal",
+            "covers_centre": 10.0,
+            "covers_deg": 46.4,
             "direction": "N",
             "distance_m": 70.0,
             "name": "668",
@@ -49,7 +74,6 @@
         "eye_height_m": 10.5,
         "open_directions": [
           "N",
-          "NE",
           "SE",
           "SW",
           "NW"
@@ -66,6 +90,9 @@
         "blocked": [
           {
             "bearing": 180.0,
+            "covers_basis": "nominal",
+            "covers_centre": 180.0,
+            "covers_deg": 73.7,
             "direction": "S",
             "distance_m": 40.0,
             "elevation_deg": 2.1,
@@ -76,6 +103,9 @@
           },
           {
             "bearing": 272.0,
+            "covers_basis": "nominal",
+            "covers_centre": 272.0,
+            "covers_deg": 57.2,
             "direction": "W",
             "distance_m": 55.0,
             "elevation_deg": 27.4,
@@ -85,7 +115,23 @@
             "storeys_above": 9.5
           },
           {
+            "bearing": 45.0,
+            "covers_basis": "footprint",
+            "covers_centre": 58.0,
+            "covers_deg": 43.0,
+            "direction": "NE",
+            "distance_m": 120.0,
+            "elevation_deg": 6.4,
+            "name": "670",
+            "rises_m": 13.5,
+            "storeys": 20,
+            "storeys_above": 4.5
+          },
+          {
             "bearing": 95.0,
+            "covers_basis": "nominal",
+            "covers_centre": 95.0,
+            "covers_deg": 18.9,
             "direction": "E",
             "distance_m": 180.0,
             "elevation_deg": 13.6,
@@ -95,10 +141,13 @@
             "storeys_above": 14.5
           }
         ],
-        "blocked_arc_deg": 149.9,
+        "blocked_arc_deg": 192.8,
         "clear": [
           {
             "bearing": 10.0,
+            "covers_basis": "nominal",
+            "covers_centre": 10.0,
+            "covers_deg": 46.4,
             "direction": "N",
             "distance_m": 70.0,
             "name": "668",
@@ -108,7 +157,6 @@
         "eye_height_m": 43.5,
         "open_directions": [
           "N",
-          "NE",
           "SE",
           "SW",
           "NW"
@@ -125,6 +173,9 @@
         "blocked": [
           {
             "bearing": 272.0,
+            "covers_basis": "nominal",
+            "covers_centre": 272.0,
+            "covers_deg": 57.2,
             "direction": "W",
             "distance_m": 55.0,
             "elevation_deg": 24.9,
@@ -134,7 +185,23 @@
             "storeys_above": 8.5
           },
           {
+            "bearing": 45.0,
+            "covers_basis": "footprint",
+            "covers_centre": 58.0,
+            "covers_deg": 43.0,
+            "direction": "NE",
+            "distance_m": 120.0,
+            "elevation_deg": 5.0,
+            "name": "670",
+            "rises_m": 10.5,
+            "storeys": 20,
+            "storeys_above": 3.5
+          },
+          {
             "bearing": 95.0,
+            "covers_basis": "nominal",
+            "covers_centre": 95.0,
+            "covers_deg": 18.9,
             "direction": "E",
             "distance_m": 180.0,
             "elevation_deg": 12.7,
@@ -144,10 +211,13 @@
             "storeys_above": 13.5
           }
         ],
-        "blocked_arc_deg": 76.1,
+        "blocked_arc_deg": 119.1,
         "clear": [
           {
             "bearing": 180.0,
+            "covers_basis": "nominal",
+            "covers_centre": 180.0,
+            "covers_deg": 73.7,
             "direction": "S",
             "distance_m": 40.0,
             "name": "669A",
@@ -155,6 +225,9 @@
           },
           {
             "bearing": 10.0,
+            "covers_basis": "nominal",
+            "covers_centre": 10.0,
+            "covers_deg": 46.4,
             "direction": "N",
             "distance_m": 70.0,
             "name": "668",
@@ -164,7 +237,6 @@
         "eye_height_m": 46.5,
         "open_directions": [
           "N",
-          "NE",
           "SE",
           "S",
           "SW",
@@ -184,6 +256,9 @@
         "clear": [
           {
             "bearing": 272.0,
+            "covers_basis": "nominal",
+            "covers_centre": 272.0,
+            "covers_deg": 57.2,
             "direction": "W",
             "distance_m": 55.0,
             "name": "664A",
@@ -191,6 +266,9 @@
           },
           {
             "bearing": 95.0,
+            "covers_basis": "nominal",
+            "covers_centre": 95.0,
+            "covers_deg": 18.9,
             "direction": "E",
             "distance_m": 180.0,
             "name": "671",
@@ -198,6 +276,9 @@
           },
           {
             "bearing": 10.0,
+            "covers_basis": "nominal",
+            "covers_centre": 10.0,
+            "covers_deg": 46.4,
             "direction": "N",
             "distance_m": 70.0,
             "name": "668",
@@ -205,10 +286,23 @@
           },
           {
             "bearing": 180.0,
+            "covers_basis": "nominal",
+            "covers_centre": 180.0,
+            "covers_deg": 73.7,
             "direction": "S",
             "distance_m": 40.0,
             "name": "669A",
             "storeys": 16
+          },
+          {
+            "bearing": 45.0,
+            "covers_basis": "footprint",
+            "covers_centre": 58.0,
+            "covers_deg": 43.0,
+            "direction": "NE",
+            "distance_m": 120.0,
+            "name": "670",
+            "storeys": 20
           }
         ],
         "eye_height_m": null,
@@ -238,6 +332,58 @@
   "neighbours": [
     {
       "bearing": 272.0,
+      "covers_basis": "nominal",
+      "covers_centre": 272.0,
+      "covers_deg": 57.2,
+      "direction": "W",
+      "distance_m": 55.0,
+      "name": "664A",
+      "storeys": 25
+    },
+    {
+      "bearing": 95.0,
+      "covers_basis": "nominal",
+      "covers_centre": 95.0,
+      "covers_deg": 18.9,
+      "direction": "E",
+      "distance_m": 180.0,
+      "name": "671",
+      "storeys": 30
+    },
+    {
+      "bearing": 10.0,
+      "covers_basis": "nominal",
+      "covers_centre": 10.0,
+      "covers_deg": 46.4,
+      "direction": "N",
+      "distance_m": 70.0,
+      "name": "668",
+      "storeys": 4
+    },
+    {
+      "bearing": 180.0,
+      "covers_basis": "nominal",
+      "covers_centre": 180.0,
+      "covers_deg": 73.7,
+      "direction": "S",
+      "distance_m": 40.0,
+      "name": "669A",
+      "storeys": 16
+    },
+    {
+      "bearing": 45.0,
+      "covers_basis": "footprint",
+      "covers_centre": 58.0,
+      "covers_deg": 43.0,
+      "direction": "NE",
+      "distance_m": 120.0,
+      "name": "670",
+      "storeys": 20
+    }
+  ],
+  "neighbours_in": [
+    {
+      "bearing": 272.0,
       "distance_m": 55.0,
       "max_floor_lvl": 25,
       "name": "664A",
@@ -263,6 +409,17 @@
       "max_floor_lvl": 16,
       "name": "669A",
       "storeys": 16
+    },
+    {
+      "bearing": 45.0,
+      "distance_m": 120.0,
+      "max_floor_lvl": 20,
+      "name": "670",
+      "span": [
+        58.0,
+        21.5
+      ],
+      "storeys": 20
     }
   ]
 }

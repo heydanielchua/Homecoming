@@ -236,7 +236,7 @@ class TestGoldenFixture:
 
     def test_the_golden_fixture_matches(self):
         golden = json.loads(GOLDEN.read_text())
-        neighbours = [Neighbour(**n) for n in golden["neighbours"]]
+        neighbours = [Neighbour(**n) for n in golden["neighbours_in"]]
         for case in golden["cases"]:
             located = case.get("located", True)
             got = view_from(
