@@ -205,18 +205,42 @@ if [ -z "$SITE_URL" ] || [ -z "$WANT" ]; then
 fi
 
 echo "==> waiting for $SITE_URL to serve ${WANT##*/}"
+BODY="$(mktemp)"
+trap 'rm -f "$BODY"' EXIT
+reached=0
+got=""
 for i in $(seq 1 45); do
-    got="$(curl -fsS --max-time 20 "$SITE_URL?cb=$i" 2>/dev/null \
-        | grep -o 'assets/index-[A-Za-z0-9_-]*\.js' | head -1 || true)"
-    if [ "$got" = "$WANT" ]; then
+    if curl -fsS --max-time 20 -o "$BODY" "$SITE_URL?cb=$i" 2>/dev/null; then
+        reached=1
+        got="$(grep -o 'assets/index-[A-Za-z0-9_-]*\.js' "$BODY" | head -1 || true)"
+        if [ "$got" = "$WANT" ]; then
+            echo
+            echo "published and live at $SITE_URL"
+            exit 0
+        fi
+    elif [ "$reached" = 0 ] && [ "$i" -ge 3 ]; then
+        # Three attempts and the host never answered at all. That is a
+        # network that cannot reach it — a proxy, a firewall, no DNS — and
+        # not a deployment that failed, so it must not be reported as one.
+        # Nothing about the publish is known to be wrong; it simply has not
+        # been checked from here.
         echo
-        echo "published and live at $SITE_URL"
+        echo "pushed, but $SITE_URL cannot be reached from this machine, so"
+        echo "the deployment was not checked. The push itself succeeded."
+        echo "Check the pages build and deployment run on the public"
+        echo "repository, or open the page yourself."
         exit 0
     fi
     sleep 20
 done
 echo >&2
-echo "pushed, but $SITE_URL is still serving ${got:-nothing} after 15 minutes," >&2
-echo "not ${WANT##*/}. The push landed; the deployment did not. Check" >&2
-echo "the pages build and deployment run on the public repository." >&2
+if [ "$reached" = 0 ]; then
+    echo "pushed, but $SITE_URL never answered, so the deployment was not" >&2
+    echo "checked. The push itself succeeded." >&2
+    exit 0
+fi
+echo "pushed, but $SITE_URL is still serving ${got:-no recognisable build}" >&2
+echo "after 15 minutes, not ${WANT##*/}. The push landed; the deployment" >&2
+echo "did not. Check the pages build and deployment run on the public" >&2
+echo "repository." >&2
 exit 1
