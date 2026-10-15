@@ -388,7 +388,12 @@ export function SurroundingsMap({
       live = false;
       instance.off('moveend', draw);
     };
-  }, [placed, zoningOn, palette]);
+    // lat/lon are dependencies even though the drawing does not read them:
+    // a new block builds a new Leaflet map, and without them this effect
+    // keeps its `moveend` handler bound to the old one and never draws on the
+    // new. It happens to work today only because the component remounts when
+    // the report changes, which is not something this effect should rely on.
+  }, [placed, lat, lon, zoningOn, palette]);
 
   // Turning it off clears what was drawn, so turning it back on refetches
   // nothing — the cells are still in the page's cache — but redraws cleanly.
