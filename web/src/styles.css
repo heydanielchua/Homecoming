@@ -1413,10 +1413,14 @@ tbody tr:hover {
   --zone-civic-line: #6f6f6f;
 
   --massing-sky: #dfe3e6;
-  --massing-ground: #c9c6bf;
-  --massing-built: #eae7e1;
-  --massing-over: #c3bdb1;
-  --massing-line: #8f8a80;
+  --massing-ground: #d8d6d2;
+  --massing-built: #f4f3f1;
+  /* A block whose top floor clears your eye line. It is a shade, not a
+     different material: at a low floor nearly every block is above you, and
+     at the weight this used to carry that turned the whole model grey. The
+     shadows do the separating; this only says which ones are in the way. */
+  --massing-over: #e4ded1;
+  --massing-line: #b4b0a8;
   --massing-mine: #d6ff4e;
   --massing-ghost: #eb6834;
   --massing-eye: #010101;
@@ -1434,10 +1438,10 @@ tbody tr:hover {
     --zone-civic: #7b7b7b;
     --zone-civic-line: #9a9a9a;
     --massing-sky: #121417;
-    --massing-ground: #232220;
-    --massing-built: #46443f;
-    --massing-over: #605c55;
-    --massing-line: #74706a;
+    --massing-ground: #1b1b1a;
+    --massing-built: #3a3936;
+    --massing-over: #4b4942;
+    --massing-line: #585550;
     --massing-ghost: #d95926;
     --massing-eye: #f2f2f2;
   }
@@ -1453,10 +1457,10 @@ tbody tr:hover {
   --zone-civic: #7b7b7b;
   --zone-civic-line: #9a9a9a;
   --massing-sky: #121417;
-  --massing-ground: #232220;
-  --massing-built: #46443f;
-  --massing-over: #605c55;
-  --massing-line: #74706a;
+  --massing-ground: #1b1b1a;
+  --massing-built: #3a3936;
+  --massing-over: #4b4942;
+  --massing-line: #585550;
   --massing-ghost: #d95926;
   --massing-eye: #f2f2f2;
 }

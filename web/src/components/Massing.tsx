@@ -107,7 +107,7 @@ export function Massing({ meta, lat, lon, slug, storey, facing }: Props) {
   // The sun is on to begin with. Without it the scene is lit flat and reads
   // as grey chips: the shadows are what make one volume sit behind another.
   const [sunOn, setSunOn] = React.useState(true);
-  const [hour, setHour] = React.useState(17);
+  const [hour, setHour] = React.useState(16);
   const [month, setMonth] = React.useState(12);
   const [hiddenZones, setHiddenZones] = React.useState<Partial<Record<ZoneGroup, boolean>>>({});
   const [readout, setReadout] = React.useState<Readout | null>(null);
@@ -471,9 +471,14 @@ async function build(
   const orbit = { ...HOME };
   const target = new THREE.Vector3(0, 42, 0);
 
-  const hemi = new THREE.HemisphereLight(0xffffff, 0x9a948c, 0.78);
+  // Intensities are tuned for three.js r155 and later, which dropped the
+  // legacy lighting mode: the same numbers that lit the prototype under r128
+  // produce about half the irradiance here, and the model came out mid-grey
+  // where it should be near-white. Measured against the agreed look rather
+  // than ported — a lit face reads about 235 of 244 in both.
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x9a948c, 1.8);
   world.add(hemi);
-  const sun = new THREE.DirectionalLight(0xfff6e0, 0.9);
+  const sun = new THREE.DirectionalLight(0xfff6e0, 2.8);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   Object.assign(sun.shadow.camera, {
@@ -485,7 +490,7 @@ async function build(
 
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(1800, 1800),
-    new THREE.MeshLambertMaterial({ color: colour('--massing-ground', '#c9c6bf') }),
+    new THREE.MeshLambertMaterial({ color: colour('--massing-ground', '#d8d6d2') }),
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
@@ -510,7 +515,7 @@ async function build(
       transparent: true,
       // Seven parcels in ten are residential. At the weight the others carry
       // it stops being a ground and becomes a sheet over the streets.
-      opacity: ZONES[group].ground ? 0.3 : 0.42,
+      opacity: ZONES[group].ground ? 0.22 : 0.5,
       depthWrite: false,
       side: THREE.DoubleSide,
     });
@@ -529,15 +534,15 @@ async function build(
 
   // --- what stands ---------------------------------------------------------
   const mineTone = colour('--massing-mine', '#d6ff4e');
-  const plainTone = colour('--massing-built', '#eae7e1');
-  const overTone = colour('--massing-over', '#c3bdb1');
+  const plainTone = colour('--massing-built', '#f4f3f1');
+  const overTone = colour('--massing-over', '#e4ded1');
   const matMine = new THREE.MeshLambertMaterial({ color: mineTone });
   const matPlain = new THREE.MeshLambertMaterial({ color: plainTone });
   const matOver = new THREE.MeshLambertMaterial({ color: overTone });
   const matEdge = new THREE.LineBasicMaterial({
-    color: colour('--massing-line', '#8f8a80'),
+    color: colour('--massing-line', '#b4b0a8'),
     transparent: true,
-    opacity: 0.8,
+    opacity: 0.55,
   });
 
   const standing = new THREE.Group();
@@ -581,18 +586,18 @@ async function build(
   for (const group of ZONE_GROUPS) {
     const tone = colour(ZONES[group].css, '#eb6834');
     matGhost[group] = new THREE.MeshLambertMaterial({
-      color: tone, transparent: true, opacity: 0.24, depthWrite: false,
+      color: tone, transparent: true, opacity: 0.17, depthWrite: false,
     });
     // Above your eye line it earns more ink: that is the part that can block.
     matGhostOver[group] = new THREE.MeshLambertMaterial({
-      color: tone, transparent: true, opacity: 0.42, depthWrite: false,
+      color: tone, transparent: true, opacity: 0.3, depthWrite: false,
     });
     matGhostEdge[group] = new THREE.LineBasicMaterial({
       // The residential ground tone is a pale taupe and vanishes as an edge,
       // so its outline borrows the building line instead.
-      color: ZONES[group].ground ? colour('--massing-line', '#8f8a80') : tone,
+      color: ZONES[group].ground ? colour('--massing-line', '#b4b0a8') : tone,
       transparent: true,
-      opacity: 0.6,
+      opacity: 0.45,
     });
   }
 
@@ -879,17 +884,17 @@ async function build(
           900 * Math.sin(alt),
           -900 * Math.cos(alt) * Math.cos(az),
         );
-        sun.intensity = 0.45 + 0.55 * Math.sin(alt);
+        sun.intensity = 1.75 + 2.35 * Math.sin(alt);
         sun.castShadow = true;
-        hemi.intensity = 0.72;
+        hemi.intensity = 1.8;
       } else {
         // No sun study: a raking fill from nowhere in particular, so the
         // volumes have faces to read without implying a time of day nobody
         // asked about. No shadows, for the same reason.
         sun.position.set(-520, 820, 420);
-        sun.intensity = 0.85;
+        sun.intensity = 2.6;
         sun.castShadow = false;
-        hemi.intensity = 0.62;
+        hemi.intensity = 1.75;
       }
 
       place();
