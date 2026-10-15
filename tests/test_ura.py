@@ -109,6 +109,7 @@ def test_geometry_that_cannot_be_summarised_returns_nothing():
 
 # --- streaming the file ----------------------------------------------------
 def _layer(tmp_path, features):
+    tmp_path.mkdir(parents=True, exist_ok=True)
     path = tmp_path / "layer.geojson"
     path.write_text(json.dumps(
         {"type": "FeatureCollection", "name": "G_MP19_LAND_USE_PL", "features": features},
@@ -198,6 +199,37 @@ def test_loading_the_layer_replaces_the_previous_version(tmp_path):
     for _ in range(2):
         sync_land_use(conn, SyncReporter(conn), cfg, path=path)
     assert conn.execute("SELECT COUNT(*) FROM land_parcel").fetchone()[0] == 2
+
+
+def test_a_new_plan_replaces_the_old_one_even_though_the_label_changed(tmp_path):
+    """The test above loads the same plan twice, so the label stays the same
+    and the bug it was meant to catch hides.
+
+    Deleting by source was the obvious implementation and it is wrong: the
+    source *is* the label, and the label carries the plan's year. Swapping the
+    2019 layer for the 2025 one made the delete match the new label, remove
+    nothing, and leave 226,606 parcels from two Master Plans in one table —
+    where every "what could be built" question is answered twice and nothing
+    in the query layer notices.
+    """
+    from nhf.config import load_config
+    from nhf.sync import SyncReporter, sync_land_use
+
+    conn = open_db(":memory:")
+    cfg = load_config()
+
+    cfg.datasets["land_use"] = dict(cfg.datasets["land_use"], label="PLAN OF 2019")
+    sync_land_use(conn, SyncReporter(conn), cfg, path=_layer(
+        tmp_path / "a", [_feature(1, "RESIDENTIAL", "2.8")]))
+
+    cfg.datasets["land_use"] = dict(cfg.datasets["land_use"], label="PLAN OF 2025")
+    sync_land_use(conn, SyncReporter(conn), cfg, path=_layer(
+        tmp_path / "b", [_feature(2, "COMMERCIAL", "3.0")]))
+
+    rows = conn.execute("SELECT land_use, source FROM land_parcel").fetchall()
+    assert len(rows) == 1, f"both plans are loaded at once: {rows}"
+    assert rows[0][0] == "COMMERCIAL"
+    assert "2025" in rows[0][1]
 
 
 def test_the_monthly_sync_does_not_fetch_the_master_plan():

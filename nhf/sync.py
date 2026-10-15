@@ -418,7 +418,16 @@ def sync_land_use(
         return 0
 
     with conn:
-        conn.execute("DELETE FROM land_parcel WHERE source = ?", (label or resource_id,))
+        # Every row, not just this source's. The table holds one Master Plan:
+        # two of them means every parcel question is answered twice, once from
+        # each plan, and nothing in the query layer would notice.
+        #
+        # Deleting by source was the obvious thing and it is wrong, because
+        # the source *is* the label and the label changes with the plan. The
+        # 2019 to 2025 swap found this the hard way: the delete matched the
+        # new label, removed nothing, and the table came out with 226,606
+        # parcels from two plans at once.
+        conn.execute("DELETE FROM land_parcel")
         upsert_many(conn, "land_parcel", ura.PARCEL_COLUMNS, rows, conflict="REPLACE")
 
     without_ratio = sum(1 for r in rows if r[3] is None)

@@ -12,7 +12,7 @@ The datastore API the rest of the app uses returns nothing at all for a
 geospatial dataset, so none of `DataGovClient` applies.
 
 It is also not monthly data. The Master Plan is approved once and amended
-occasionally — the 2019 layer was approved in November 2019 — so this is
+occasionally — the 2025 layer was approved 30 December 2025 — so this is
 fetched when a revision is published, not on the monthly cycle.
 
 What the layer gives, from its own fields:

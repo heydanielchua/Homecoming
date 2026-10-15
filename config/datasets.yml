@@ -47,14 +47,15 @@ town_medians:
 # Master Plan is approved once and amended occasionally, so `nhf sync` leaves
 # it alone and `nhf sync --step land_use` fetches it when a revision lands.
 land_use:
-  id: d_90d86daa5bfaa371668b84fa5f01424f
-  label: URA Master Plan 2019 land use (GeoJSON, 174 MB)
+  id: d_a8c3546b26712e35021f3a681d0353ae
+  label: URA Master Plan 2025 land use (GeoJSON, 190 MB)
   download_host: https://api-open.data.gov.sg/v1/public/api/datasets/{id}/poll-download
-  # The 2019 plan was approved 18 Nov 2019. URA has since published an
-  # "Amendment to Master Plan 2025 Building Layer"
-  # (d_15dd877587e74558f4ca31e7b3fdcc09, 57 MB), so check whether a 2025 land
-  # use layer exists before trusting this one as current.
-  approved: 2019-11-18
+  # Was the 2019 plan (d_90d86daa5bfaa371668b84fa5f01424f) until the 2025 one
+  # was found published in full. The swap is safe rather than lucky: both
+  # layers carry the same property keys and the same 33 values of LU_DESC, so
+  # every use still lands in a group rather than falling through to "civic".
+  # 113,394 parcels against 2019's 113,212.
+  approved: 2025-12-30
   confirmed: true
 
 # Amenity layers, all GeoJSON and all small, fetched the same way as the land
