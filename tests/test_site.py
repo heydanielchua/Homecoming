@@ -153,6 +153,15 @@ class TestZoning:
             )
             assert parcel["g"] == "park"
 
+    def test_a_build_with_no_parcels_says_so(self, db, tmp_path):
+        """Land use is fetched by name only, so a fresh store builds a map
+        with nothing under it. An empty zoning layer looks exactly like land
+        that is not zoned, which is the wrong conclusion, so the build says
+        which command is missing rather than leaving it to be noticed."""
+        report = build_site(db, tmp_path / "site")
+        assert report.zoning_cells == 0
+        assert any("nhf sync --step land_use" in w for w in report.warnings)
+
     def test_the_cell_size_is_the_one_the_browser_assumes(self):
         """`ZONING_CELL` is duplicated in web/src/lib/data.ts, because the
         browser works out which cells a view covers before it has read any of

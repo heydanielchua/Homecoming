@@ -412,6 +412,15 @@ def build_site(
         report.zoning_cells += 1
         report.zoning_parcels += len(payload["parcels"])
     log.info("%s zoning cells written", report.zoning_cells)
+    if report.zoning_cells == 0:
+        # Land use is fetched by name only — 174 MB of a plan revised every
+        # few years has no business in a monthly run — so a fresh store builds
+        # a site whose map has no zoning under it. Silence there looks like
+        # land that is not zoned, which is the wrong conclusion entirely.
+        report.warnings.append(
+            "no zoning was written, so the map will have no Master Plan under "
+            "it: run `nhf sync --step land_use` to fetch the parcels"
+        )
 
     # -- the sharded alias index ------------------------------------------
     for number, payload in index_payloads(conn, written):
@@ -448,6 +457,8 @@ def build_site(
             "towns": report.towns_written,
             "index_files": report.index_files,
             "aliases": report.aliases,
+            "zoning_cells": report.zoning_cells,
+            "zoning_parcels": report.zoning_parcels,
         },
         "report_window_months": months,
         "towns": sorted(towns),
