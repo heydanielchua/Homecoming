@@ -89,6 +89,11 @@ if [ ! -f "$DIST/data/meta.json" ]; then
     exit 1
 fi
 
+# The last chance to get this right, and the one that matters: whatever built
+# the directory, what gets pushed must carry it or Pages will put Jekyll in
+# front of thirteen thousand files.
+touch "$DIST/.nojekyll"
+
 # The same check the build runs, in case dist/ was assembled by hand.
 python3 - <<'PY'
 import sys

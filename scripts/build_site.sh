@@ -22,6 +22,13 @@ rm -f "$OUT/index.html" "$OUT/icon.svg"
 echo "==> data"
 python3 -m nhf.cli site --out "$OUT/data" "${@:2}"
 
+# At the site root, not just beside the data. GitHub Pages runs Jekyll over
+# whatever it is given unless this file is at the top, and Jekyll on 13,000
+# files is a build that is slow at best and times out at worst. `nhf site`
+# writes one into the data directory so that directory can be served on its
+# own; this is the one Pages actually reads.
+touch "$OUT/.nojekyll"
+
 echo
 echo "built $OUT:"
 du -sh "$OUT"
