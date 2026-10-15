@@ -56,11 +56,11 @@ BLOCKED_SLACK_M = 0.5
 # gives a point per block and no shape, so without an outline the angular
 # width has to come from one stated length rather than from the real thing.
 #
-# It is a poor substitute and the numbers say so. Measured against the
-# footprints for the seventeen blocks around 8 Boon Keng Road it is out by
-# 7.6 degrees on average and by 20 at worst, in both directions: a slab seen
-# end on is over-reported and one seen broadside under-reported. Where an
-# outline exists the real shape is used and the figure is better for it.
+# It is a poor substitute and the numbers say so. All seventeen blocks within
+# 300 m of 8 Boon Keng Road have footprints, and against them the nominal slab
+# is out by 8.8 degrees on average and 24.2 at worst, in both directions: the
+# nearest block is over-reported by 24 degrees and one 195 m away is
+# under-reported by 17. Where an outline exists the real shape is used.
 NOMINAL_BLOCK_LENGTH_M = 60.0
 
 # Site coverage for high-rise residential here runs from about a tenth of the

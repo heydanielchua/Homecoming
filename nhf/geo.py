@@ -297,11 +297,11 @@ def angular_span(
     The report's older answer assumed every HDB block was a nominal sixty
     metres end on, because the property information dataset gives a point per
     block and no shape. Measured against the footprints that are now loaded,
-    that assumption is out by 7.6 degrees on average and by 20 at worst for
-    the blocks around one flat in Boon Keng, and it errs in both directions —
-    it over-reports a slab seen end on and under-reports one seen broadside.
-    A blocked-horizon figure built from it cannot survive being drawn next to
-    the real shapes.
+    that assumption is out by 8.8 degrees on average and 24.2 at worst for the
+    seventeen blocks around one flat in Boon Keng, and it errs in both
+    directions — it over-reports a slab seen end on and under-reports one seen
+    broadside. A blocked-horizon figure built from it cannot survive being
+    drawn next to the real shapes.
 
     The method is the widest gap between the bearings of the outline's
     vertices: whatever that gap does not cover is what the building covers.

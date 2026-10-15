@@ -84,9 +84,9 @@ export function roofHeight(
  *
  * Measured from its footprint where one joined to it, which is what the
  * three-dimensional view draws. The nominal slab is the fallback for a block
- * with no footprint, and it is a poor one — out by 7.6 degrees on average and
- * 20 at worst across the blocks around one flat in Boon Keng, in both
- * directions. Python computes the measured figure in `nhf/view.py`; this
+ * with no footprint, and it is a poor one — out by 8.8 degrees on average and
+ * 24.2 at worst across the seventeen blocks around one flat in Boon Keng, in
+ * both directions. Python computes the measured figure in `nhf/view.py`; this
  * reads it rather than recomputing it, so the two cannot drift.
  */
 export function halfWidthDeg(
