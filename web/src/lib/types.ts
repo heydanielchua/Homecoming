@@ -169,6 +169,36 @@ export interface Place {
   to_edge?: boolean;
 }
 
+/** A Master Plan parcel, as the zoning layer draws it. */
+export interface ZoningParcel {
+  /** URA's parcel id. A parcel reaches several cells; it is drawn once. */
+  i: number;
+  /** The group whose colour it takes. */
+  g: ZoneGroup;
+  /** URA's own words for the use, for the tooltip. */
+  u: string;
+  /** Plot ratio, where URA fixed one. Absent means not evaluated. */
+  r?: number;
+  /** A GeoJSON Polygon or MultiPolygon, simplified to about five metres. */
+  m: { type: 'Polygon' | 'MultiPolygon'; coordinates: number[][][] | number[][][][] };
+}
+
+export interface ZoningCell {
+  cell: [number, number];
+  parcels: ZoningParcel[];
+}
+
+export const ZONE_GROUPS = [
+  'residential',
+  'commercial',
+  'business',
+  'park',
+  'reserve',
+  'civic',
+] as const;
+
+export type ZoneGroup = (typeof ZONE_GROUPS)[number];
+
 /** One thing the map draws, at the coordinate the source geocoded it to. */
 export interface MapPoint {
   kind: PointKind;

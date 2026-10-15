@@ -204,6 +204,61 @@ pages spread across the year, each carrying about 60 of the 89 stations, so
 every gauge is sampled alike. That supports the comparison between them and
 nothing finer.
 
+## The map
+
+The Nearby section opens on a map, because the rows under it answer a
+different question from the one people actually ask. A row says *353 m, NE*,
+which settles whether something is walkable. It does not settle *what is
+around here* — eight compass points is a 45-degree bucket, and the mind
+quietly straightens it into a line.
+
+Two layers:
+
+**The places** — the nearest few MRT exits, bus stops, primary schools, hawker
+centres, pre-schools and parks, each at the coordinate its source published.
+Nothing is derived from the bearing the rows round off, and a place this site
+cannot locate is left off the map rather than put somewhere plausible. Each
+kind is capped, because a block can have forty bus stops in range and forty
+identical pins say nothing.
+
+An area is pinned at the point its distance was measured to, not at its
+middle. Kallang Riverside Park is 796 m away along the river and its centroid
+is 1,298 m away; a map drawn from centroids puts the pin on the wrong side of
+a town and then zooms out far enough to contain the mistake.
+
+**The zoning** — URA's Master Plan 2019 underneath, which is the same question
+the "what could still be built" rows answer, in the form it is really asked:
+not "a reserve site 212 m east", but "that empty patch I can see". Point at a
+parcel for its use and plot ratio. Roads and water are left to the basemap,
+which already has them and draws them better.
+
+The zoning is shared rather than per block. A parcel sits near dozens of
+blocks, so writing the polygon into each of their reports would store it
+dozens of times and make a block file five times its size. Instead the island
+is cut into hundredth-of-a-degree cells — about 1.1 km, so a view touches
+three or four — and a parcel is written into every cell its bounding box
+reaches, carrying URA's id so the browser draws it once however many cells it
+loads. 916 cells, 29.7 MB, a median cell of 11.8 KB.
+
+Outlines are simplified to about five metres, which halves the points: the
+Master Plan draws edges to fourteen decimal places and no boundary is surveyed
+to a tenth of a millimetre. The tolerance adapts downward for small parcels,
+because a flat five metres erases an eight-metre plot outright — that bug cost
+4,331 residential parcels and showed up as holes in the ground wash rather
+than as an error.
+
+Four hues and two neutrals. Six did not survive validating every pair for
+colour-vision deficiency, and a zoning map is all-pairs by nature because any
+two zones can end up side by side. Residential is the neutral ground rather
+than a colour: it is seven parcels in ten, colouring the majority says
+nothing, and it has to recede for the other five to read.
+
+The basemap is OneMap, the Singapore Land Authority's own — the only one with
+the right block numbers and no usage key to leak into a public repository. Its
+Night style stands in for dark mode. If the tiles are blocked the pins still
+sit in the right places and the distances never depended on them, and the map
+says so rather than showing a silent grey square.
+
 ## Comparing saved units
 
 Saved units compare in a table with **units as columns and attributes as

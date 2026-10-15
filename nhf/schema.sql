@@ -240,6 +240,12 @@ CREATE TABLE IF NOT EXISTS land_parcel (
     max_lat      REAL,
     min_lon      REAL,
     max_lon      REAL,
+    -- The parcel's outline, simplified, as a GeoJSON geometry. The Master
+    -- Plan draws edges to fourteen decimal places; this keeps about five
+    -- metres of it, which is what the zoning layer on the map is drawn from.
+    -- Null where the shape was unusable, which is a parcel that is counted
+    -- and measured but not drawn.
+    geom         TEXT,
     source       TEXT,
     UNIQUE (objectid, source)
 );

@@ -111,6 +111,128 @@ def _ring_centroid(ring: list) -> tuple[float, float, float]:
     return (cx / (3 * a2), cy / (3 * a2), abs(a2) / 2)
 
 
+# How far a simplified outline may stray from the real one, in metres.
+#
+# Five metres is about two pixels at the zoom this is drawn at, and it halves
+# the point count: the Master Plan draws parcel edges to fourteen decimal
+# places, which is a tenth of a millimetre, and a boundary is not surveyed to
+# anything like that. Going to ten saves another six per cent and starts
+# clipping the corners off small parcels.
+OUTLINE_TOLERANCE_M = 5.0
+
+# Rounding on what is published. Five places is a bit over a metre here, which
+# is finer than the tolerance above, so it costs nothing and halves the bytes.
+OUTLINE_DECIMALS = 5
+
+# Metres per degree at Singapore's latitude. The island spans a third of a
+# degree, so treating these as constant is good to a few centimetres.
+_M_PER_DEG_LAT = 110574.0
+_M_PER_DEG_LON = 110320.0
+
+
+def _segment_distance_m(point, start, end) -> float:
+    """Metres from a point to the segment start-end, squared.
+
+    Squared, because this is only ever compared against another squared
+    distance and the square root is the expensive part of the loop.
+    """
+    ax = (start[0] - point[0]) * _M_PER_DEG_LON
+    ay = (start[1] - point[1]) * _M_PER_DEG_LAT
+    bx = (end[0] - point[0]) * _M_PER_DEG_LON
+    by = (end[1] - point[1]) * _M_PER_DEG_LAT
+    dx, dy = bx - ax, by - ay
+    denom = dx * dx + dy * dy
+    if denom == 0.0:
+        return ax * ax + ay * ay
+    t = -(ax * dx + ay * dy) / denom
+    t = 0.0 if t < 0.0 else (1.0 if t > 1.0 else t)
+    cx, cy = ax + t * dx, ay + t * dy
+    return cx * cx + cy * cy
+
+
+def simplify_ring(ring: list, tolerance_m: float = OUTLINE_TOLERANCE_M) -> list:
+    """Douglas-Peucker, iterative so a long ring cannot blow the stack.
+
+    A closed ring keeps its first and last point, which are the same point, so
+    the result still closes.
+    """
+    if len(ring) < 4:
+        return list(ring)
+    keep = [False] * len(ring)
+    keep[0] = keep[-1] = True
+    stack = [(0, len(ring) - 1)]
+    limit = tolerance_m * tolerance_m
+    while stack:
+        first, last = stack.pop()
+        worst, at = 0.0, -1
+        for i in range(first + 1, last):
+            d = _segment_distance_m(ring[i], ring[first], ring[last])
+            if d > worst:
+                worst, at = d, i
+        if worst > limit and at > 0:
+            keep[at] = True
+            stack.append((first, at))
+            stack.append((at, last))
+    return [p for p, k in zip(ring, keep) if k]
+
+
+def outline(
+    geometry: dict,
+    tolerance_m: float = OUTLINE_TOLERANCE_M,
+    decimals: int = OUTLINE_DECIMALS,
+) -> dict | None:
+    """A GeoJSON polygon simplified enough to publish, or None.
+
+    Holes are kept. A parcel wrapped around a reservoir is a real hole, and
+    filling it in would draw land over water — a small lie, but on a map a
+    reader checks against what they can see out of the window.
+
+    A ring that simplifies below a triangle is dropped rather than drawn as a
+    line; if that leaves a polygon with no outer ring, the whole parcel is
+    dropped, because a parcel drawn wrong is worse than one not drawn.
+    """
+    kind = (geometry or {}).get("type")
+    coords = (geometry or {}).get("coordinates")
+    if not coords:
+        return None
+    if kind == "Polygon":
+        polygons = [coords]
+    elif kind == "MultiPolygon":
+        polygons = list(coords)
+    else:
+        return None
+
+    out = []
+    for polygon in polygons:
+        rings = []
+        for ring in polygon:
+            # A small parcel is not a simplification problem, it is a scale
+            # problem: five metres of tolerance erases an eight-metre plot
+            # entirely. Rather than drop it, the tolerance is halved until the
+            # shape survives or it reaches half a metre, which is finer than
+            # the Master Plan's own edges mean anything at.
+            simple: list = []
+            tolerance = tolerance_m
+            while tolerance >= 0.5:
+                simple = simplify_ring(ring, tolerance)
+                if len(simple) >= 4:
+                    break
+                tolerance /= 2.0
+            if len(simple) < 4:
+                continue
+            rings.append([
+                [round(float(x), decimals), round(float(y), decimals)]
+                for x, y in simple
+            ])
+        if rings:
+            out.append(rings)
+    if not out:
+        return None
+    if len(out) == 1:
+        return {"type": "Polygon", "coordinates": out[0]}
+    return {"type": "MultiPolygon", "coordinates": out}
+
+
 def geometry_summary(
     geometry: dict,
 ) -> tuple[float, float, float, float, float, float] | None:

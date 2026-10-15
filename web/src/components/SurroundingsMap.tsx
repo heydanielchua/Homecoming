@@ -24,8 +24,9 @@ import * as React from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-import type { MapPoint, PointKind } from '../lib/types';
-import { POINT_KINDS } from '../lib/types';
+import { fetchZoning, zoningKeysFor } from '../lib/data';
+import type { MapPoint, PointKind, ZoneGroup, ZoningParcel } from '../lib/types';
+import { POINT_KINDS, ZONE_GROUPS } from '../lib/types';
 
 /**
  * The kinds, in the fixed order their colours are assigned in.
@@ -43,6 +44,62 @@ const KINDS: Record<
   hawker_centre: { label: 'Hawker centre', plural: 'Hawker centres', letter: 'H', slot: 4 },
   preschool: { label: 'Pre-school', plural: 'Pre-schools', letter: 'P', slot: 5 },
   park: { label: 'Park', plural: 'Parks', letter: 'K', slot: 6 },
+};
+
+/**
+ * The zoning groups, in the order their colours are assigned.
+ *
+ * This is the Master Plan as a base layer — the same question the text rows
+ * answer in words, in the form it is actually asked: not "a parcel 212 m
+ * east", but "that empty patch I can see".
+ *
+ * Four hues and two neutrals, which is what survived validating all pairs for
+ * colour-vision deficiency. Six hues did not: orange against amber, and
+ * purple against blue, are a coin toss for a protanope, and a zoning map is
+ * all-pairs by nature because any two zones can end up side by side.
+ * Residential is the neutral ground rather than a hue because it is seven out
+ * of ten parcels — colouring the majority tells you nothing, and the eye
+ * needs it to recede so the other five read.
+ *
+ * Park against business is the one pair in the floor band, so identity never
+ * rests on colour: every parcel names its own use on hover, and the legend
+ * names all six.
+ */
+/**
+ * The zoning colours are declared as CSS custom properties so the two themes
+ * live beside the rest of the palette — but they are drawn on a canvas, and
+ * `ctx.fillStyle = 'var(--zone-1)'` is not a colour. Canvas has no access to
+ * the cascade: the assignment is simply ignored, the previous fill stays, and
+ * parcels come out black or not at all. So the variables are read off the
+ * element once, resolved to real values, and re-read when the theme changes.
+ */
+function resolveZones(el: HTMLElement): Record<ZoneGroup, { fill: string; line: string }> {
+  const style = getComputedStyle(el);
+  const read = (name: string, fallback: string) =>
+    style.getPropertyValue(name).trim() || fallback;
+  return {
+    residential: { fill: read('--zone-ground', '#b9b2a6'), line: read('--zone-ground-line', '#9d9589') },
+    commercial: { fill: read('--zone-1', '#2a78d6'), line: read('--zone-1', '#2a78d6') },
+    business: { fill: read('--zone-2', '#d4488f'), line: read('--zone-2', '#d4488f') },
+    park: { fill: read('--zone-3', '#1baf7a'), line: read('--zone-3', '#1baf7a') },
+    reserve: { fill: read('--zone-4', '#eb6834'), line: read('--zone-4', '#eb6834') },
+    civic: { fill: read('--zone-civic', '#8d8d8d'), line: read('--zone-civic-line', '#6f6f6f') },
+  };
+}
+
+const ZONES: Record<
+  ZoneGroup,
+  { label: string; fill: string; line: string; alpha: number }
+> = {
+  // Seven parcels in ten. At the weight the others carry it stops being a
+  // ground and becomes a grey sheet over the streets, so it gets a sixth of
+  // the ink and the basemap still reads through it.
+  residential: { label: 'Residential', fill: 'var(--zone-ground)', line: 'var(--zone-ground-line)', alpha: 0.16 },
+  commercial: { label: 'Commercial & mixed', fill: 'var(--zone-1)', line: 'var(--zone-1)', alpha: 0.4 },
+  business: { label: 'Business & industry', fill: 'var(--zone-2)', line: 'var(--zone-2)', alpha: 0.4 },
+  park: { label: 'Park & open space', fill: 'var(--zone-3)', line: 'var(--zone-3)', alpha: 0.4 },
+  reserve: { label: 'Reserve site', fill: 'var(--zone-4)', line: 'var(--zone-4)', alpha: 0.45 },
+  civic: { label: 'Civic & utility', fill: 'var(--zone-civic)', line: 'var(--zone-civic-line)', alpha: 0.22 },
 };
 
 /**
@@ -108,6 +165,21 @@ function blockPin(): L.DivIcon {
   });
 }
 
+/**
+ * What a parcel says when you point at it.
+ *
+ * The plot ratio is the part that answers "what could still be built": URA
+ * publishes a ratio, not a height, and a parcel with no ratio is one nobody
+ * has evaluated yet rather than one that is fixed low.
+ */
+function tooltipFor(parcel: ZoningParcel): string {
+  const ratio =
+    parcel.r === undefined
+      ? 'plot ratio not fixed'
+      : `plot ratio ${parcel.r}`;
+  return `${escapeHtml(parcel.u)} \u00b7 ${ratio}`;
+}
+
 function prefersDark(): boolean {
   const stamped = document.documentElement.dataset.theme;
   if (stamped === 'dark') return true;
@@ -128,6 +200,14 @@ export function SurroundingsMap({
 }) {
   const host = React.useRef<HTMLDivElement | null>(null);
   const map = React.useRef<L.Map | null>(null);
+  const zoningLayer = React.useRef<L.LayerGroup | null>(null);
+  const drawnCells = React.useRef<Set<string>>(new Set());
+  const drawnParcels = React.useRef<Set<number>>(new Set());
+  const shell = React.useRef<HTMLDivElement | null>(null);
+  /** Bumped when the theme changes, to redraw with re-resolved colours. */
+  const [palette, setPalette] = React.useState(0);
+  const [zoningOn, setZoningOn] = React.useState(true);
+  const [zoningSeen, setZoningSeen] = React.useState<Set<ZoneGroup>>(new Set());
   /** What the map should frame, kept for the resize handler to reapply. */
   const fitTo = React.useRef<L.LatLngBounds | null>(null);
   const tiles = React.useRef<L.TileLayer | null>(null);
@@ -184,6 +264,14 @@ export function SurroundingsMap({
     // zoom from nothing and lands on the whole island — which is how this
     // first shipped, asking for zoom 13 tiles of Johor. Every resize, the
     // panel opening included, re-measures and refits.
+    // Its own pane, under the markers and over the tiles. Canvas rather than
+    // SVG: a dense cell is two thousand polygons, and the DOM does not want
+    // two thousand paths it has to hit-test on every mousemove.
+    instance.createPane('zoning');
+    const pane = instance.getPane('zoning');
+    if (pane) pane.style.zIndex = '350';
+    zoningLayer.current = L.layerGroup([], { pane: 'zoning' }).addTo(instance);
+
     const resized = new ResizeObserver(() => {
       instance.invalidateSize({ animate: false });
       const target = fitTo.current;
@@ -202,13 +290,24 @@ export function SurroundingsMap({
       instance.remove();
       map.current = null;
       tiles.current = null;
+      zoningLayer.current = null;
+      drawnCells.current = new Set();
+      drawnParcels.current = new Set();
     };
   }, [placed, lat, lon]);
 
   // Follow the page's theme, including a toggle made after the map was built.
   React.useEffect(() => {
     if (!tiles.current) return;
-    const apply = () => tiles.current?.setUrl(TILES[prefersDark() ? 'dark' : 'light']);
+    const apply = () => {
+      tiles.current?.setUrl(TILES[prefersDark() ? 'dark' : 'light']);
+      // The zoning colours came out of the cascade, so a theme change means
+      // they have to be read again and the parcels redrawn in the new ones.
+      zoningLayer.current?.clearLayers();
+      drawnCells.current = new Set();
+      drawnParcels.current = new Set();
+      setPalette((n) => n + 1);
+    };
     apply();
     const query = window.matchMedia?.('(prefers-color-scheme: dark)');
     query?.addEventListener('change', apply);
@@ -222,6 +321,85 @@ export function SurroundingsMap({
       watcher.disconnect();
     };
   }, [placed]);
+
+  // The zoning layer. Cells are fetched for whatever the view covers and
+  // drawn once; panning back over a cell costs nothing because both the fetch
+  // and the drawing are remembered.
+  React.useEffect(() => {
+    const instance = map.current;
+    const layer = zoningLayer.current;
+    if (!instance || !layer || !placed) return;
+    let live = true;
+
+    const renderer = L.canvas({ pane: 'zoning', padding: 0.3 });
+    const colours = shell.current ? resolveZones(shell.current) : null;
+
+    async function draw() {
+      if (!live || !instance || !layer) return;
+      if (!zoningOn) return;
+      const b = instance.getBounds();
+      const keys = zoningKeysFor(
+        b.getSouth(), b.getWest(), b.getNorth(), b.getEast(),
+      );
+      for (const key of keys) {
+        if (drawnCells.current.has(key)) continue;
+        drawnCells.current.add(key);
+        const cell = await fetchZoning(key);
+        if (!live || !cell) continue;
+        const groups = new Set<ZoneGroup>();
+        for (const parcel of cell.parcels) {
+          const zone = ZONES[parcel.g];
+          const colour = colours?.[parcel.g];
+          if (!zone || !colour) continue;
+          // Drawn once, however many cells carry it.
+          if (drawnParcels.current.has(parcel.i)) continue;
+          drawnParcels.current.add(parcel.i);
+          groups.add(parcel.g);
+          const shape = L.geoJSON(
+            { type: 'Feature', properties: {}, geometry: parcel.m } as never,
+            {
+              pane: 'zoning',
+              style: {
+                renderer,
+                color: colour.line,
+                weight: 0.7,
+                opacity: zone.alpha + 0.3,
+                fillColor: colour.fill,
+                fillOpacity: zone.alpha,
+              },
+            },
+          );
+          shape.bindTooltip(tooltipFor(parcel), { sticky: true });
+          shape.addTo(layer);
+        }
+        if (groups.size) {
+          setZoningSeen((was) => {
+            const next = new Set(was);
+            for (const g of groups) next.add(g);
+            return next;
+          });
+        }
+      }
+    }
+
+    void draw();
+    instance.on('moveend', draw);
+    return () => {
+      live = false;
+      instance.off('moveend', draw);
+    };
+  }, [placed, zoningOn, palette]);
+
+  // Turning it off clears what was drawn, so turning it back on refetches
+  // nothing — the cells are still in the page's cache — but redraws cleanly.
+  React.useEffect(() => {
+    const layer = zoningLayer.current;
+    if (!layer || zoningOn) return;
+    layer.clearLayers();
+    drawnCells.current = new Set();
+    drawnParcels.current = new Set();
+    setZoningSeen(new Set());
+  }, [zoningOn]);
 
   // Markers are redrawn when the data or the filter changes.
   React.useEffect(() => {
@@ -303,10 +481,33 @@ export function SurroundingsMap({
 
   return (
     <div
+      ref={shell}
       className="map-block"
       role="group"
       aria-label={`Where ${label} is, and ${points.length} places near it`}
     >
+      <div className="map-zoning" role="group" aria-label="Zoning">
+        <button
+          type="button"
+          className={`map-key map-key--wide${zoningOn ? '' : ' map-key--off'}`}
+          aria-pressed={zoningOn}
+          onClick={() => setZoningOn((on) => !on)}
+        >
+          Master Plan zoning
+        </button>
+        {zoningOn
+          ? ZONE_GROUPS.filter((g) => zoningSeen.has(g)).map((g) => (
+              <span key={g} className="map-zone-key">
+                <span
+                  className={`map-zone-swatch map-zone-swatch--${g}`}
+                  aria-hidden="true"
+                />
+                {ZONES[g].label}
+              </span>
+            ))
+          : null}
+      </div>
+
       <div className="map-legend" role="group" aria-label="What to show">
         {present.map(([kind, count]) => {
           const off = hidden.has(kind);
@@ -339,6 +540,14 @@ export function SurroundingsMap({
           preview, an extension, or a network that blocks the host. The pins
           are still in the right places and the distances above never depended
           on the basemap.
+        </p>
+      ) : null}
+
+      {zoningOn ? (
+        <p className="hint">
+          Zoning is URA's Master Plan 2019: what each parcel is allowed to
+          become, not what stands on it today. Point at one for its use and
+          plot ratio. Roads and water are left to the basemap.
         </p>
       ) : null}
 

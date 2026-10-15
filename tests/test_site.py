@@ -24,7 +24,18 @@ from pathlib import Path
 import pytest
 
 from nhf.listing import parse_link
-from nhf.site import block_slug, build_site, slugify, verify
+from nhf.site import (
+    ZONE_GROUPS,
+    ZONE_SKIP,
+    ZONING_CELL,
+    block_slug,
+    build_site,
+    slugify,
+    titlecase_use,
+    verify,
+    zone_group,
+    zoning_cells,
+)
 
 
 @pytest.fixture()
@@ -70,6 +81,101 @@ def resolve_in_browser(url: str, out: Path) -> dict:
     if len(found) > 1:
         return {"status": "ambiguous", "candidates": found}
     return {"status": "unresolved"}
+
+
+class TestZoning:
+    """The Master Plan as the map's base layer.
+
+    Shared rather than per block: a parcel sits near dozens of blocks, and
+    writing the polygon into each of their reports would store it dozens of
+    times. So it goes into cells, and a parcel that reaches four cells is
+    written into four of them — which is the thing these tests are really
+    about, because the map must still draw it once.
+    """
+
+    def test_every_published_land_use_has_a_group(self):
+        """URA publishes 33 values. An unmapped one would be drawn as civic
+        for ever without anyone noticing, so the mapping is asserted whole
+        rather than sampled."""
+        mapped = {use for uses in ZONE_GROUPS.values() for use in uses}
+        overlap = mapped & set(ZONE_SKIP)
+        assert not overlap, f"drawn and skipped at once: {overlap}"
+
+    def test_roads_and_water_are_left_to_the_basemap(self):
+        assert zone_group("ROAD") is None
+        assert zone_group("WATERBODY") is None
+
+    def test_the_groups_are_what_the_map_colours(self):
+        assert zone_group("RESIDENTIAL") == "residential"
+        assert zone_group("COMMERCIAL & RESIDENTIAL") == "commercial"
+        assert zone_group("BUSINESS 2") == "business"
+        assert zone_group("OPEN SPACE") == "park"
+        assert zone_group("RESERVE SITE") == "reserve"
+
+    def test_an_unknown_use_falls_into_civic_rather_than_vanishing(self):
+        """A new value in a future Master Plan is drawn in the neutral group,
+        not dropped: a parcel missing from the map reads as unzoned land."""
+        assert zone_group("SOMETHING URA ADDS IN 2030") == "civic"
+
+    def test_nothing_is_not_a_zone(self):
+        assert zone_group(None) is None
+        assert zone_group("") is None
+
+    def test_a_parcel_spanning_cells_is_written_into_each_with_one_id(
+        self, full_db
+    ):
+        """And carries the same id in both, which is what lets the browser
+        draw it once. Without that the fills stack and a parcel across four
+        cells comes out four times as dark as its neighbour."""
+        full_db.execute(
+            "INSERT INTO land_parcel (objectid, land_use, geom, lat, lon,"
+            " min_lat, max_lat, min_lon, max_lon, source)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (
+                999001, "PARK",
+                json.dumps({"type": "Polygon", "coordinates": [[
+                    [103.845, 1.345], [103.856, 1.345],
+                    [103.856, 1.356], [103.845, 1.356], [103.845, 1.345],
+                ]]}),
+                1.35, 103.85, 1.345, 1.356, 103.845, 103.856, "test",
+            ),
+        )
+        cells = {key: payload for key, payload in zoning_cells(full_db)}
+        holding = [
+            key for key, payload in cells.items()
+            if any(p["i"] == 999001 for p in payload["parcels"])
+        ]
+        # 1.345-1.356 crosses a cell line at 1.35; 103.845-103.856 at 103.85.
+        assert len(holding) == 4, f"expected four cells, got {holding}"
+        for key in holding:
+            parcel = next(
+                p for p in cells[key]["parcels"] if p["i"] == 999001
+            )
+            assert parcel["g"] == "park"
+
+    def test_the_cell_size_is_the_one_the_browser_assumes(self):
+        """`ZONING_CELL` is duplicated in web/src/lib/data.ts, because the
+        browser works out which cells a view covers before it has read any of
+        them. If one side changes, every lookup misses."""
+        source = Path("web/src/lib/data.ts").read_text(encoding="utf-8")
+        assert f"export const ZONING_CELL = {ZONING_CELL};" in source
+
+    def test_a_parcel_with_no_outline_is_not_written(self, full_db):
+        full_db.execute(
+            "INSERT INTO land_parcel (objectid, land_use, geom, lat, lon,"
+            " min_lat, max_lat, min_lon, max_lon, source)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (999002, "PARK", None, 1.30, 103.80,
+             1.30, 1.30, 103.80, 103.80, "test"),
+        )
+        for _, payload in zoning_cells(full_db):
+            assert all(p["i"] != 999002 for p in payload["parcels"])
+
+    def test_the_tooltip_reads_as_words_not_as_a_shout(self):
+        assert titlecase_use("RESIDENTIAL WITH COMMERCIAL AT 1ST STOREY") == (
+            "Residential with Commercial at 1st Storey"
+        )
+        assert titlecase_use(None) == "Unzoned"
 
 
 class TestLayout:

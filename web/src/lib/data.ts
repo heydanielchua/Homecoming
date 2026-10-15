@@ -18,6 +18,7 @@ import type {
   Manifest,
   Meta,
   TownReport,
+  ZoningCell,
 } from './types';
 
 /**
@@ -66,6 +67,15 @@ const blocks = new Cache<BlockReport>((slug) =>
 const towns = new Cache<TownReport>((slug) =>
   getJson<TownReport>(`towns/${slug}.json`),
 );
+/**
+ * Zoning is cached by cell for the life of the page, and a cell that is not
+ * there is a real answer: the sea, Malaysia, or a square with nothing zoned
+ * in it. `getJson` already turns a 404 into null, so panning off the island
+ * costs one request per cell and never retries.
+ */
+const zoningCells = new Cache<ZoningCell>((key) =>
+  getJson<ZoningCell>(`zoning/${key}.json`),
+);
 
 let metaOnce: Promise<Meta | null> | null = null;
 let manifestOnce: Promise<Manifest | null> | null = null;
@@ -77,6 +87,38 @@ export function fetchShard(block: string): Promise<IndexShard | null> {
 
 export function fetchBlock(slug: string): Promise<BlockReport | null> {
   return blocks.get(slug);
+}
+
+/** Hundredths of a degree, matching `ZONING_CELL` in nhf/site.py. */
+export const ZONING_CELL = 100;
+
+export function zoningCellKey(lat: number, lon: number): string {
+  return `${Math.floor(lat * ZONING_CELL)}_${Math.floor(lon * ZONING_CELL)}`;
+}
+
+/** Every cell key covering a bounding box, south-west to north-east. */
+export function zoningKeysFor(
+  south: number,
+  west: number,
+  north: number,
+  east: number,
+): string[] {
+  const keys: string[] = [];
+  const y0 = Math.floor(south * ZONING_CELL);
+  const y1 = Math.floor(north * ZONING_CELL);
+  const x0 = Math.floor(west * ZONING_CELL);
+  const x1 = Math.floor(east * ZONING_CELL);
+  // A guard, not a limit anyone should hit: zoomed far enough out this would
+  // ask for the whole country one cell at a time.
+  if ((y1 - y0 + 1) * (x1 - x0 + 1) > 48) return [];
+  for (let y = y0; y <= y1; y += 1) {
+    for (let x = x0; x <= x1; x += 1) keys.push(`${y}_${x}`);
+  }
+  return keys;
+}
+
+export function fetchZoning(key: string): Promise<ZoningCell | null> {
+  return zoningCells.get(key);
 }
 
 export function fetchTown(slug: string | null): Promise<TownReport | null> {

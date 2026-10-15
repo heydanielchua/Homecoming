@@ -9,6 +9,7 @@ they are never loaded by the app.
 
 from __future__ import annotations
 
+import json
 import random
 import sys
 from pathlib import Path
@@ -354,8 +355,14 @@ def add_surroundings(conn):
         half = size_m / 2
         min_lat, min_lon = _offset(plat, plon, -half, -half)
         max_lat, max_lon = _offset(plat, plon, half, half)
+        # The box as a real rectangle, so the fixture's parcels land on the
+        # zoning layer the same way the Master Plan's do.
+        shape = json.dumps({"type": "Polygon", "coordinates": [[
+            [min_lon, min_lat], [max_lon, min_lat],
+            [max_lon, max_lat], [min_lon, max_lat], [min_lon, min_lat],
+        ]]}, separators=(",", ":"))
         return (objectid, use, gpr_raw, gpr, note, area, plat, plon,
-                min_lat, max_lat, min_lon, max_lon, "fixture")
+                min_lat, max_lat, min_lon, max_lon, shape, "fixture")
 
     with conn:
         from nhf.sources.ura import PARCEL_COLUMNS

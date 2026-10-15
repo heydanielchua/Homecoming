@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 import shutil
 import sqlite3
@@ -83,6 +84,8 @@ class SiteReport:
     blocks_indexed: int = 0
     reports_written: int = 0
     towns_written: int = 0
+    zoning_cells: int = 0
+    zoning_parcels: int = 0
     index_files: int = 0
     aliases: int = 0
     bytes_written: int = 0
@@ -95,6 +98,8 @@ class SiteReport:
             "blocks_indexed": self.blocks_indexed,
             "reports_written": self.reports_written,
             "towns_written": self.towns_written,
+            "zoning_cells": self.zoning_cells,
+            "zoning_parcels": self.zoning_parcels,
             "index_files": self.index_files,
             "aliases": self.aliases,
             "bytes_written": self.bytes_written,
@@ -221,6 +226,131 @@ def freshness(conn: sqlite3.Connection) -> list[dict]:
     ]
 
 
+# --- the zoning layer -----------------------------------------------------
+#
+# What the Master Plan allows on each parcel, drawn as the map's base layer.
+# The text rows under Surroundings already answer "what could still be built"
+# in words; this is the same answer as a picture, which is the form the
+# question is actually asked in — nobody wonders about a parcel 212 m to the
+# east, they wonder about the empty patch they can see.
+#
+# Shared, not per block. A parcel sits near dozens of blocks, and writing it
+# into each of their reports would store the same polygon forty times and make
+# a block file five times its size. Instead the island is cut into hundredth-
+# of-a-degree cells — about 1.1 km, so a map view touches three or four — and
+# a parcel is written into every cell its bounding box reaches.
+
+ZONING_CELL = 100          # cells per degree, so 0.01 deg a side
+
+# The groups the map draws, and what falls into each. Keeping this here rather
+# than in the browser means the vocabulary is checked once, at build time,
+# against the 33 values URA actually publishes; an unmapped one is a build
+# warning rather than a parcel silently drawn as "other" for ever.
+ZONE_GROUPS: dict[str, tuple[str, ...]] = {
+    "residential": (
+        "RESIDENTIAL",
+        "RESIDENTIAL WITH COMMERCIAL AT 1ST STOREY",
+        "RESIDENTIAL / INSTITUTION",
+    ),
+    "commercial": (
+        "COMMERCIAL", "COMMERCIAL & RESIDENTIAL", "COMMERCIAL / INSTITUTION",
+        "HOTEL", "WHITE",
+    ),
+    "business": (
+        "BUSINESS 1", "BUSINESS 2", "BUSINESS PARK",
+        "BUSINESS 1 - WHITE", "BUSINESS 2 - WHITE", "BUSINESS PARK - WHITE",
+    ),
+    "park": ("PARK", "OPEN SPACE", "SPORTS & RECREATION", "BEACH AREA"),
+    # The one a buyer should look hardest at: no use fixed yet, so it is the
+    # parcel most likely to become something you did not expect.
+    "reserve": ("RESERVE SITE", "SPECIAL USE"),
+    "civic": (
+        "EDUCATIONAL INSTITUTION", "PLACE OF WORSHIP",
+        "CIVIC & COMMUNITY INSTITUTION", "HEALTH & MEDICAL CARE",
+        "UTILITY", "TRANSPORT FACILITIES", "MASS RAPID TRANSIT",
+        "LIGHT RAPID TRANSIT", "PORT / AIRPORT", "CEMETERY", "AGRICULTURE",
+    ),
+}
+
+# Drawn by the basemap already, and drawing them again buries everything else:
+# roads alone are 6,623 parcels and they are the one thing OneMap is certain
+# to have under the pins.
+ZONE_SKIP = ("ROAD", "WATERBODY")
+
+_ZONE_OF = {use: group for group, uses in ZONE_GROUPS.items() for use in uses}
+
+
+def zone_group(land_use: str | None) -> str | None:
+    """Which group a parcel is drawn in, or None if it is not drawn."""
+    use = (land_use or "").strip().upper()
+    if not use or use in ZONE_SKIP:
+        return None
+    return _ZONE_OF.get(use, "civic")
+
+
+def zoning_cells(conn: sqlite3.Connection) -> Iterator[tuple[str, dict]]:
+    """Yield (cell key, payload) for every cell with something in it."""
+    cells: dict[tuple[int, int], list] = {}
+    unmapped: set[str] = set()
+    for row in conn.execute(
+        "SELECT objectid, land_use, gpr_numeric, geom, min_lat, max_lat, min_lon, max_lon "
+        "FROM land_parcel WHERE geom IS NOT NULL"
+    ):
+        group = zone_group(row["land_use"])
+        if group is None:
+            continue
+        use = (row["land_use"] or "").strip().upper()
+        if use not in _ZONE_OF:
+            unmapped.add(use)
+        parcel = {
+            # URA's own id, because a parcel is written into every cell its
+            # box reaches and the map must draw it once however many cells it
+            # loads. Without this the overlaps stack their fill and a parcel
+            # spanning four cells comes out four times as dark as its
+            # neighbour, which reads as a different zone.
+            "i": row["objectid"],
+            "g": group,
+            "u": titlecase_use(row["land_use"]),
+            "m": json.loads(row["geom"]),
+        }
+        if row["gpr_numeric"] is not None:
+            parcel["r"] = row["gpr_numeric"]
+        # Into every cell the parcel's box reaches, so a polygon that straddles
+        # a boundary is drawn whole from either side rather than cut in half.
+        lat0 = math.floor(row["min_lat"] * ZONING_CELL)
+        lat1 = math.floor(row["max_lat"] * ZONING_CELL)
+        lon0 = math.floor(row["min_lon"] * ZONING_CELL)
+        lon1 = math.floor(row["max_lon"] * ZONING_CELL)
+        for y in range(lat0, lat1 + 1):
+            for x in range(lon0, lon1 + 1):
+                cells.setdefault((y, x), []).append(parcel)
+
+    if unmapped:
+        log.warning(
+            "land use values not in ZONE_GROUPS, drawn as civic: %s",
+            ", ".join(sorted(unmapped)),
+        )
+    for (y, x), parcels in sorted(cells.items()):
+        yield f"{y}_{x}", {"cell": [y, x], "parcels": parcels}
+
+
+def titlecase_use(land_use: str | None) -> str:
+    """URA writes in capitals; the map says it in a tooltip."""
+    text = (land_use or "").strip()
+    if not text:
+        return "Unzoned"
+    small = {"and", "at", "of", "with", "st"}
+    words = []
+    for i, word in enumerate(text.lower().split()):
+        if word in {"&", "/"}:
+            words.append(word)
+        elif word in small and i:
+            words.append(word)
+        else:
+            words.append(word[:1].upper() + word[1:])
+    return " ".join(words)
+
+
 def build_site(
     conn: sqlite3.Connection,
     out_dir: str | Path = "dist/data",
@@ -275,6 +405,13 @@ def build_site(
         report.bytes_written += _write(
             out / "towns" / f"{slugify(town)}.json", payload)
         report.towns_written += 1
+
+    # -- the zoning layer -------------------------------------------------
+    for key, payload in zoning_cells(conn):
+        report.bytes_written += _write(out / "zoning" / f"{key}.json", payload)
+        report.zoning_cells += 1
+        report.zoning_parcels += len(payload["parcels"])
+    log.info("%s zoning cells written", report.zoning_cells)
 
     # -- the sharded alias index ------------------------------------------
     for number, payload in index_payloads(conn, written):

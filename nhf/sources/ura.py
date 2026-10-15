@@ -43,7 +43,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Iterator
 
-from ..geo import geometry_summary
+from ..geo import geometry_summary, outline
 
 log = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ POLL_DOWNLOAD = "https://api-open.data.gov.sg/v1/public/api/datasets/{id}/poll-d
 PARCEL_COLUMNS = (
     "objectid", "land_use", "gpr_raw", "gpr_numeric", "gpr_note",
     "area_sqm", "lat", "lon", "min_lat", "max_lat", "min_lon", "max_lon",
-    "source",
+    "geom", "source",
 )
 
 # What URA writes where a ratio does not apply. Kept apart from a missing
@@ -132,6 +132,10 @@ class ParcelStats:
     read: int = 0
     kept: int = 0
     no_geometry: int = 0
+    # Counted but not drawable: the summary worked, the outline did not. Such
+    # a parcel still answers "what could be built there"; it just has no shape
+    # on the zoning layer.
+    no_outline: int = 0
     unparsed: int = 0
 
 
@@ -176,8 +180,10 @@ def stream_parcels(path: str, source: str) -> Iterator[tuple]:
                     buf = []
 
     log.info(
-        "land use: %s features read, %s kept, %s without usable geometry, %s unparsed",
-        stats.read, stats.kept, stats.no_geometry, stats.unparsed,
+        "land use: %s features read, %s kept, %s without usable geometry, "
+        "%s kept but not drawable, %s unparsed",
+        stats.read, stats.kept, stats.no_geometry, stats.no_outline,
+        stats.unparsed,
     )
 
 
@@ -198,6 +204,9 @@ def _row(buf: list[str], source: str, stats: ParcelStats) -> tuple | None:
 
     lat, lon, min_lat, max_lat, min_lon, max_lon = summary
     gpr_numeric, gpr_note = parse_gpr(props.get("GPR"))
+    shape = outline(feature.get("geometry") or {})
+    if shape is None:
+        stats.no_outline += 1
     stats.kept += 1
     return (
         props.get("OBJECTID"),
@@ -207,5 +216,6 @@ def _row(buf: list[str], source: str, stats: ParcelStats) -> tuple | None:
         gpr_note,
         props.get("SHAPE.AREA"),
         lat, lon, min_lat, max_lat, min_lon, max_lon,
+        json.dumps(shape, separators=(",", ":")) if shape else None,
         source,
     )

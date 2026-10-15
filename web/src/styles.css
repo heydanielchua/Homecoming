@@ -765,6 +765,103 @@ button {
   --pin-6: #9085e9;
 }
 
+/* The Master Plan layer.
+ *
+ * Four hues and two neutrals: six did not survive all-pairs CVD validation,
+ * and a zoning map is all-pairs by nature. Residential is the ground rather
+ * than a colour because it is seven parcels in ten — colouring the majority
+ * says nothing, and it has to recede for the other five to read. The hues are
+ * the same validated ramps the chart and the pins draw from, at a third of
+ * the opacity, so a zone reads as a wash and a pin reads as a mark. */
+.map-block {
+  --zone-ground: #b9b2a6;
+  --zone-ground-line: #9d9589;
+  --zone-1: #2a78d6;
+  --zone-2: #d4488f;
+  --zone-3: #1baf7a;
+  --zone-4: #eb6834;
+  --zone-civic: #8d8d8d;
+  --zone-civic-line: #6f6f6f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .map-block {
+    --zone-ground: #6c655b;
+    --zone-ground-line: #8a8277;
+    --zone-1: #3987e5;
+    --zone-2: #e06aa6;
+    --zone-3: #199e70;
+    --zone-4: #d95926;
+    --zone-civic: #7b7b7b;
+    --zone-civic-line: #9a9a9a;
+  }
+}
+
+:root[data-theme='dark'] .map-block {
+  --zone-ground: #6c655b;
+  --zone-ground-line: #8a8277;
+  --zone-1: #3987e5;
+  --zone-2: #e06aa6;
+  --zone-3: #199e70;
+  --zone-4: #d95926;
+  --zone-civic: #7b7b7b;
+  --zone-civic-line: #9a9a9a;
+}
+
+.map-zoning {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-bottom: 8px;
+}
+
+.map-key--wide {
+  padding-left: 12px;
+}
+
+.map-zone-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.map-zone-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  /* The same 0.38 fill and 0.85 stroke the parcels are drawn with, so the
+     legend swatch is the thing on the map rather than a brighter cousin. */
+  opacity: 0.85;
+}
+
+.map-zone-swatch--residential {
+  background: color-mix(in srgb, var(--zone-ground) 38%, transparent);
+  box-shadow: inset 0 0 0 1px var(--zone-ground-line);
+}
+.map-zone-swatch--commercial {
+  background: color-mix(in srgb, var(--zone-1) 38%, transparent);
+  box-shadow: inset 0 0 0 1px var(--zone-1);
+}
+.map-zone-swatch--business {
+  background: color-mix(in srgb, var(--zone-2) 38%, transparent);
+  box-shadow: inset 0 0 0 1px var(--zone-2);
+}
+.map-zone-swatch--park {
+  background: color-mix(in srgb, var(--zone-3) 38%, transparent);
+  box-shadow: inset 0 0 0 1px var(--zone-3);
+}
+.map-zone-swatch--reserve {
+  background: color-mix(in srgb, var(--zone-4) 38%, transparent);
+  box-shadow: inset 0 0 0 1px var(--zone-4);
+}
+.map-zone-swatch--civic {
+  background: color-mix(in srgb, var(--zone-civic) 38%, transparent);
+  box-shadow: inset 0 0 0 1px var(--zone-civic-line);
+}
+
 .map-canvas {
   /* Tall enough that the height is not the binding constraint on the fit:
      these points spread further north-south than east-west, so a short map
