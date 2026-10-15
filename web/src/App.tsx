@@ -151,6 +151,13 @@ export function App() {
     };
   }, []);
 
+  /**
+   * The block whose report is on screen, so opening a different one can tell
+   * that it is a different one. A ref rather than state because `openSlug`
+   * must not be rebuilt every time the report changes.
+   */
+  const loadedSlug = React.useRef<string | null>(null);
+
   const openSlug = React.useCallback(
     async (slug: string) => {
       const payload = await fetchBlock(slug);
@@ -165,12 +172,24 @@ export function App() {
         });
         return null;
       }
+      // Moving to another flat clears what was typed about the last one. A
+      // size, a price and a floor belong to one unit; carried across they sit
+      // under the new block's name looking like its own, and the verdict gets
+      // worked out against a price nobody is asking for it. A shared link and
+      // a saved unit set their values straight after this, so they are not
+      // affected.
+      const switching = loadedSlug.current !== null && loadedSlug.current !== slug;
+      loadedSlug.current = slug;
+
       setReport(payload);
       setTown(await fetchTown(payload.town_slug));
       setInputs((current) => ({
         ...current,
+        ...(switching
+          ? { size: '', asking: '', storey: '', facing: null }
+          : null),
         flatType:
-          current.flatType && payload.flat_types[current.flatType]
+          !switching && current.flatType && payload.flat_types[current.flatType]
             ? current.flatType
             : (Object.keys(payload.flat_types)[0] ?? ''),
       }));
@@ -252,8 +271,8 @@ export function App() {
    * square feet, or a stray zero — leaves the earlier answer standing rather
    * than silently moving the whole Money section to another type.
    */
-  const flatType = React.useMemo(() => {
-    if (!report) return inputs.flatType;
+  const { flatType, matchedFromSize } = React.useMemo(() => {
+    if (!report) return { flatType: inputs.flatType, matchedFromSize: false };
     const sizes = Object.entries(report.flat_types)
       .map(([name, s]) => ({
         flatType: name,
@@ -261,11 +280,16 @@ export function App() {
       }))
       .filter((s) => s.medianSqm > 0);
     const matched = flatTypeForSize(size, sizes);
-    if (matched) return matched;
+    if (matched) return { flatType: matched, matchedFromSize: true };
+    // Nothing matched, so whatever is used below is a fallback and must not
+    // be described as though the size had picked it.
     if (inputs.flatType && report.flat_types[inputs.flatType]) {
-      return inputs.flatType;
+      return { flatType: inputs.flatType, matchedFromSize: false };
     }
-    return Object.keys(report.flat_types)[0] ?? '';
+    return {
+      flatType: Object.keys(report.flat_types)[0] ?? '',
+      matchedFromSize: false,
+    };
   }, [report, size, inputs.flatType]);
 
   // Keep the carried value in step, so a share link and a saved unit record
@@ -455,7 +479,12 @@ export function App() {
                   <span className="unit-figure-input">
                     <FigureInput
                       value={inputs.size}
-                      placeholder="94"
+                      // Never a plausible number. These fields are styled to
+                      // read as the flat's figures, which means a sample
+                      // value in the placeholder reads as the flat's figure
+                      // too: an empty price showed "$ 1,100,000" under a
+                      // block that had no price typed for it at all.
+                      placeholder="—"
                       group={false}
                       width="4.5ch"
                       onChange={(size) => setInputs({ ...inputs, size })}
@@ -475,7 +504,7 @@ export function App() {
                     <span className="unit-figure-unit">$</span>
                     <FigureInput
                       value={inputs.asking}
-                      placeholder="1,100,000"
+                      placeholder="—"
                       group
                       width="10ch"
                       onChange={(asking) =>
@@ -494,7 +523,11 @@ export function App() {
                       : '—'}
                   </span>
                   <span className="unit-figure-note">
-                    {flatType ? `read as a ${flatType.toLowerCase()}` : 'size and price'}
+                    {matchedFromSize
+                      ? `read as a ${flatType.toLowerCase()}`
+                      : flatType
+                        ? `add a size; comparing against ${flatType.toLowerCase()}`
+                        : 'size and price'}
                   </span>
                 </div>
               </div>
