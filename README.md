@@ -357,7 +357,7 @@ worked.
 | MOE school directory | 337 schools, geocoded from their postal codes |
 | ECDA pre-school locations | 2,290 centres |
 | NEA historical rainfall | The wetness ranking, by sampling |
-| OneMap (SLA) | Geocoding, and the one optional drive time. No token needed |
+| OneMap (SLA) | Geocoding and map tiles. No token needed |
 
 The 2015–2016 resale file has no published resource id, so those two years are
 absent. It does not affect anything here.

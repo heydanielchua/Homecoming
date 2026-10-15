@@ -426,7 +426,6 @@ export interface SavedUnit {
   asking: number | null;
   storey: number | null;
   facing: Facing | null;
-  destinationPostcode: string | null;
   note: string;
   savedAt: string;
 }

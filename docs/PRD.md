@@ -92,7 +92,6 @@ Four things, and the report says plainly which parts depend on each:
 | Asking price | Not in any dataset; only the seller knows it |
 | Floor | The listing's storey is not published anywhere |
 | Facing | HDB does not publish unit orientation |
-| Destination postcode (optional) | For drive time, if wanted; blank hides those rows |
 
 Leave the floor out and the view and sun rows read "unknown". They do not
 guess.
@@ -238,8 +237,8 @@ Things that cost a day each to discover:
 - **Portal and HDB street names differ.** Portals write `JURONG WEST STREET
   64`; HDB writes `JURONG WEST ST 64`. Also `AVENUE/AVE`, `DRIVE/DR`,
   `CRESCENT/CRES`, `CENTRAL/CTRL`, `BUKIT/BT`, `JALAN/JLN`, `GARDENS/GDNS`.
-- **OneMap needs no token** for anything used here. Geocoding, drive routing
-  and map tiles all answer without one; the previous code refused to try.
+- **OneMap needs no token** for anything used here. Geocoding and map tiles
+  answer without one; the previous code refused to try.
 - **The land use layer cannot be committed.** 174 MB, and GitHub blocks
   files over 100 MB. Pin the id, fetch at build time, derive, discard.
 
@@ -281,7 +280,11 @@ Each step leaves something usable.
 
 - [ ] Is a per-device saved list acceptable long term, or is a shared list
       worth a server and a password?
-- [ ] Should drive time stay as an optional typed destination, or go?
+- [x] Should drive time stay as an optional typed destination, or go? It
+      went. It was the only thing on the page that made a request to anywhere
+      but this site's own files, it asked for a postcode before it would say
+      anything, and a commute is a question you can answer in the map app you
+      already use. Removing it means the page now talks to nothing.
 - [ ] Is "within 1 km of a primary school" the right band, given it is
       resale value we care about rather than our own use?
 - [ ] Is there a Master Plan land use layer newer than 2019? An

@@ -199,7 +199,6 @@ export function App() {
             shared.flatType && payload.flat_types[shared.flatType]
               ? shared.flatType
               : (Object.keys(payload.flat_types)[0] ?? ''),
-          destinationPostcode: shared.destinationPostcode ?? '',
         });
       }
       setBusy(false);
@@ -291,7 +290,6 @@ export function App() {
       asking,
       storey,
       facing: inputs.facing as Facing | null,
-      destinationPostcode: inputs.destinationPostcode || null,
       note: '',
     };
   }, [report, inputs, asking, storey]);
@@ -539,8 +537,7 @@ export function App() {
                 asking={asking}
                 storey={storey}
                 facing={inputs.facing}
-                destinationPostcode={inputs.destinationPostcode || null}
-          inputs={inputs}
+                inputs={inputs}
           onInputs={setInputs}
               />
             </Tabs.Panel>
@@ -587,7 +584,6 @@ export function App() {
                         storey: unit.storey ? String(unit.storey) : '',
                         facing: unit.facing,
                         flatType: unit.flatType,
-                        destinationPostcode: unit.destinationPostcode ?? '',
                       });
                       void pickCandidate(unit.slug);
                     }}

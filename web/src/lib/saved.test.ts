@@ -38,7 +38,6 @@ const draft: UnitDraft = {
   asking: 620000,
   storey: 12,
   facing: 'W',
-  destinationPostcode: '738907',
   note: 'viewing on Saturday',
 };
 
@@ -51,9 +50,8 @@ describe('what gets saved', () => {
     const [unit] = upsert([], draft);
     const keys = Object.keys(unit!).sort();
     expect(keys).toEqual([
-      'asking', 'block', 'blockKey', 'destinationPostcode', 'facing',
-      'flatType', 'id', 'note', 'savedAt', 'size', 'slug', 'storey', 'street',
-      'town', 'url',
+      'asking', 'block', 'blockKey', 'facing', 'flatType', 'id', 'note',
+      'savedAt', 'size', 'slug', 'storey', 'street', 'town', 'url',
     ]);
     // Nothing from the report may ride along: it is rebuilt on open.
     for (const banned of ['fairValue', 'median', 'trend', 'rent', 'sun', 'report']) {
@@ -150,7 +148,7 @@ describe('sharing a unit', () => {
     expect(params.get('d')).toBe('W');
     expect(params.get('a')).toBe('94');
     expect([...params.keys()].sort()).toEqual(
-      ['a', 'c', 'd', 'f', 'l', 'n', 'p', 's', 't'],
+      ['a', 'd', 'f', 'l', 'n', 'p', 's', 't'],
     );
   });
 
@@ -164,14 +162,13 @@ describe('sharing a unit', () => {
       storey: 12,
       facing: 'W',
       note: 'viewing on Saturday',
-      destinationPostcode: '738907',
     });
   });
 
   it('leaves out what was not typed', () => {
     const bare: UnitDraft = {
       ...draft, asking: null, storey: null, facing: null, size: null,
-      note: '', destinationPostcode: null, url: '',
+      note: '', url: '',
     };
     expect([...shareParams(bare).keys()]).toEqual(['s', 't']);
     const shared = readShared(`#${shareParams(bare).toString()}`);

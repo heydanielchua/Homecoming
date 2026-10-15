@@ -14,7 +14,6 @@ import * as React from 'react';
 import { Accordion } from '@base-ui/react/accordion';
 
 import { metres, money, month, percent, range, titleCase, walk } from '../lib/format';
-import { driveTo, DriveError, type Drive } from '../lib/drive';
 import { exposure, monthName, type Obstruction } from '../lib/sun';
 import { obstructionsFor, viewFrom } from '../lib/view';
 import type {
@@ -24,7 +23,6 @@ import type {
   Place,
   TownReport,
 } from '../lib/types';
-import { Field } from '@base-ui/react/field';
 
 import type { Inputs } from './UnitForm';
 import { ConfidenceMark, Figure } from './Confidence';
@@ -123,39 +121,6 @@ function PlaceRow({
   );
 }
 
-/** A row of inputs that belongs to the section it sits in. */
-function Asks({ children }: { children: React.ReactNode }) {
-  return <div className="asks">{children}</div>;
-}
-
-function NumberAsk({
-  label,
-  hint,
-  placeholder,
-  value,
-  onChange,
-}: {
-  label: string;
-  hint?: string;
-  placeholder: string;
-  value: string;
-  onChange: (next: string) => void;
-}) {
-  return (
-    <Field.Root className="ask">
-      <Field.Label className="label">{label}</Field.Label>
-      <Field.Control
-        className="input"
-        inputMode="numeric"
-        placeholder={placeholder}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
-      {hint ? <Field.Description className="hint">{hint}</Field.Description> : null}
-    </Field.Root>
-  );
-}
-
 function Section({
   value,
   title,
@@ -190,7 +155,6 @@ interface Props {
   asking: number | null;
   storey: number | null;
   facing: Facing | null;
-  destinationPostcode: string | null;
   /**
    * The typed details, and how to change them. They live here rather than in
    * a form at the top because each one belongs beside the answer it changes.
@@ -207,13 +171,11 @@ export function Report({
   asking,
   storey,
   facing,
-  destinationPostcode,
   inputs,
   onInputs,
 }: Props) {
   const set = <K extends keyof Inputs>(key: K, value: Inputs[K]) =>
     onInputs({ ...inputs, [key]: value });
-  const digits = (text: string) => text.replace(/[^\d]/g, '');
   const section = report.flat_types[flatType];
   const constants = meta.sun.constants;
 
@@ -246,29 +208,6 @@ export function Report({
         ? section.money.fair_value['1'] ?? null
         : null;
   const verdict = verdictFor(asking, fair?.low ?? null, fair?.high ?? null);
-
-  const [drive, setDrive] = React.useState<Drive | null>(null);
-  const [driveError, setDriveError] = React.useState<string | null>(null);
-  const [driving, setDriving] = React.useState(false);
-
-  async function lookUpDrive() {
-    if (!destinationPostcode || report.lat === null || report.lon === null) return;
-    setDriving(true);
-    setDriveError(null);
-    try {
-      setDrive(
-        await driveTo({ lat: report.lat, lon: report.lon }, destinationPostcode),
-      );
-    } catch (error) {
-      setDriveError(
-        error instanceof DriveError
-          ? error.message
-          : 'That request did not get through. It is the only thing on this page that leaves the site.',
-      );
-    } finally {
-      setDriving(false);
-    }
-  }
 
   if (!section) {
     return (
@@ -732,42 +671,6 @@ export function Report({
           street of bus stops does not bury the school.
         </p>
 
-        <Asks>
-          <NumberAsk
-            label="Drive to postcode"
-            placeholder="optional"
-            hint="Leave it blank and the drive rows stay hidden."
-            value={inputs.destinationPostcode}
-            onChange={(v) => set('destinationPostcode', digits(v).slice(0, 6))}
-          />
-        </Asks>
-
-        {destinationPostcode ? (
-          <div style={{ marginTop: 14 }}>
-            <h3>Drive to {destinationPostcode}</h3>
-            {drive ? (
-              <p>
-                <strong>{drive.minutes} minutes</strong> · {metres(drive.distanceM)}{' '}
-                to {titleCase(drive.destination)}
-              </p>
-            ) : (
-              <p className="secondary">
-                This is the one row that leaves the site: the destination is
-                typed in, so there is no route to precompute. OneMap answers
-                without a key.
-              </p>
-            )}
-            {driveError ? <p className="error">{driveError}</p> : null}
-            <button
-              type="button"
-              className="button"
-              onClick={lookUpDrive}
-              disabled={driving || report.lat === null}
-            >
-              {driving ? 'Asking OneMap…' : drive ? 'Ask again' : 'Work out the drive'}
-            </button>
-          </div>
-        ) : null}
       </Section>
 
       <Section

@@ -24,7 +24,6 @@ const KEYS = {
   facing: 'd',
   note: 'n',
   url: 'l',
-  postcode: 'c',
   size: 'a',
 } as const;
 
@@ -37,7 +36,6 @@ export interface SharedUnit {
   facing: Facing | null;
   note: string;
   url: string;
-  destinationPostcode: string | null;
 }
 
 export function shareParams(unit: SavedUnit | UnitDraft): URLSearchParams {
@@ -50,9 +48,6 @@ export function shareParams(unit: SavedUnit | UnitDraft): URLSearchParams {
   if (unit.facing) params.set(KEYS.facing, unit.facing);
   if (unit.note) params.set(KEYS.note, unit.note);
   if (unit.url) params.set(KEYS.url, unit.url);
-  if (unit.destinationPostcode) {
-    params.set(KEYS.postcode, unit.destinationPostcode);
-  }
   return params;
 }
 
@@ -90,7 +85,6 @@ export function readShared(hash: string): SharedUnit | null {
         : null,
     note: params.get(KEYS.note) ?? '',
     url: params.get(KEYS.url) ?? '',
-    destinationPostcode: params.get(KEYS.postcode),
   };
 }
 

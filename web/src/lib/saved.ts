@@ -64,10 +64,6 @@ function parseUnit(raw: unknown): SavedUnit | null {
     asking: Number.isFinite(asking) && asking > 0 ? asking : null,
     storey: Number.isFinite(storey) && storey >= 1 ? Math.round(storey) : null,
     facing: isFacing(item.facing) ? item.facing : null,
-    destinationPostcode:
-      typeof item.destinationPostcode === 'string' && item.destinationPostcode
-        ? item.destinationPostcode
-        : null,
     note: typeof item.note === 'string' ? item.note : '',
     savedAt:
       typeof item.savedAt === 'string' ? item.savedAt : new Date().toISOString(),
@@ -110,7 +106,6 @@ export interface UnitDraft {
   asking: number | null;
   storey: number | null;
   facing: Facing | null;
-  destinationPostcode: string | null;
   note: string;
 }
 

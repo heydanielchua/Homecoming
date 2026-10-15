@@ -35,7 +35,6 @@ export interface Inputs {
    * typed. Carried here so a shared link keeps it when no size came with it.
    */
   flatType: string;
-  destinationPostcode: string;
 }
 
 export const EMPTY_INPUTS: Inputs = {
@@ -45,7 +44,6 @@ export const EMPTY_INPUTS: Inputs = {
   storey: '',
   facing: null,
   flatType: '',
-  destinationPostcode: '',
 };
 
 interface Props {
