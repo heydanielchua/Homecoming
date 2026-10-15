@@ -25,6 +25,7 @@ import type {
   TownReport,
 } from '../lib/types';
 import { ConfidenceMark, Figure } from './Confidence';
+import { Massing } from './Massing';
 import { SurroundingsMap } from './SurroundingsMap';
 import { TrendChart } from './TrendChart';
 
@@ -514,6 +515,22 @@ export function Report({
             </p>
           </>
         ) : null}
+
+        <h3 style={{ marginTop: 18 }}>The block in three dimensions</h3>
+        {report.lat !== null && report.lon !== null ? (
+          <Massing
+            meta={meta}
+            lat={report.lat}
+            lon={report.lon}
+            slug={report.slug}
+            storey={storey}
+            facing={facing}
+          />
+        ) : (
+          <p className="secondary">
+            This block has no geocode, so there is nothing to place in a model.
+          </p>
+        )}
 
         <h3 style={{ marginTop: 18 }}>What could still be built</h3>
         {!report.surroundings.parcels_loaded ? (

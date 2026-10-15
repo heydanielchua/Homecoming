@@ -188,6 +188,32 @@ export interface ZoningCell {
   parcels: ZoningParcel[];
 }
 
+/**
+ * One HDB building, as the footprint layer draws it. Written per cell on the
+ * same grid as the zoning, so the massing view fetches matching keys from
+ * both directories.
+ */
+export interface Building {
+  /** Postal code: the footprint layer's key, and unique in it. */
+  i: string;
+  /** Block number, for the label. */
+  b: string;
+  /**
+   * Storeys, not a height in metres. HDB publishes the count and nobody
+   * publishes the height, so the three-metre assumption stays where a reader
+   * can see it rather than being baked in upstream.
+   */
+  s: number | null;
+  /** The block's own slug, so the view can find the flat's building. */
+  slug: string;
+  m: { type: 'Polygon' | 'MultiPolygon'; coordinates: number[][][] | number[][][][] };
+}
+
+export interface BuildingCell {
+  cell: [number, number];
+  buildings: Building[];
+}
+
 export const ZONE_GROUPS = [
   'residential',
   'commercial',

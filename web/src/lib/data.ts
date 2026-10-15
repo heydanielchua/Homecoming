@@ -14,6 +14,7 @@
 
 import type {
   BlockReport,
+  BuildingCell,
   IndexShard,
   Manifest,
   Meta,
@@ -76,6 +77,14 @@ const towns = new Cache<TownReport>((slug) =>
 const zoningCells = new Cache<ZoningCell>((key) =>
   getJson<ZoningCell>(`zoning/${key}.json`),
 );
+/**
+ * Building footprints, on the same grid and with the same rule: a missing
+ * cell is an answer, not a failure. Kept apart from the zoning because the
+ * flat map never draws buildings and should not pay to fetch them.
+ */
+const buildingCells = new Cache<BuildingCell>((key) =>
+  getJson<BuildingCell>(`buildings/${key}.json`),
+);
 
 let metaOnce: Promise<Meta | null> | null = null;
 let manifestOnce: Promise<Manifest | null> | null = null;
@@ -119,6 +128,10 @@ export function zoningKeysFor(
 
 export function fetchZoning(key: string): Promise<ZoningCell | null> {
   return zoningCells.get(key);
+}
+
+export function fetchBuildings(key: string): Promise<BuildingCell | null> {
+  return buildingCells.get(key);
 }
 
 export function fetchTown(slug: string | null): Promise<TownReport | null> {

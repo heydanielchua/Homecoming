@@ -1390,3 +1390,192 @@ tbody tr:hover {
     transition: none !important;
   }
 }
+
+/* ------------------------------------------------------------------ massing
+ *
+ * The three-dimensional view inside "View and sun". Its palette is scoped
+ * here rather than on :root, the same way the map scopes its pins, because
+ * nothing else on the page draws volumes. The renderer cannot resolve a
+ * custom property on its own, so the component reads these values off the
+ * canvas and hands the renderer real colours.
+ */
+.massing {
+  --massing-sky: #dfe3e6;
+  --massing-ground: #c9c6bf;
+  --massing-built: #eae7e1;
+  --massing-over: #c3bdb1;
+  --massing-line: #8f8a80;
+  --massing-mine: #d6ff4e;
+  --massing-ghost: #eb6834;
+  --massing-eye: #010101;
+  margin-top: 4px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .massing {
+    --massing-sky: #121417;
+    --massing-ground: #232220;
+    --massing-built: #46443f;
+    --massing-over: #605c55;
+    --massing-line: #74706a;
+    --massing-ghost: #d95926;
+    --massing-eye: #f2f2f2;
+  }
+}
+
+:root[data-theme='dark'] .massing {
+  --massing-sky: #121417;
+  --massing-ground: #232220;
+  --massing-built: #46443f;
+  --massing-over: #605c55;
+  --massing-line: #74706a;
+  --massing-ghost: #d95926;
+  --massing-eye: #f2f2f2;
+}
+
+.massing-stage {
+  position: relative;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface-sunken);
+}
+
+.massing-canvas {
+  display: block;
+  width: 100%;
+  height: 440px;
+  cursor: grab;
+  /* A vertical swipe must still scroll the report. Only the sideways part of
+     a touch turns the model; tilting and zooming are the two-finger gesture. */
+  touch-action: pan-y;
+}
+
+.massing-canvas:active {
+  cursor: grabbing;
+}
+
+@media (max-width: 640px) {
+  .massing-canvas {
+    height: 320px;
+  }
+}
+
+.massing-note {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  margin: 0;
+  max-width: min(320px, calc(100% - 20px));
+  padding: 7px 11px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-card);
+  font-size: 0.8rem;
+  line-height: 1.35;
+  pointer-events: none;
+}
+
+.massing-note b {
+  display: block;
+  font-weight: 600;
+}
+
+.massing-note span {
+  color: var(--text-secondary);
+}
+
+.massing-note--fail {
+  color: var(--text-primary);
+}
+
+.massing-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.massing-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.massing-sliders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.massing-sliders label {
+  display: grid;
+  gap: 2px;
+  flex: 1 1 110px;
+  min-width: 0;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.massing-sliders b {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.massing-sliders input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.massing-reset {
+  margin-left: auto;
+  border: 0;
+  border-radius: var(--radius-pill);
+  padding: 7px 14px;
+  background: var(--surface-sunken);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.massing-reset:hover {
+  color: var(--text-primary);
+}
+
+.massing-legend {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  text-wrap: pretty;
+}
+
+/* Two states of one model, so a segmented control rather than two buttons:
+   the pair reads as "this or that", which is what the toggle means. */
+.massing-seg {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+}
+
+.massing-seg button {
+  border: 0;
+  border-radius: var(--radius-pill);
+  padding: 6px 13px;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.massing-seg button[aria-pressed='true'] {
+  background: var(--text-primary);
+  color: var(--surface-1);
+}
