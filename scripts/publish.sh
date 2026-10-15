@@ -11,6 +11,11 @@
 #   ./scripts/publish.sh            rebuild the page and push it.  Seconds.
 #   ./scripts/publish.sh --data     rebuild the data too.          ~45 minutes.
 #
+# Either way it then waits for Pages to serve the build it just pushed, and
+# reports a failure if it does not. A push is not a deployment: Pages builds
+# afterwards, on its own schedule, and the only honest way to say something is
+# live is to fetch it and find this build's bundle name in it.
+#
 # The page is 500 KB and changes every time a design is tweaked. The data is
 # 123 MB across 12,000 files and changes once a month. Keeping them apart is
 # what makes iterating on the design bearable: a design change re-uploads
@@ -34,6 +39,9 @@ cd "$(dirname "$0")/.."
 DIST="dist"
 GIT_STATE=".publish.git"          # gitignored; the publisher's own history
 BRANCH="main"
+# Where Pages serves the public repository, so a publish can check that what
+# it pushed is actually what a visitor gets. Override for a different repo.
+SITE_URL="${SITE_URL-https://heydanielchua.github.io/homecoming-site/}"
 BUILD_DATA=0
 BUILD_PAGE=1
 
@@ -162,18 +170,53 @@ if [ "$DRY_RUN" = 1 ]; then
     exit 0
 fi
 
+# What the live page must be serving once this publish has landed. Pages
+# builds and deploys on its own schedule after the push, so the push
+# succeeding says nothing about what a visitor is getting — and the hashed
+# bundle name is the one thing that distinguishes this build from the last.
+WANT="$(grep -o 'assets/index-[A-Za-z0-9_-]*\.js' "$GIT_WORK_TREE/index.html" | head -1 || true)"
+
 echo "==> pushing to $(git remote get-url public) ($BRANCH)"
+PUSHED=0
 for attempt in 1 2 3 4; do
-    if git push -f public "HEAD:$BRANCH"; then
-        echo
-        echo "published."
-        echo "Enable Pages on the public repository from branch $BRANCH, / (root),"
-        echo "if it is not on already."
-        exit 0
-    fi
+    if git push -f public "HEAD:$BRANCH"; then PUSHED=1; break; fi
     wait=$((2 ** attempt))
     echo "push failed; retrying in ${wait}s" >&2
     sleep "$wait"
 done
-echo "push failed after 4 attempts" >&2
+if [ "$PUSHED" = 0 ]; then
+    echo "push failed after 4 attempts" >&2
+    exit 1
+fi
+
+# A push is not a deployment. Wait for the live page to serve this build
+# before saying it is published, because saying so early is the one failure
+# here that cannot be seen from the terminal.
+if [ -z "$SITE_URL" ] || [ -z "$WANT" ]; then
+    echo
+    if [ -z "$SITE_URL" ]; then
+        echo "pushed. Not waiting for the deployment: no SITE_URL to poll."
+    else
+        echo "pushed. Not waiting for the deployment: no bundle name in index.html."
+    fi
+    echo "Enable Pages on the public repository from branch $BRANCH, / (root),"
+    echo "if it is not on already."
+    exit 0
+fi
+
+echo "==> waiting for $SITE_URL to serve ${WANT##*/}"
+for i in $(seq 1 45); do
+    got="$(curl -fsS --max-time 20 "$SITE_URL?cb=$i" 2>/dev/null \
+        | grep -o 'assets/index-[A-Za-z0-9_-]*\.js' | head -1 || true)"
+    if [ "$got" = "$WANT" ]; then
+        echo
+        echo "published and live at $SITE_URL"
+        exit 0
+    fi
+    sleep 20
+done
+echo >&2
+echo "pushed, but $SITE_URL is still serving ${got:-nothing} after 15 minutes," >&2
+echo "not ${WANT##*/}. The push landed; the deployment did not. Check" >&2
+echo "the pages build and deployment run on the public repository." >&2
 exit 1
