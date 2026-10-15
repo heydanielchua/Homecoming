@@ -1,23 +1,27 @@
 /**
- * The four things we type, and the one optional fifth.
+ * One field: the link.
  *
- * Everything else on the page is a lookup. These are here because they cannot
- * be looked up: the link carries the block and street, the asking price is
- * known only to the seller, the listing's storey is not published anywhere,
- * and HDB does not publish which way a unit faces.
+ * Everything on this page is a lookup off the block, and the block is in the
+ * address in the listing's URL. So that is all this asks for. The page never
+ * fetches the listing — scraping the portals is against their terms and is
+ * not needed, because the address is in the path.
  *
- * Leaving the floor out is allowed and is not the same as a guess — the view
- * and sun rows then read "unknown", which is what the PRD asks for. The form
- * says so under the field rather than making the floor required.
+ * The details that cannot be looked up — the asking price, the floor, the way
+ * the unit faces — used to sit under this field, so the first thing the page
+ * did was hand you six empty boxes before it had shown you anything. They now
+ * live in the sections whose answers they change: the price with the verdict
+ * it is judged against, the floor and the facing with the view and the sun
+ * they decide. An input next to its own answer explains itself; the same
+ * input in a form at the top is a quiz.
+ *
+ * The block and street fields stay here, because they are not details about a
+ * unit — they are the other way of saying which block, for a link that did
+ * not resolve.
  */
 
 import { Field } from '@base-ui/react/field';
-import { Select } from '@base-ui/react/select';
-import { Toggle } from '@base-ui/react/toggle';
-import { ToggleGroup } from '@base-ui/react/toggle-group';
 
 import type { Facing } from '../lib/types';
-import { FACINGS } from '../lib/types';
 
 export interface Inputs {
   link: string;
@@ -41,7 +45,6 @@ interface Props {
   inputs: Inputs;
   onChange: (next: Inputs) => void;
   onSubmit: () => void;
-  flatTypes: string[];
   busy: boolean;
   /** Set when the link could not be resolved, so the fallback fields show. */
   needsAddress: boolean;
@@ -56,7 +59,6 @@ export function UnitForm({
   inputs,
   onChange,
   onSubmit,
-  flatTypes,
   busy,
   needsAddress,
   onUseAddress,
@@ -65,9 +67,6 @@ export function UnitForm({
   onAddressChange,
   onAddressSubmit,
 }: Props) {
-  const set = <K extends keyof Inputs>(key: K, value: Inputs[K]) =>
-    onChange({ ...inputs, [key]: value });
-
   return (
     <form
       className="card stack"
@@ -81,11 +80,17 @@ export function UnitForm({
           <Field.Label className="label">Listing link</Field.Label>
           <Field.Control
             className="input"
-            type="url"
+            // Deliberately not type="url": the parser accepts a link with no
+            // scheme, which is what you get copying an address bar on a
+            // phone, and native validation would refuse it before the parser
+            // ever saw it.
+            type="text"
             inputMode="url"
+            autoComplete="url"
+            spellCheck={false}
             placeholder="https://www.99.co/singapore/sale/property/…"
             value={inputs.link}
-            onChange={(event) => set('link', event.target.value)}
+            onChange={(event) => onChange({ ...inputs, link: event.target.value })}
           />
           <Field.Description className="hint">
             From PropertyGuru or 99.co. The page is never fetched — only the
@@ -146,121 +151,6 @@ export function UnitForm({
           </button>
         </div>
       ) : null}
-
-      <div className="row--fields">
-        <Field.Root className="field">
-          <Field.Label className="label">Asking price</Field.Label>
-          <Field.Control
-            className="input"
-            inputMode="numeric"
-            placeholder="620000"
-            value={inputs.asking}
-            onChange={(event) =>
-              set('asking', event.target.value.replace(/[^\d]/g, ''))
-            }
-          />
-          <Field.Description className="hint">
-            Only the seller knows it.
-          </Field.Description>
-        </Field.Root>
-
-        <Field.Root className="field">
-          <Field.Label className="label">Floor</Field.Label>
-          <Field.Control
-            className="input"
-            inputMode="numeric"
-            placeholder="12"
-            value={inputs.storey}
-            onChange={(event) =>
-              set('storey', event.target.value.replace(/[^\d]/g, ''))
-            }
-          />
-          <Field.Description className="hint">
-            Leave it out and the view and sun rows read unknown.
-          </Field.Description>
-        </Field.Root>
-
-        <div className="field">
-          <span className="label" id="facing-label">
-            Facing
-          </span>
-          <ToggleGroup
-            aria-labelledby="facing-label"
-            value={inputs.facing ? [inputs.facing] : []}
-            onValueChange={(value) =>
-              set('facing', (value[0] as Facing | undefined) ?? null)
-            }
-            className="compass"
-          >
-            {FACINGS.map((point) => (
-              <Toggle
-                key={point}
-                value={point}
-                className="compass-point"
-                aria-label={point}
-              >
-                {point}
-              </Toggle>
-            ))}
-          </ToggleGroup>
-          <span className="hint">HDB does not publish unit orientation.</span>
-        </div>
-      </div>
-
-      <div className="row--fields">
-        {flatTypes.length > 0 ? (
-          <div className="field">
-            <Select.Root
-              items={flatTypes.map((t) => ({ label: t, value: t }))}
-              value={inputs.flatType || null}
-              onValueChange={(value) => set('flatType', (value as string) ?? '')}
-            >
-              <Select.Label className="label">Flat type</Select.Label>
-              <Select.Trigger className="input" style={{ textAlign: 'left' }}>
-                <Select.Value placeholder="Pick one" />
-              </Select.Trigger>
-              <Select.Portal>
-                <Select.Positioner sideOffset={4}>
-                  <Select.Popup className="popup">
-                    <Select.List>
-                      {flatTypes.map((type) => (
-                        <Select.Item
-                          key={type}
-                          value={type}
-                          className="button button--quiet"
-                          style={{ width: '100%', justifyContent: 'flex-start' }}
-                        >
-                          <Select.ItemText>{type}</Select.ItemText>
-                        </Select.Item>
-                      ))}
-                    </Select.List>
-                  </Select.Popup>
-                </Select.Positioner>
-              </Select.Portal>
-            </Select.Root>
-            <span className="hint">The types that have sold in this block.</span>
-          </div>
-        ) : null}
-
-        <Field.Root className="field">
-          <Field.Label className="label">Destination postcode</Field.Label>
-          <Field.Control
-            className="input"
-            inputMode="numeric"
-            placeholder="optional"
-            value={inputs.destinationPostcode}
-            onChange={(event) =>
-              set(
-                'destinationPostcode',
-                event.target.value.replace(/[^\d]/g, '').slice(0, 6),
-              )
-            }
-          />
-          <Field.Description className="hint">
-            Optional. Leave it blank and the drive rows stay hidden.
-          </Field.Description>
-        </Field.Root>
-      </div>
     </form>
   );
 }

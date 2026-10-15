@@ -1670,3 +1670,40 @@ tbody tr:hover {
   border-radius: 5px;
   flex: none;
 }
+
+/* --- the asks ------------------------------------------------------------
+ *
+ * The details that cannot be looked up, standing in the section whose answer
+ * they change rather than in a form at the top. A strip at the head of a
+ * section reads as "these decide what follows"; the same fields above the
+ * report read as a quiz you have to pass before you are shown anything.
+ */
+.asks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  gap: 12px 18px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ask {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  flex: 0 1 180px;
+  min-width: 0;
+}
+
+.ask--wide {
+  flex: 0 1 auto;
+}
+
+.ask .input {
+  width: 100%;
+}
+
+.ask .hint {
+  margin: 0;
+}

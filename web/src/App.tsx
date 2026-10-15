@@ -325,7 +325,6 @@ export function App() {
         inputs={inputs}
         onChange={setInputs}
         onSubmit={check}
-        flatTypes={report ? Object.keys(report.flat_types) : []}
         busy={busy}
         needsAddress={
           addressOpen || (resolution !== null && resolution.status !== 'resolved')
@@ -416,6 +415,8 @@ export function App() {
                 storey={storey}
                 facing={inputs.facing}
                 destinationPostcode={inputs.destinationPostcode || null}
+          inputs={inputs}
+          onInputs={setInputs}
               />
             </Tabs.Panel>
 

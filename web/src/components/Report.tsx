@@ -24,6 +24,13 @@ import type {
   Place,
   TownReport,
 } from '../lib/types';
+import { Field } from '@base-ui/react/field';
+import { Select } from '@base-ui/react/select';
+import { Toggle } from '@base-ui/react/toggle';
+import { ToggleGroup } from '@base-ui/react/toggle-group';
+
+import { FACINGS } from '../lib/types';
+import type { Inputs } from './UnitForm';
 import { ConfidenceMark, Figure } from './Confidence';
 import { Massing } from './Massing';
 import { SurroundingsMap } from './SurroundingsMap';
@@ -120,6 +127,39 @@ function PlaceRow({
   );
 }
 
+/** A row of inputs that belongs to the section it sits in. */
+function Asks({ children }: { children: React.ReactNode }) {
+  return <div className="asks">{children}</div>;
+}
+
+function NumberAsk({
+  label,
+  hint,
+  placeholder,
+  value,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  placeholder: string;
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <Field.Root className="ask">
+      <Field.Label className="label">{label}</Field.Label>
+      <Field.Control
+        className="input"
+        inputMode="numeric"
+        placeholder={placeholder}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {hint ? <Field.Description className="hint">{hint}</Field.Description> : null}
+    </Field.Root>
+  );
+}
+
 function Section({
   value,
   title,
@@ -155,6 +195,12 @@ interface Props {
   storey: number | null;
   facing: Facing | null;
   destinationPostcode: string | null;
+  /**
+   * The typed details, and how to change them. They live here rather than in
+   * a form at the top because each one belongs beside the answer it changes.
+   */
+  inputs: Inputs;
+  onInputs: (next: Inputs) => void;
 }
 
 export function Report({
@@ -166,7 +212,12 @@ export function Report({
   storey,
   facing,
   destinationPostcode,
+  inputs,
+  onInputs,
 }: Props) {
+  const set = <K extends keyof Inputs>(key: K, value: Inputs[K]) =>
+    onInputs({ ...inputs, [key]: value });
+  const digits = (text: string) => text.replace(/[^\d]/g, '');
   const section = report.flat_types[flatType];
   const constants = meta.sun.constants;
 
@@ -237,6 +288,7 @@ export function Report({
   }
 
   const { money: m, trend, rent } = section;
+  const flatTypes = Object.keys(report.flat_types);
   const nearby = report.nearby;
 
   return (
@@ -254,6 +306,48 @@ export function Report({
             : 'no comparable sales'
         }
       >
+        <Asks>
+          {flatTypes.length > 0 ? (
+            <div className="ask">
+              <Select.Root
+                items={flatTypes.map((t) => ({ label: t, value: t }))}
+                value={inputs.flatType || null}
+                onValueChange={(value) => set('flatType', (value as string) ?? '')}
+              >
+                <Select.Label className="label">Flat type</Select.Label>
+                <Select.Trigger className="input" style={{ textAlign: 'left' }}>
+                  <Select.Value placeholder="Pick one" />
+                </Select.Trigger>
+                <Select.Portal>
+                  <Select.Positioner sideOffset={4}>
+                    <Select.Popup className="popup">
+                      <Select.List>
+                        {flatTypes.map((type) => (
+                          <Select.Item
+                            key={type}
+                            value={type}
+                            className="button button--quiet"
+                            style={{ width: '100%', justifyContent: 'flex-start' }}
+                          >
+                            <Select.ItemText>{type}</Select.ItemText>
+                          </Select.Item>
+                        ))}
+                      </Select.List>
+                    </Select.Popup>
+                  </Select.Positioner>
+                </Select.Portal>
+              </Select.Root>
+              <span className="hint">The types that have sold in this block.</span>
+            </div>
+          ) : null}
+          <NumberAsk
+            label="Asking price"
+            placeholder="620000"
+            hint="Not in the link — copy it from the listing."
+            value={inputs.asking}
+            onChange={(v) => set('asking', digits(v))}
+          />
+        </Asks>
         {asking !== null ? (
           <div className={`verdict verdict--${verdict.status}`}>
             <span className="verdict-flag">
@@ -412,6 +506,41 @@ export function Report({
                 : `${view.blocked.length} block${view.blocked.length === 1 ? '' : 's'} above you`
         }
       >
+        <Asks>
+          <NumberAsk
+            label="Your floor"
+            placeholder="12"
+            hint="Leave it out and the view and sun rows read unknown."
+            value={inputs.storey}
+            onChange={(v) => set('storey', digits(v))}
+          />
+          <div className="ask ask--wide">
+            <span className="label" id="facing-label">
+              Facing
+            </span>
+            <ToggleGroup
+              aria-labelledby="facing-label"
+              value={inputs.facing ? [inputs.facing] : []}
+              onValueChange={(value) =>
+                set('facing', (value[0] as Facing | undefined) ?? null)
+              }
+              className="compass"
+            >
+              {FACINGS.map((point) => (
+                <Toggle
+                  key={point}
+                  value={point}
+                  className="compass-point"
+                  aria-label={point}
+                >
+                  {point}
+                </Toggle>
+              ))}
+            </ToggleGroup>
+            <span className="hint">HDB does not publish unit orientation.</span>
+          </div>
+        </Asks>
+
         {view.unknown ? (
           <p className="secondary">{view.unknown}</p>
         ) : (
@@ -681,6 +810,16 @@ export function Report({
           map shows the nearest few of each kind rather than every one, so a
           street of bus stops does not bury the school.
         </p>
+
+        <Asks>
+          <NumberAsk
+            label="Drive to postcode"
+            placeholder="optional"
+            hint="Leave it blank and the drive rows stay hidden."
+            value={inputs.destinationPostcode}
+            onChange={(v) => set('destinationPostcode', digits(v).slice(0, 6))}
+          />
+        </Asks>
 
         {destinationPostcode ? (
           <div style={{ marginTop: 14 }}>
