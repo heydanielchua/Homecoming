@@ -3,6 +3,7 @@ value-at-exit range."""
 
 import json
 
+from nhf.config import load_config
 from nhf.growth import GrowthScorer, retirement_rent_check, score_all
 
 
@@ -98,7 +99,12 @@ def test_retirement_rent_check_reports_lease_at_letting(fitted_db):
     check = retirement_rent_check(fitted_db, "141|TAMPINES ST 42", "4 ROOM")
     assert check["median_rent"] > 0
     assert check["scope"] in ("block", "town")
-    assert check["let_from_year"] == 2047        # 2027 purchase + 20 years
+    # Purchase year plus the holding period, both read from the config so
+    # that editing the worked example does not break this.
+    household = load_config().household
+    assert check["let_from_year"] == (
+        int(household["purchase_year"]) + int(household["holding_period_years"])
+    )
     assert check["lease_years_at_let"] > 0
     assert check["citizens_only"] is True
     assert "quota" in check["quota_note"].lower()

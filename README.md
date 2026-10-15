@@ -411,9 +411,25 @@ producing two plausible numbers. Run it after changing `nhf/sun.py`,
 
 A free GitHub Pages site is public and has no login. Everything the site
 publishes is derived from public government data and none of it is ours, so
-that part is survivable. This repository is a different matter: `docs/PRD.md`
-and `config/criteria.yml` hold the budget, both office postal codes, and when
-the MOP ends. So the split is:
+that part is survivable.
+
+`config/criteria.yml` used to hold a real budget and both office postal codes.
+It no longer does: it carries worked examples, and real figures go in
+`config/criteria.local.yml`, which `.gitignore` keeps out of every commit and
+`nhf/config.py` merges over the committed file key by key. Only name what
+differs — and naming `offices` at all means naming all of them, because a list
+replaces a list rather than appending to it:
+
+```yaml
+household:
+  budget: 650000
+  offices:
+    - {code: office_a, label: Mine, postal: "123456"}
+```
+
+The same overlay works for any config file, so `datasets.local.yml` is where a
+key that should not be committed belongs. That leaves `docs/PRD.md` as the
+remaining reason this repository is private. So the split is:
 
 | | holds | visibility |
 |---|---|---|

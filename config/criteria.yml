@@ -1,21 +1,40 @@
 # F1 soft filters and F5 weights. Nothing here hides a unit; a miss shows as a
 # red flag with its reason. Every number is meant to be edited.
+#
+# THIS FILE IS COMMITTED, so the household block below holds worked examples
+# and not anybody's real figures. A budget says what you can afford and an
+# office postal code says which building you are in at nine in the morning;
+# neither belongs in a repository that may be public.
+#
+# Put your own in `config/criteria.local.yml`, which `.gitignore` keeps out of
+# every commit. It is merged over this file key by key, so it need only carry
+# what differs:
+#
+#     household:
+#       budget: 650000
+#       offices:
+#         - {code: office_a, label: Mine, postal: "123456"}
+#         - {code: office_b, label: Theirs, postal: "654321"}
+#
+# A list replaces a list, so naming `offices` at all means naming all of them.
 
 household:
-  budget: 600000
-  # "$600k is a soft target, not a hard cap." Up to this much over is
-  # Acceptable; beyond it, Flagged with how far over.
+  budget: 500000
+  # A soft target, not a hard cap. Up to this much over is Acceptable;
+  # beyond it, Flagged with how far over.
   budget_over_tolerance_pct: 10
   holding_period_years: 20
-  purchase_year: 2027          # MOP on our current flat ends Nov 2027
+  purchase_year: 2030          # e.g. the year an MOP ends
   min_flat_type_rooms: 3
+  # Example offices: City Hall and Raffles Place, so a commute is computed
+  # against two real places and nobody's actual desk.
   offices:
     - code: office_a
-      label: Daniel's office
-      postal: "109679"
+      label: Office A
+      postal: "179103"
     - code: office_b
-      label: Connie's office
-      postal: "098544"
+      label: Office B
+      postal: "048616"
   max_drive_minutes: 35        # to the farther office, peak
 
 criteria:

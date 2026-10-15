@@ -212,8 +212,12 @@ def build_fixture_db(path: str | Path = ":memory:", seed: int = 7):
         )
         upsert_many(
             conn, "office", ("code", "label", "postal", "lat", "lon"),
-            [("office_a", "Daniel's office", "109679", 1.2820, 103.8180),
-             ("office_b", "Connie's office", "098544", 1.2740, 103.8030)],
+            # Example offices, not anyone's real ones: a fixture that names a
+            # person's desk puts it in the repository just as surely as the
+            # config would. The coordinates are kept so the distances these
+            # tests assert on do not move.
+            [("office_a", "Office A", "179103", 1.2820, 103.8180),
+             ("office_b", "Office B", "048616", 1.2740, 103.8030)],
             conflict="REPLACE",
         )
 

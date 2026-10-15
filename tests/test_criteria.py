@@ -1,10 +1,23 @@
-"""F1: a miss must be visible and carry its reason, never hide a unit."""
+"""F1: a miss must be visible and carry its reason, never hide a unit.
 
+Everything about money and dates here is written against the configured
+budget and purchase year rather than against literals that happen to match
+them. `config/criteria.yml` holds worked examples now, not a real household's
+figures, so a number baked into a test would make editing the example break
+the suite — and the examples are meant to be edited.
+"""
+
+from nhf.config import load_config
 from nhf.criteria import ACCEPTABLE, BEST, FLAGGED, UNKNOWN, evaluate
+
+_HOUSEHOLD = load_config().household
+BUDGET = load_config().budget
+PURCHASE_YEAR = int(_HOUSEHOLD["purchase_year"])
+OVER_TOLERANCE = BUDGET * _HOUSEHOLD["budget_over_tolerance_pct"] / 100
 
 BASE = dict(
     block_key="141|TAMPINES ST 42", town="TAMPINES", flat_type="4 ROOM",
-    price=560000, storey=12, max_floor_lvl=12, corner_unit=True,
+    price=int(BUDGET * 0.93), storey=12, max_floor_lvl=12, corner_unit=True,
     drive_minutes=22.0, lease_years_at_exit=70.0, hardcourt_distance_m=400.0,
 )
 
@@ -25,12 +38,13 @@ def test_a_flat_that_fits_everything_says_so():
 
 
 def test_price_grades_over_budget_by_how_far():
-    within = evaluate(**{**BASE, "price": 600000})
-    acceptable = evaluate(**{**BASE, "price": 635000})
-    flagged = evaluate(**{**BASE, "price": 700000})
+    over = int(OVER_TOLERANCE * 0.7)          # over budget, inside tolerance
+    within = evaluate(**{**BASE, "price": BUDGET})
+    acceptable = evaluate(**{**BASE, "price": BUDGET + over})
+    flagged = evaluate(**{**BASE, "price": int(BUDGET + OVER_TOLERANCE * 2)})
     assert level(within, "price") == BEST
     assert level(acceptable, "price") == ACCEPTABLE
-    assert "$35,000 over budget" in detail(acceptable, "price")
+    assert f"${over:,} over budget" in detail(acceptable, "price")
     assert level(flagged, "price") == FLAGGED
     # Over budget is flagged, not removed.
     assert flagged.checks
@@ -94,7 +108,8 @@ def test_hardcourt_unknown_points_at_the_viewing():
 
 def test_earliest_exit_follows_the_mop_rule():
     fit = evaluate(**BASE)
-    assert fit.earliest_exit_year == 2032         # 2027 purchase + 5-year MOP
+    # Purchase year plus the five-year MOP, whatever the configured year is.
+    assert fit.earliest_exit_year == PURCHASE_YEAR + 5
 
 
 def test_manual_checks_name_the_policies_with_no_open_data():

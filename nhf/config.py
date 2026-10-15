@@ -28,10 +28,42 @@ CACHE_DIR = Path(os.environ.get("NHF_CACHE_DIR", DATA_DIR / "cache"))
 TODO = "TODO"
 
 
+def _merge(base: dict[str, Any], over: dict[str, Any]) -> dict[str, Any]:
+    """`over` wins, one key at a time, recursing into nested mappings.
+
+    A list replaces a list rather than appending to it: an override that said
+    "my offices are these two" would otherwise get the example ones as well.
+    """
+    out = dict(base)
+    for key, value in over.items():
+        if isinstance(value, dict) and isinstance(out.get(key), dict):
+            out[key] = _merge(out[key], value)
+        else:
+            out[key] = value
+    return out
+
+
 def _load(name: str) -> dict[str, Any]:
+    """One config file, with an untracked local overlay on top of it.
+
+    `criteria.yml` is committed and public, so it carries worked examples
+    rather than anyone's real budget or office postal code — a household's
+    finances and the two buildings they commute to are not something a public
+    repository should hold. Real values go in `criteria.local.yml` beside it,
+    which `.gitignore` keeps out of every commit.
+
+    The overlay applies to any config file, so `datasets.local.yml` works the
+    same way for an API key that should not be committed either.
+    """
     path = CONFIG_DIR / name
     with path.open() as fh:
-        return yaml.safe_load(fh) or {}
+        loaded = yaml.safe_load(fh) or {}
+
+    local = CONFIG_DIR / f"{path.stem}.local{path.suffix}"
+    if local.exists():
+        with local.open() as fh:
+            return _merge(loaded, yaml.safe_load(fh) or {})
+    return loaded
 
 
 @dataclass(frozen=True)

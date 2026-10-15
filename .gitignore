@@ -23,3 +23,7 @@ web/node_modules/
 # The publisher's own git directory, for pushing dist/ to the public
 # repository. Not this repository's history.
 .publish.git/
+
+# Real budgets, office postal codes and API keys. Merged over the committed
+# config of the same name by nhf/config.py, and never committed itself.
+config/*.local.yml
