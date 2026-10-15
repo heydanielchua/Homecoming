@@ -36,7 +36,15 @@ import {
   type Geom,
   type Rings,
 } from '../lib/massing';
-import { ZONE_GROUPS, type Building, type Facing, type Meta, type ZoneGroup, type ZoningParcel } from '../lib/types';
+import {
+  FACINGS,
+  ZONE_GROUPS,
+  type Building,
+  type Facing,
+  type Meta,
+  type ZoneGroup,
+  type ZoningParcel,
+} from '../lib/types';
 
 /**
  * How far out to draw. Beyond this a block is skyline rather than something
@@ -93,6 +101,10 @@ interface Props {
   slug: string;
   storey: number | null;
   facing: Facing | null;
+  /** This block's own top floor, which is as high as the slider goes. */
+  maxFloor: number | null;
+  onStorey: (next: number | null) => void;
+  onFacing: (next: Facing | null) => void;
 }
 
 interface Loaded {
@@ -106,7 +118,15 @@ interface Readout {
   detail: string;
 }
 
-export function Massing({ meta, lat, lon, slug, storey, facing }: Props) {
+export function Massing({
+  meta, lat, lon, slug, storey, facing, maxFloor, onStorey, onFacing,
+}: Props) {
+  // Where the handle sits before a floor has been chosen. Halfway up reads
+  // as "somewhere in this block" and is the shortest drag to anywhere; the
+  // figures stay unknown until it is actually moved, because a floor nobody
+  // picked is not a floor.
+  const top = Math.max(1, maxFloor ?? 40);
+  const restingFloor = Math.max(1, Math.round(top / 2));
   const host = React.useRef<HTMLDivElement | null>(null);
   const canvas = React.useRef<HTMLCanvasElement | null>(null);
   const scene = React.useRef<SceneHandle | null>(null);
@@ -284,6 +304,44 @@ export function Massing({ meta, lat, lon, slug, storey, facing }: Props) {
           />
           Afternoon sun
         </label>
+
+        <div className="massing-sliders massing-sliders--floor">
+          <label>
+            <span>
+              Your floor <b>{storey === null ? '—' : `#${storey}`}</b>
+            </span>
+            <input
+              type="range"
+              min={1}
+              max={top}
+              value={storey ?? restingFloor}
+              onChange={(e) => onStorey(Number(e.target.value))}
+            />
+          </label>
+
+          <div className="massing-facing">
+            <span className="massing-facing-label" id="massing-facing">
+              Facing <b>{facing ?? '—'}</b>
+            </span>
+            <div
+              className="massing-compass"
+              role="group"
+              aria-labelledby="massing-facing"
+            >
+              {FACINGS.map((point) => (
+                <button
+                  key={point}
+                  type="button"
+                  aria-pressed={facing === point}
+                  aria-label={point}
+                  onClick={() => onFacing(facing === point ? null : point)}
+                >
+                  {point}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
 
         {sunOn ? (
           <div className="massing-sliders">

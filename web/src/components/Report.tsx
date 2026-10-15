@@ -25,10 +25,7 @@ import type {
   TownReport,
 } from '../lib/types';
 import { Field } from '@base-ui/react/field';
-import { Toggle } from '@base-ui/react/toggle';
-import { ToggleGroup } from '@base-ui/react/toggle-group';
 
-import { FACINGS } from '../lib/types';
 import type { Inputs } from './UnitForm';
 import { ConfidenceMark, Figure } from './Confidence';
 import { Massing } from './Massing';
@@ -462,41 +459,6 @@ export function Report({
                 : `${view.blocked.length} block${view.blocked.length === 1 ? '' : 's'} above you`
         }
       >
-        <Asks>
-          <NumberAsk
-            label="Your floor"
-            placeholder="12"
-            hint="Leave it out and the view and sun rows read unknown."
-            value={inputs.storey}
-            onChange={(v) => set('storey', digits(v))}
-          />
-          <div className="ask ask--wide">
-            <span className="label" id="facing-label">
-              Facing
-            </span>
-            <ToggleGroup
-              aria-labelledby="facing-label"
-              value={inputs.facing ? [inputs.facing] : []}
-              onValueChange={(value) =>
-                set('facing', (value[0] as Facing | undefined) ?? null)
-              }
-              className="compass"
-            >
-              {FACINGS.map((point) => (
-                <Toggle
-                  key={point}
-                  value={point}
-                  className="compass-point"
-                  aria-label={point}
-                >
-                  {point}
-                </Toggle>
-              ))}
-            </ToggleGroup>
-            <span className="hint">HDB does not publish unit orientation.</span>
-          </div>
-        </Asks>
-
         {view.unknown ? (
           <p className="secondary">{view.unknown}</p>
         ) : (
@@ -614,6 +576,9 @@ export function Report({
             slug={report.slug}
             storey={storey}
             facing={facing}
+            maxFloor={report.surroundings.max_floor?.v ?? null}
+            onStorey={(next) => set('storey', next === null ? '' : String(next))}
+            onFacing={(next) => set('facing', next)}
           />
         ) : (
           <p className="secondary">

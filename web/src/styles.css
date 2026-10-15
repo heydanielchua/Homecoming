@@ -1775,3 +1775,57 @@ tbody tr:hover {
     gap: 10px 14px;
   }
 }
+
+/* The floor and the facing, in the panel with the model they move rather than
+   as fields above it. The floor is a slider because it is a thing you sweep
+   through — watching which blocks rise past your eye line is the whole point,
+   and typing 12, then 20, then 28 into a box does not show you that. */
+.massing-sliders--floor {
+  align-items: start;
+}
+
+.massing-facing {
+  display: grid;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.massing-facing-label {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.massing-facing-label b {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* Two rows of four, the same shape as the compass the form used to carry,
+   at the size a control strip can hold. */
+.massing-compass {
+  display: grid;
+  grid-template-columns: repeat(4, 30px);
+  gap: 4px;
+}
+
+.massing-compass button {
+  height: 26px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+}
+
+.massing-compass button[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.massing-compass button:hover:not([aria-pressed='true']) {
+  color: var(--text-primary);
+}
