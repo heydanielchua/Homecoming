@@ -355,6 +355,88 @@ def derive_town_medians(conn: sqlite3.Connection, reporter: SyncReporter | None 
     return len(payload)
 
 
+def sync_outlines(
+    conn: sqlite3.Connection,
+    reporter: SyncReporter,
+    cfg: Config,
+    path: str | None = None,
+    session=None,
+    keep_download: bool = False,
+) -> int:
+    """Fetch HDB building outlines and attach them to the blocks we know.
+
+    Left out of the monthly run for the same reason as the Master Plan: the
+    layer changes when buildings are built, not when flats are sold.
+
+    The join is on the postal code, unique in both tables. A block with no
+    match keeps a null outline rather than borrowing a neighbour's — about one
+    in twenty, mostly blocks this store has no postal code for.
+    """
+    import requests
+
+    from .sources import outline as outline_src
+
+    started = _now()
+    entry = cfg.datasets.get("outlines") or {}
+    resource_id, label = entry.get("id"), entry.get("label")
+
+    if not resource_id or resource_id == TODO:
+        reporter.record(
+            "outlines", "skipped", resource_id=resource_id, label=label,
+            started_at=started,
+            message="resource id still TODO in config/datasets.yml; nothing loaded",
+        )
+        return 0
+
+    local = path
+    downloaded = False
+    try:
+        if not local:
+            session = session or requests.Session()
+            local = str(_fetch_geojson(
+                resource_id, CACHE_DIR / f"{resource_id}.geojson", session))
+            downloaded = True
+        rows = list(outline_src.stream_outlines(local))
+    except Exception as exc:
+        reporter.record(
+            "outlines", "error", resource_id=resource_id, label=label,
+            started_at=started, message=str(exc),
+        )
+        return 0
+    finally:
+        if downloaded and keep_download is False and local:
+            Path(local).unlink(missing_ok=True)
+
+    if not rows:
+        reporter.record(
+            "outlines", "error", resource_id=resource_id, label=label,
+            started_at=started, message="the layer parsed to nothing",
+        )
+        return 0
+
+    with conn:
+        # Cleared first, so a block whose footprint has gone from the layer
+        # loses its outline rather than keeping last year's.
+        conn.execute("UPDATE block SET outline = NULL")
+        conn.executemany(
+            "UPDATE block SET outline = ? WHERE postal = ?",
+            [(shape, postal) for postal, _, shape in rows],
+        )
+
+    matched = conn.execute(
+        "SELECT COUNT(*) FROM block WHERE outline IS NOT NULL").fetchone()[0]
+    total = conn.execute("SELECT COUNT(*) FROM block").fetchone()[0]
+    reporter.record(
+        "outlines", "ok", resource_id=resource_id, label=label,
+        started_at=started, rows=len(rows),
+        message=(
+            f"{matched} of {total} blocks matched a footprint by postal code; "
+            "the rest keep a null outline rather than a neighbour's"
+        ),
+    )
+    return matched
+
+
 def sync_land_use(
     conn: sqlite3.Connection,
     reporter: SyncReporter,
@@ -973,6 +1055,9 @@ def run_sync(
     # that changes once a year.
     if wanted and "rainfall" in wanted:
         sync_rainfall(conn, client, reporter, cfg, limit=limit)
+    # By name only: building outlines change when buildings are built.
+    if wanted and "outlines" in wanted:
+        sync_outlines(conn, reporter, cfg)
     if should("geocode"):
         geocode_offices(conn, cfg, reporter, onemap)
         geocode_blocks(conn, reporter, onemap, limit=limit)

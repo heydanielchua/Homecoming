@@ -16,9 +16,10 @@ log = logging.getLogger("nhf")
 
 STEPS = ["resale", "blocks", "price_index", "town_medians", "rentals",
          "schools", "future_mrt", "geocode", "commute",
-         # Only by name. 174 MB of a plan revised every few years does not
-         # belong in the monthly run, so `nhf sync` skips it.
-         "land_use", "amenities", "rainfall"]
+         # Only by name. A plan revised every few years, a layer of building
+         # outlines that changes when blocks are built, and a year of
+         # five-minute rain readings: none of it belongs in a monthly run.
+         "land_use", "outlines", "amenities", "rainfall"]
 
 
 def _say(*parts) -> None:

@@ -58,6 +58,17 @@ land_use:
   approved: 2025-12-30
   confirmed: true
 
+# HDB building outlines. One polygon per existing public housing building,
+# keyed by postal code, which is what joins it to `block`. No height in it —
+# the storey count comes from HDB Property Information, already loaded above —
+# so the two together are what a building's shape and height are made of.
+# Fetched by name, like the Master Plan: it changes when blocks are built.
+outlines:
+  id: d_16b157c52ed637edd6ba1232e026258d
+  label: HDB Existing Building outlines (GeoJSON, 55 MB)
+  download_host: https://api-open.data.gov.sg/v1/public/api/datasets/{id}/poll-download
+  confirmed: true
+
 # Amenity layers, all GeoJSON and all small, fetched the same way as the land
 # use layer. `Parks` (d_0542d48f0991541706b58059381a6eca) is deliberately not
 # here: it is the same 462 places as the reserves layer, published as points

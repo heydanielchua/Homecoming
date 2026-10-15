@@ -86,6 +86,7 @@ class SiteReport:
     towns_written: int = 0
     zoning_cells: int = 0
     zoning_parcels: int = 0
+    building_cells: int = 0
     index_files: int = 0
     aliases: int = 0
     bytes_written: int = 0
@@ -100,6 +101,7 @@ class SiteReport:
             "towns_written": self.towns_written,
             "zoning_cells": self.zoning_cells,
             "zoning_parcels": self.zoning_parcels,
+            "building_cells": self.building_cells,
             "index_files": self.index_files,
             "aliases": self.aliases,
             "bytes_written": self.bytes_written,
@@ -288,6 +290,67 @@ def zone_group(land_use: str | None) -> str | None:
     return _ZONE_OF.get(use, "civic")
 
 
+def building_cells(conn: sqlite3.Connection) -> Iterator[tuple[str, dict]]:
+    """Yield (cell key, payload) for the HDB buildings in each cell.
+
+    Cut the same way as the zoning, and for the same reason: a building sits
+    near dozens of blocks, so it is written once per cell rather than once per
+    neighbour. Kept in its own file rather than added to the zoning cell,
+    because the flat map never needs it and the 2D reader should not pay for
+    a layer only the 3D view draws.
+
+    Height is storeys times three metres. HDB publishes the storey count and
+    nobody publishes the height, so this is right to about a metre and is not
+    a survey — which is why the payload carries the storeys rather than a
+    height in metres: the reader can see what it was derived from.
+    """
+    cells: dict[tuple[int, int], list] = {}
+    for row in conn.execute(
+        "SELECT block_key, block, street_name, postal, max_floor_lvl, outline "
+        "FROM block WHERE outline IS NOT NULL"
+    ):
+        shape = json.loads(row["outline"])
+        lats, lons = _ring_extent(shape)
+        if not lats:
+            continue
+        building = {
+            # The postal code is the footprint layer's own key and unique in
+            # it, so it is what the browser draws a building once by.
+            "i": row["postal"],
+            "b": row["block"],
+            "m": shape,
+        }
+        if row["max_floor_lvl"]:
+            building["s"] = row["max_floor_lvl"]
+        if row["block"] and row["street_name"]:
+            building["slug"] = block_slug(row["block"], row["street_name"])
+        for y in range(math.floor(min(lats) * ZONING_CELL),
+                       math.floor(max(lats) * ZONING_CELL) + 1):
+            for x in range(math.floor(min(lons) * ZONING_CELL),
+                           math.floor(max(lons) * ZONING_CELL) + 1):
+                cells.setdefault((y, x), []).append(building)
+
+    for (y, x), buildings in sorted(cells.items()):
+        yield f"{y}_{x}", {"cell": [y, x], "buildings": buildings}
+
+
+def _ring_extent(shape: dict) -> tuple[list[float], list[float]]:
+    """Every latitude and longitude in a GeoJSON polygon."""
+    lats: list[float] = []
+    lons: list[float] = []
+
+    def walk(coords) -> None:
+        if coords and isinstance(coords[0], (int, float)):
+            lons.append(coords[0])
+            lats.append(coords[1])
+            return
+        for part in coords or []:
+            walk(part)
+
+    walk(shape.get("coordinates"))
+    return lats, lons
+
+
 def zoning_cells(conn: sqlite3.Connection) -> Iterator[tuple[str, dict]]:
     """Yield (cell key, payload) for every cell with something in it."""
     cells: dict[tuple[int, int], list] = {}
@@ -422,6 +485,12 @@ def build_site(
             "it: run `nhf sync --step land_use` to fetch the parcels"
         )
 
+    # -- the buildings ----------------------------------------------------
+    for key, payload in building_cells(conn):
+        report.bytes_written += _write(out / "buildings" / f"{key}.json", payload)
+        report.building_cells += 1
+    log.info("%s building cells written", report.building_cells)
+
     # -- the sharded alias index ------------------------------------------
     for number, payload in index_payloads(conn, written):
         report.bytes_written += _write(out / "index" / f"{number}.json", payload)
@@ -459,6 +528,7 @@ def build_site(
             "aliases": report.aliases,
             "zoning_cells": report.zoning_cells,
             "zoning_parcels": report.zoning_parcels,
+            "building_cells": report.building_cells,
         },
         "report_window_months": months,
         "towns": sorted(towns),

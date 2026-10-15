@@ -26,7 +26,12 @@ CREATE TABLE IF NOT EXISTS block (
     lon                  REAL,
     postal               TEXT,
     geocode_source       TEXT,
-    geocoded_at          TEXT
+    geocoded_at          TEXT,
+    -- The building's own footprint, simplified, as a GeoJSON geometry. HDB
+    -- publishes an outline per postal code; the storey count beside it here
+    -- is what turns a flat shape into a height. Null where no footprint
+    -- matched, which is about one block in twenty.
+    outline              TEXT
 );
 CREATE INDEX IF NOT EXISTS block_town_idx ON block(town);
 
