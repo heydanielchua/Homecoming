@@ -271,7 +271,7 @@ export function App() {
    * square feet, or a stray zero — leaves the earlier answer standing rather
    * than silently moving the whole Money section to another type.
    */
-  const { flatType, matchedFromSize } = React.useMemo(() => {
+  const { flatType } = React.useMemo(() => {
     if (!report) return { flatType: inputs.flatType, matchedFromSize: false };
     const sizes = Object.entries(report.flat_types)
       .map(([name, s]) => ({
@@ -291,6 +291,27 @@ export function App() {
       matchedFromSize: false,
     };
   }, [report, size, inputs.flatType]);
+
+  /**
+   * What this block's own sales say about a flat of this type.
+   *
+   * These are the figures the header shows the moment a link resolves, which
+   * is the whole point of pasting one: a size and a price without typing
+   * anything. They are HDB's, not the listing's — the portals put neither in
+   * a URL and this page never fetches the listing — so the header says whose
+   * they are rather than passing them off as this unit's.
+   */
+  const money = report && flatType ? report.flat_types[flatType]?.money : null;
+  const medianSqm = money?.median_sqm?.v ?? null;
+  const medianPrice = money?.median_price?.v ?? null;
+  const nSales = money?.n_sales?.v ?? null;
+  const lastSale = money?.last_sale?.v ?? null;
+
+  // A size typed into a shared link wins; otherwise the block's own median.
+  const shownSqm = size ?? medianSqm;
+  // The asking price if there is one, because that is the flat being judged;
+  // the block's median when there is not, so the row is never simply blank.
+  const shownPsf = pricePerSqft(asking ?? medianPrice, shownSqm);
 
   // Keep the carried value in step, so a share link and a saved unit record
   // the type the page is actually showing.
@@ -473,33 +494,43 @@ export function App() {
                   than to the block. Typed, because neither portal puts a
                   price or a floor area in the URL and the page never fetches
                   the listing itself. */}
+              {/* What this block's own sales say about a flat of this
+                  type, filled in the moment a link resolves. The size and
+                  the recent prices are HDB's figures, not the listing's —
+                  neither portal puts either in a URL and the page never
+                  fetches the listing — so they are labelled as what they
+                  are. The asking price is the one thing only the seller
+                  knows, so it is the one thing typed. */}
               <div className="unit-figures">
-                <label className="unit-figure">
+                <div className="unit-figure unit-figure--derived">
                   <span className="unit-figure-label">Size</span>
-                  <span className="unit-figure-input">
-                    <FigureInput
-                      value={inputs.size}
-                      // Never a plausible number. These fields are styled to
-                      // read as the flat's figures, which means a sample
-                      // value in the placeholder reads as the flat's figure
-                      // too: an empty price showed "$ 1,100,000" under a
-                      // block that had no price typed for it at all.
-                      placeholder="—"
-                      group={false}
-                      width="4.5ch"
-                      onChange={(size) => setInputs({ ...inputs, size })}
-                    />
-                    <span className="unit-figure-unit">m²</span>
+                  <span className="unit-figure-value">
+                    {shownSqm !== null ? `${Math.round(shownSqm)} m²` : '—'}
                   </span>
                   <span className="unit-figure-note">
-                    {sqftOf(size) !== null
-                      ? `${Math.round(sqftOf(size)!).toLocaleString()} sq ft`
-                      : 'as the listing states it'}
+                    {shownSqm === null
+                      ? 'no sales to measure'
+                      : `${Math.round(sqftOf(shownSqm)!).toLocaleString()} sq ft · ` +
+                        `typical ${flatType.toLowerCase()} here`}
                   </span>
-                </label>
+                </div>
+
+                <div className="unit-figure unit-figure--derived">
+                  <span className="unit-figure-label">Recent sales</span>
+                  <span className="unit-figure-value">
+                    {medianPrice !== null ? `$${medianPrice.toLocaleString()}` : '—'}
+                  </span>
+                  <span className="unit-figure-note">
+                    {medianPrice === null
+                      ? 'nothing sold here lately'
+                      : `median of ${nSales ?? '?'} ` +
+                        `${nSales === 1 ? 'sale' : 'sales'}` +
+                        `${lastSale ? ` to ${lastSale}` : ''}`}
+                  </span>
+                </div>
 
                 <label className="unit-figure">
-                  <span className="unit-figure-label">Listing price</span>
+                  <span className="unit-figure-label">Asking</span>
                   <span className="unit-figure-input">
                     <span className="unit-figure-unit">$</span>
                     <FigureInput
@@ -512,22 +543,22 @@ export function App() {
                       }
                     />
                   </span>
-                  <span className="unit-figure-note">what is being asked</span>
+                  <span className="unit-figure-note">type what the listing asks</span>
                 </label>
 
                 <div className="unit-figure unit-figure--derived">
                   <span className="unit-figure-label">Per sq ft</span>
                   <span className="unit-figure-value">
-                    {pricePerSqft(asking, size) !== null
-                      ? `$${Math.round(pricePerSqft(asking, size)!).toLocaleString()}`
+                    {shownPsf !== null
+                      ? `$${Math.round(shownPsf).toLocaleString()}`
                       : '—'}
                   </span>
                   <span className="unit-figure-note">
-                    {matchedFromSize
-                      ? `read as a ${flatType.toLowerCase()}`
-                      : flatType
-                        ? `add a size; comparing against ${flatType.toLowerCase()}`
-                        : 'size and price'}
+                    {shownPsf === null
+                      ? 'needs a size and a price'
+                      : asking !== null
+                        ? 'from the asking price'
+                        : 'from recent sales here'}
                   </span>
                 </div>
               </div>
