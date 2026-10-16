@@ -89,12 +89,21 @@ function FigureInput({
   placeholder,
   group,
   width,
+  label,
 }: {
   value: string;
   onChange: (next: string) => void;
   placeholder: string;
   group: boolean;
   width: string;
+  /**
+   * What this figure is, for a screen reader.
+   *
+   * The visible label sits above as part of the figure's heading, which a
+   * sighted reader takes in at a glance and a screen reader does not: the
+   * control itself announced as "edit text, blank" and nothing more.
+   */
+  label: string;
 }) {
   const [editing, setEditing] = React.useState(false);
   const shown =
@@ -103,6 +112,7 @@ function FigureInput({
     <input
       className="input"
       inputMode="numeric"
+      aria-label={label}
       style={{ width }}
       placeholder={placeholder}
       value={shown}
@@ -727,6 +737,7 @@ export function App() {
                     <span className="unit-figure-unit">$</span>
                     <FigureInput
                       value={inputs.asking}
+                      label="Asking price in dollars"
                       placeholder="—"
                       group
                       width="10ch"

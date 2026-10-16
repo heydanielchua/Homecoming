@@ -60,6 +60,12 @@
   /* Near-black, not lime: a lime ring on a white card is under 1.5:1. */
   --focus: #010101;
 
+  /* Ink for the two map pins whose fills are light enough to need dark type.
+     These were literals sitting in the rules that used them, which is the one
+     way a colour escapes the theme: it cannot be redefined for dark. */
+  --pin-4-ink: #1a1200;
+  --pin-5-ink: #2a0d18;
+
   --radius: 20px;
   --radius-sm: 12px;
   --radius-pill: 999px;
@@ -905,8 +911,8 @@ button {
 .map-pin--1 { background: var(--pin-1); }
 .map-pin--2 { background: var(--pin-2); }
 .map-pin--3 { background: var(--pin-3); }
-.map-pin--4 { background: var(--pin-4); color: #1a1200; }
-.map-pin--5 { background: var(--pin-5); color: #2a0d18; }
+.map-pin--4 { background: var(--pin-4); color: var(--pin-4-ink); }
+.map-pin--5 { background: var(--pin-5); color: var(--pin-5-ink); }
 .map-pin--6 { background: var(--pin-6); }
 .map-pin--7 { background: var(--pin-7); }
 
@@ -1419,10 +1425,15 @@ tbody tr:hover {
   --zone-civic: #8d8d8d;
   --zone-civic-line: #6f6f6f;
   /* Ground, not zoning. Only the massing draws these — the flat map leaves
-     them to its basemap — so they live here and not beside the map's. A road
-     is lighter than the ground it cuts through, which is how a street reads
-     as a street rather than as another parcel. */
-  --zone-road: #efeeeb;
+     them to its basemap — so they live here and not beside the map's.
+     Asphalt, and darker than everything it runs between. It used to be the
+     palest thing in the model, a shade off white on pale ground, which made
+     a road the one feature you could not pick out — and a road network is
+     how anybody works out which way they are looking. Dark enough to carry
+     light type, and warm and deep enough not to be mistaken for the grey
+     that civic land is drawn in. */
+  --zone-road: #6b665d;
+  --massing-road-ink: #f4f3f1;
   --zone-water: #a9c6d6;
   /* The permitted envelope, in one ink rather than the colour of the land
      it stands on. It has to read against pale residential ground and strong
@@ -1553,42 +1564,249 @@ tbody tr:hover {
   margin-top: 10px;
 }
 
-.massing-check {
-  display: inline-flex;
+/* The sun switch. The browser's own checkbox paints itself the operating
+   system's blue, which is the one colour on this page that belongs to no
+   token and matches nothing around it. */
+.massing-switch-row {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.85rem;
-  color: var(--text-secondary);
+  gap: 9px;
+  flex: 0 0 auto;
 }
 
-/* Its own line. Wedged between the checkbox and the reset button the two
-   sliders got about 90px each, which is not enough to put a thumb on. */
-.massing-sliders {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
+.massing-switch {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 24px;
+  padding: 2px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+
+.massing-switch[data-checked] {
+  background: var(--accent);
+}
+
+.massing-switch-thumb {
+  display: block;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface-1);
+  box-shadow: 0 1px 2px rgba(1, 1, 1, 0.2);
+  transition: translate 160ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.massing-switch-thumb[data-checked] {
+  translate: 16px 0;
+}
+
+.massing-switch-label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Every control on one grid. Two cells across on a desktop and one on a
+   phone, each cell the same width and the same height, so the floor, the
+   facing, the month and the time read as four of a kind rather than as four
+   different fittings that happened to end up on the same shelf. */
+.massing-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 28px;
   flex: 1 0 100%;
   min-width: 0;
   order: 1;
+  margin-top: 2px;
 }
 
-.massing-sliders label {
+.massing-cell {
   display: grid;
-  gap: 2px;
-  flex: 1 1 110px;
+  grid-template-rows: auto 1fr;
+  gap: 7px;
   min-width: 0;
+}
+
+/* Label left, value right, on one line. The value is the thing you are
+   watching while you drag, so it sits at the end of the line where the eye
+   returns, not buried in a sentence after the label. */
+.massing-cell-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
   font-size: 0.78rem;
+  line-height: 1.2;
+}
+
+.massing-cell-label {
   color: var(--text-secondary);
 }
 
-.massing-sliders b {
+.massing-cell-value {
   color: var(--text-primary);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
-.massing-sliders input[type='range'] {
+/* One slider, drawn by us rather than by four browsers differently. A hit
+   area taller than the track it draws, because a 4px line is not something
+   anybody can put a finger on. */
+.slider {
+  display: block;
   width: 100%;
-  accent-color: var(--accent);
+  align-self: center;
+}
+
+.slider-control {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 28px;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.slider-track {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+}
+
+.slider-indicator {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+}
+
+.slider-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--surface-1);
+  box-shadow:
+    0 0 0 1px var(--border-strong),
+    0 1px 3px rgba(1, 1, 1, 0.18);
+  transition: scale 140ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.slider-control:hover .slider-thumb,
+.slider-thumb[data-dragging] {
+  scale: 1.12;
+}
+
+.slider-thumb:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+/* Eight across, filling the cell, so the facing occupies the same strip a
+   slider does. Two rows of four sat in the corner looked like a keypad that
+   had been left over. */
+.massing-compass {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 4px;
+  align-self: center;
+}
+
+.massing-compass button {
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  padding: 0;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.massing-compass button[data-pressed] {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.massing-compass button:hover:not([data-pressed]) {
+  background: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.massing-compass button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Targets a thumb can land on. 38px is comfortably clickable with a mouse
+   and under the 44px both Apple and Google set for touch, which is not a
+   rounding argument: the quiet buttons and the tabs are exactly the controls
+   somebody uses one-handed on a bus. */
+@media (max-width: 560px) {
+  .button--quiet,
+  .tab {
+    min-height: 44px;
+  }
+
+}
+
+/* One column on a phone, and every target grown to something a thumb can
+   actually land on. Eight compass buttons across 358px leaves 44px each,
+   which is the floor Apple and Google both set and the reason this row is
+   eight wide rather than, say, twelve. */
+@media (max-width: 560px) {
+  .massing-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .massing-compass button {
+    height: 44px;
+    font-size: 0.78rem;
+  }
+
+  .slider-control {
+    height: 44px;
+  }
+
+  .massing-switch {
+    width: 46px;
+    height: 28px;
+  }
+
+  .massing-switch-thumb {
+    width: 24px;
+    height: 24px;
+  }
+
+  .massing-switch-thumb[data-checked] {
+    translate: 18px 0;
+  }
+}
+
+/* The stylesheet already drops every transition under reduced motion, but a
+   thumb that grows on hover does not need one to move: the scale applies at
+   once whether it is animated or not. So the growth itself goes, rather than
+   just the easing on it. */
+@media (prefers-reduced-motion: reduce) {
+  .slider-control:hover .slider-thumb,
+  .slider-thumb[data-dragging] {
+    scale: 1;
+  }
 }
 
 .massing-reset {
@@ -1891,56 +2109,30 @@ tbody tr:hover {
   }
 }
 
-/* The floor and the facing, in the panel with the model they move rather than
-   as fields above it. The floor is a slider because it is a thing you sweep
-   through — watching which blocks rise past your eye line is the whole point,
-   and typing 12, then 20, then 28 into a box does not show you that. */
-.massing-sliders--floor {
-  align-items: start;
-}
+/* Phone-width hit targets, last in the file on purpose.
+ *
+ * These override rules that set `padding: 0` and fixed heights further up,
+ * and at equal specificity the later rule is the one that wins — placed with
+ * the rest of the responsive work higher in the stylesheet they lost
+ * silently, which is the sort of thing that reads as correct in the source
+ * and measures 23px in the browser.
+ */
+@media (max-width: 560px) {
+  /* A figure written rather than asked for still has to be tappable. The
+     padding grows the target without moving the number, which stays on the
+     baseline it shares with the derived figures beside it. */
+  .unit-figure-input .input,
+  .unit-figure .input {
+    padding-block: 11px;
+  }
 
-.massing-facing {
-  display: grid;
-  gap: 4px;
-  flex: 0 0 auto;
-}
-
-.massing-facing-label {
-  font-size: 0.78rem;
-  color: var(--text-secondary);
-}
-
-.massing-facing-label b {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-/* Two rows of four, the same shape as the compass the form used to carry,
-   at the size a control strip can hold. */
-.massing-compass {
-  display: grid;
-  grid-template-columns: repeat(4, 30px);
-  gap: 4px;
-}
-
-.massing-compass button {
-  height: 26px;
-  border: 0;
-  border-radius: var(--radius-pill);
-  background: var(--surface-sunken);
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: 0.72rem;
-  font-weight: 500;
-  cursor: pointer;
-  padding: 0;
-}
-
-.massing-compass button[aria-pressed='true'] {
-  background: var(--accent);
-  color: var(--accent-ink);
-}
-
-.massing-compass button:hover:not([aria-pressed='true']) {
-  color: var(--text-primary);
+  /* 44px exactly, not 43.5: the fractional height a line-height happened to
+     land on is still a miss. */
+  .input,
+  .button,
+  .button--primary,
+  .button--quiet,
+  .tab {
+    min-height: 44px;
+  }
 }

@@ -22,7 +22,12 @@
  */
 
 import * as React from 'react';
+import { Slider } from '@base-ui/react/slider';
+import { Switch } from '@base-ui/react/switch';
+import { Toggle } from '@base-ui/react/toggle';
+import { ToggleGroup } from '@base-ui/react/toggle-group';
 
+import { streetOf } from '../lib/street';
 import { fetchBuildings, fetchZoning, zoningKeysFor } from '../lib/data';
 import {
   EYE_HEIGHT_M,
@@ -56,6 +61,23 @@ const RADIUS_M = 450;
 /** Compass bearings, for the facing wedge. Mirrors FACINGS in nhf/sun.py. */
 const BEARINGS: Record<Facing, number> = {
   N: 0, NE: 45, E: 90, SE: 135, S: 180, SW: 225, W: 270, NW: 315,
+};
+
+/**
+ * The compass points spelled out, for the buttons' accessible names.
+ *
+ * A screen reader says "N" as the letter en, which is not a direction. The
+ * visible label stays short because eight of them share one row.
+ */
+const FACING_NAMES: Record<Facing, string> = {
+  N: 'North',
+  NE: 'North-east',
+  E: 'East',
+  SE: 'South-east',
+  S: 'South',
+  SW: 'South-west',
+  W: 'West',
+  NW: 'North-west',
 };
 
 const MONTHS = [
@@ -296,81 +318,143 @@ export function Massing({
           </button>
         </div>
 
-        <label className="massing-check">
-          <input
-            type="checkbox"
+        {/* The switch and its words are one thing and must wrap as one. Left
+            to the flex row they came apart at phone width — the switch
+            stranded on the line above, its label sitting under the
+            segmented control looking like a heading for it. */}
+        <div className="massing-switch-row">
+          <Switch.Root
+            className="massing-switch"
             checked={sunOn}
-            onChange={(e) => setSunOn(e.target.checked)}
-          />
-          Afternoon sun
-        </label>
-
-        <div className="massing-sliders massing-sliders--floor">
-          <label>
-            <span>
-              Your floor <b>{storey === null ? '—' : `#${storey}`}</b>
-            </span>
-            <input
-              type="range"
-              min={1}
-              max={top}
-              value={storey ?? restingFloor}
-              onChange={(e) => onStorey(Number(e.target.value))}
-            />
-          </label>
-
-          <div className="massing-facing">
-            <span className="massing-facing-label" id="massing-facing">
-              Facing <b>{facing ?? '—'}</b>
-            </span>
-            <div
-              className="massing-compass"
-              role="group"
-              aria-labelledby="massing-facing"
-            >
-              {FACINGS.map((point) => (
-                <button
-                  key={point}
-                  type="button"
-                  aria-pressed={facing === point}
-                  aria-label={point}
-                  onClick={() => onFacing(facing === point ? null : point)}
-                >
-                  {point}
-                </button>
-              ))}
-            </div>
-          </div>
+            onCheckedChange={setSunOn}
+            aria-labelledby="massing-sun-label"
+          >
+            <Switch.Thumb className="massing-switch-thumb" />
+          </Switch.Root>
+          <span
+            className="massing-switch-label"
+            id="massing-sun-label"
+            onClick={() => setSunOn(!sunOn)}
+          >
+            Afternoon sun
+          </span>
         </div>
 
-        {sunOn ? (
-          <div className="massing-sliders">
-            <label>
-              <span>
-                Month <b>{MONTHS[month - 1]}</b>
+        {/* One grid, four cells, every cell the same shape: a label and its
+            value on one line, the control under it at one height. The floor
+            used to run the full width with the eight facing buttons crushed
+            into a corner beside it, and the month and time below at two more
+            widths again — four controls, four different footprints, nothing
+            lining up with anything. They are all the same size now, so the
+            eye can move down a column instead of hunting. */}
+        <div className="massing-grid">
+          <div className="massing-cell">
+            <span className="massing-cell-head" id="massing-floor-label">
+              <span className="massing-cell-label">Your floor</span>
+              <span className="massing-cell-value">
+                {storey === null ? '—' : `#${storey}`}
               </span>
-              <input
-                type="range"
-                min={1}
-                max={12}
-                value={month}
-                onChange={(e) => setMonth(Number(e.target.value))}
-              />
-            </label>
-            <label>
-              <span>
-                Time <b>{clockOf(hour)}</b>
-              </span>
-              <input
-                type="range"
-                min={0}
-                max={hours.length - 1}
-                value={Math.max(0, hours.indexOf(hour))}
-                onChange={(e) => setHour(hours[Number(e.target.value)] ?? 17)}
-              />
-            </label>
+            </span>
+            <Slider.Root
+              className="slider"
+              value={storey ?? restingFloor}
+              min={1}
+              max={top}
+              onValueChange={(value) => onStorey(Number(value))}
+            >
+              <Slider.Control className="slider-control">
+                <Slider.Track className="slider-track">
+                  <Slider.Indicator className="slider-indicator" />
+                  <Slider.Thumb
+                    className="slider-thumb"
+                    aria-labelledby="massing-floor-label"
+                  />
+                </Slider.Track>
+              </Slider.Control>
+            </Slider.Root>
           </div>
-        ) : null}
+
+          <div className="massing-cell">
+            <span className="massing-cell-head" id="massing-facing">
+              <span className="massing-cell-label">Facing</span>
+              <span className="massing-cell-value">{facing ?? '—'}</span>
+            </span>
+            {/* One row of eight, so the facing has a slider's footprint
+                rather than a keypad's. A toggle group rather than eight
+                buttons: the arrow keys walk the compass, which is what
+                somebody comparing two aspects actually does. */}
+            <ToggleGroup
+              className="massing-compass"
+              aria-labelledby="massing-facing"
+              value={facing ? [facing] : []}
+              onValueChange={(groupValue) => {
+                const next = groupValue[groupValue.length - 1];
+                onFacing((next as Facing | undefined) ?? null);
+              }}
+              multiple={false}
+            >
+              {FACINGS.map((point) => (
+                <Toggle key={point} value={point} aria-label={FACING_NAMES[point]}>
+                  {point}
+                </Toggle>
+              ))}
+            </ToggleGroup>
+          </div>
+
+          {sunOn ? (
+            <>
+              <div className="massing-cell">
+                <span className="massing-cell-head" id="massing-month">
+                  <span className="massing-cell-label">Month</span>
+                  <span className="massing-cell-value">{MONTHS[month - 1]}</span>
+                </span>
+                <Slider.Root
+                  className="slider"
+                  value={month}
+                  min={1}
+                  max={12}
+                  onValueChange={(value) => setMonth(Number(value))}
+                >
+                  <Slider.Control className="slider-control">
+                    <Slider.Track className="slider-track">
+                      <Slider.Indicator className="slider-indicator" />
+                      <Slider.Thumb
+                        className="slider-thumb"
+                        aria-labelledby="massing-month"
+                      />
+                    </Slider.Track>
+                  </Slider.Control>
+                </Slider.Root>
+              </div>
+
+              <div className="massing-cell">
+                <span className="massing-cell-head" id="massing-time">
+                  <span className="massing-cell-label">Time</span>
+                  <span className="massing-cell-value">{clockOf(hour)}</span>
+                </span>
+                <Slider.Root
+                  className="slider"
+                  value={Math.max(0, hours.indexOf(hour))}
+                  min={0}
+                  max={hours.length - 1}
+                  onValueChange={(value) =>
+                    setHour(hours[Number(value)] ?? 17)
+                  }
+                >
+                  <Slider.Control className="slider-control">
+                    <Slider.Track className="slider-track">
+                      <Slider.Indicator className="slider-indicator" />
+                      <Slider.Thumb
+                        className="slider-thumb"
+                        aria-labelledby="massing-time"
+                      />
+                    </Slider.Track>
+                  </Slider.Control>
+                </Slider.Root>
+              </div>
+            </>
+          ) : null}
+        </div>
 
         <button
           type="button"
@@ -407,7 +491,7 @@ export function Massing({
 
       <p className="muted massing-legend">
         {eye === null
-          ? 'Type a floor and the plane through the model becomes your eye line: anything above it can block the view.'
+          ? 'Drag the floor slider and the plane through the model moves with it: that is your eye line, and anything above it can block the view.'
           : `The plane is your eye line on floor ${storey}, ${Math.round(eye)} m up. Anything above it can block the view.`}
         {layer === 'worst' && summary ? ` ${summary}` : ''}
       </p>
@@ -605,6 +689,182 @@ async function build(
       groupNode.add(new THREE.Mesh(geom, material));
     }
     zoning.add(groupNode);
+  }
+
+  // --- street names on the roads -------------------------------------------
+  // What orients somebody looking down at an estate is knowing which road is
+  // which, and the Master Plan does not name them: every road polygon is
+  // labelled "Road" and nothing more. The names are in the building data
+  // instead, in HDB's own slugs, so a street is named here by the blocks
+  // addressed on it and the label is laid on the nearest road surface to
+  // them.
+  //
+  // That is an inference, so it is kept a conservative one. A street needs
+  // two blocks in view before it is named at all — one block is a corner, not
+  // a frontage — the road surface has to be close enough to be that street's,
+  // and only the few nearest the middle are drawn, because a dozen names over
+  // an estate is a harder picture to read than none.
+  const STREET_MIN_BLOCKS = 2;
+  const STREET_MAX_ROAD_M = 150;
+  const STREET_MAX_LABELS = 7;
+
+  const ringCentroid = (geom: Geom): [number, number] | null => {
+    const ring = polygons(geom)[0]?.[0];
+    if (!ring?.length) return null;
+    let sx = 0;
+    let sy = 0;
+    for (const [lo, la] of ring) {
+      const [x, y] = project(lo, la);
+      sx += x;
+      sy += y;
+    }
+    return [sx / ring.length, sy / ring.length];
+  };
+
+  const roadPoints: [number, number][] = [];
+  for (const p of parcels) {
+    if (p.g !== 'road') continue;
+    for (const rings of polygons(p.m as Geom)) {
+      for (const [lo, la] of rings[0] ?? []) roadPoints.push(project(lo, la));
+    }
+  }
+
+  const blockCentres: [number, number][] = [];
+  const streetBlocks = new Map<string, [number, number][]>();
+  for (const b of buildings) {
+    const centre = ringCentroid(b.m as Geom);
+    if (!centre) continue;
+    // Every block counts for clearance, including one whose street could not
+    // be read: it still stands in the way of a name laid under it.
+    blockCentres.push(centre);
+    const name = streetOf(b.slug ?? '', b.b ?? '');
+    if (!name) continue;
+    const list = streetBlocks.get(name);
+    if (list) list.push(centre);
+    else streetBlocks.set(name, [centre]);
+  }
+
+  /** A label drawn into a canvas, so no font has to be loaded to draw text. */
+  function streetLabel(text: string): InstanceType<typeof THREE.Mesh> | null {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    const FONT = '600 64px ui-sans-serif, system-ui, -apple-system, sans-serif';
+    ctx.font = FONT;
+    const width = Math.ceil(ctx.measureText(text).width);
+    canvas.width = width + 56;
+    canvas.height = 128;
+    // Setting the size clears everything the context was told, the font
+    // included, so it is set again here rather than above.
+    ctx.font = FONT;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.letterSpacing = '2px';
+    // A dark halo under light type: the name has to hold up over asphalt,
+    // over the pale ground where a junction opens out, and over a building
+    // that the camera happens to put behind it.
+    ctx.lineWidth = 6;
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(12, 12, 12, 0.42)';
+    ctx.strokeText(text, canvas.width / 2, canvas.height / 2);
+    ctx.fillStyle = css('--massing-road-ink') || '#f4f3f1';
+    ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    texture.colorSpace = THREE.SRGBColorSpace;
+    // Big enough to survive the camera's tilt. A label lying on the ground is
+    // foreshortened to about half its height at the angle this view opens at,
+    // so type sized to look right from directly above is unreadable here.
+    const M_PER_PX = 0.3;
+    const geom = new THREE.PlaneGeometry(
+      canvas.width * M_PER_PX,
+      canvas.height * M_PER_PX,
+    );
+    geom.rotateX(-Math.PI / 2);
+    return new THREE.Mesh(
+      geom,
+      new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        depthWrite: false,
+      }),
+    );
+  }
+
+  if (roadPoints.length) {
+    const placed: {
+      name: string;
+      at: [number, number];
+      angle: number;
+      from: number;
+    }[] = [];
+
+    for (const [name, blocks] of streetBlocks) {
+      if (blocks.length < STREET_MIN_BLOCKS) continue;
+      const cx = blocks.reduce((sum, b) => sum + b[0], 0) / blocks.length;
+      const cy = blocks.reduce((sum, b) => sum + b[1], 0) / blocks.length;
+
+      // The blocks on a street are strung along it, so the line through them
+      // is the line of the road. This is the major axis of their spread — the
+      // halved atan2 keeps it in a quarter turn either side of east, which
+      // also keeps the text the right way up.
+      let sxx = 0;
+      let syy = 0;
+      let sxy = 0;
+      for (const [x, y] of blocks) {
+        sxx += (x - cx) * (x - cx);
+        syy += (y - cy) * (y - cy);
+        sxy += (x - cx) * (y - cy);
+      }
+      const angle = 0.5 * Math.atan2(2 * sxy, sxx - syy);
+
+      // Of the road near these blocks, the most open stretch of it. Taking
+      // the nearest point put the name hard against the blocks that gave it,
+      // where from any angle but straight down a tower stands over the middle
+      // of the word. Clearance from the nearest building is what decides it,
+      // out of everything close enough to still be this street.
+      let best: [number, number] | null = null;
+      let bestClearance = -1;
+      let nearest = Infinity;
+      for (const point of roadPoints) {
+        const [x, y] = point;
+        const reach = Math.hypot(x - cx, y - cy);
+        nearest = Math.min(nearest, reach);
+        if (reach > STREET_MAX_ROAD_M) continue;
+        let clearance = Infinity;
+        for (const [bx, by] of blockCentres) {
+          clearance = Math.min(clearance, Math.hypot(x - bx, y - by));
+        }
+        if (clearance > bestClearance) {
+          bestClearance = clearance;
+          best = point;
+        }
+      }
+      if (!best || nearest > STREET_MAX_ROAD_M) continue;
+      placed.push({
+        name,
+        at: best,
+        angle,
+        from: Math.hypot(cx, cy),
+      });
+    }
+
+    const labels = new THREE.Group();
+    labels.name = 'streets';
+    for (const label of placed
+      .sort((a, b) => a.from - b.from)
+      .slice(0, STREET_MAX_LABELS)) {
+      const mesh = streetLabel(label.name);
+      if (!mesh) continue;
+      // The shapes were rotated so that a parcel's northward axis became
+      // -z; a label laid the same way turns about y by the road's own angle.
+      mesh.position.set(label.at[0], 0.6, -label.at[1]);
+      mesh.rotation.y = label.angle;
+      mesh.renderOrder = 2;
+      labels.add(mesh);
+    }
+    world.add(labels);
   }
 
   // --- what stands ---------------------------------------------------------
