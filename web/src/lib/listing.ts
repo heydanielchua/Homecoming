@@ -22,6 +22,8 @@
  * safe to trust: a figure that agrees with the other two was not a guess.
  */
 
+import { SQFT_PER_SQM } from './unit';
+
 export interface ListingFigures {
   /** Asking price in dollars, or null if nothing in the text was convincing. */
   price: number | null;
@@ -35,7 +37,7 @@ export interface ListingFigures {
   url: string | null;
 }
 
-export const SQFT_PER_SQM = 10.7639;
+export { SQFT_PER_SQM } from './unit';
 
 /**
  * The narrowest and widest a resale flat can plausibly be asked for. Below

@@ -27,7 +27,8 @@
 
 import * as React from 'react';
 
-import { quarter as formatQuarter, moneyExact } from '../lib/format';
+import { quarter as formatQuarter } from '../lib/format';
+import { psfOf } from '../lib/units';
 import type { TrendPoint } from '../lib/types';
 
 /** One line's worth of data, after indexing. */
@@ -338,7 +339,7 @@ export function TrendChart({
                     <span className="readout-name">
                       {s.name}
                       {point && s.key !== 'national'
-                        ? ` · ${moneyExact(point.raw)}/m²`
+                        ? ` · ${psfOf(point.raw)}`
                         : ''}
                     </span>
                   </span>
@@ -397,7 +398,7 @@ export function TrendChart({
                             {s.key !== 'national' ? (
                               <span className="muted">
                                 {' '}
-                                {moneyExact(point.raw)}
+                                {psfOf(point.raw)}
                               </span>
                             ) : null}
                           </>

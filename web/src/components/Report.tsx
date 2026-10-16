@@ -15,6 +15,7 @@ import { Accordion } from '@base-ui/react/accordion';
 
 import { metres, money, month, percent, range, titleCase, walk } from '../lib/format';
 import { exposure, monthName, type Obstruction } from '../lib/sun';
+import { areaSqft, psfBare, psfOf } from '../lib/units';
 import { obstructionsFor, viewFrom } from '../lib/view';
 import type {
   BlockReport,
@@ -94,7 +95,7 @@ function sizeText(size: number | undefined, kind: SizeKind): string | null {
   const hectares = size / 10_000;
   return hectares >= 1
     ? `${hectares.toFixed(hectares < 10 ? 1 : 0)} hectares`
-    : `${Math.round(size).toLocaleString('en-SG')} m²`;
+    : `${Math.round(size).toLocaleString('en-SG')} sqm`;
 }
 
 function PlaceRow({
@@ -268,8 +269,16 @@ export function Report({
         <div className="figures" style={{ marginTop: 12 }}>
           <Figure label="Sales in 24 months" figure={m.n_sales} />
           <Figure label="Median sale" figure={m.median_price} />
-          <Figure label="Price per m²" figure={m.median_psm} />
-          <Figure label={`${titleCase(report.town)} median per m²`} figure={m.town_median_psm} />
+          <Figure
+            label="Price/sqft"
+            figure={m.median_psm}
+            format={(psm) => psfOf(psm) ?? '—'}
+          />
+          <Figure
+            label={`${titleCase(report.town)} median`}
+            figure={m.town_median_psm}
+            format={(psm) => psfOf(psm) ?? '—'}
+          />
           <Figure label="Against its town" figure={m.vs_town_pct} />
           {m.last_sale ? <Figure label="Last sale" figure={m.last_sale} /> : null}
         </div>
@@ -295,7 +304,7 @@ export function Report({
                   <th scope="col">Floor</th>
                   <th scope="col" className="num">Size</th>
                   <th scope="col" className="num">Price</th>
-                  <th scope="col" className="num">Per m²</th>
+                  <th scope="col" className="num">Per sqft</th>
                   <th scope="col" className="num">Lease left</th>
                 </tr>
               </thead>
@@ -304,11 +313,9 @@ export function Report({
                   <tr key={`${sale.month}-${sale.price}-${i}`}>
                     <th scope="row">{month(sale.month)}</th>
                     <td>{sale.storey}</td>
-                    <td className="num">{sale.sqm ? `${sale.sqm} m²` : '—'}</td>
+                    <td className="num">{areaSqft(sale.sqm) ?? '—'}</td>
                     <td className="num">{money(sale.price)}</td>
-                    <td className="num">
-                      {sale.psm ? money(sale.psm) : '—'}
-                    </td>
+                    <td className="num">{psfBare(sale.psm) ?? '—'}</td>
                     <td className="num">
                       {sale.lease_months
                         ? `${Math.floor(sale.lease_months / 12)} yr`
@@ -533,7 +540,7 @@ export function Report({
           </p>
         ) : report.surroundings.parcels.length === 0 ? (
           <p className="secondary">
-            No undeveloped or redevelopable parcel over 1,000 m² within 300 m.
+            No undeveloped or redevelopable parcel over 1,000 sqm within 300 m.
           </p>
         ) : (
           <div className="table-scroll">

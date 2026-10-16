@@ -31,7 +31,8 @@ import { resolveAddress, resolveLink, type Resolution } from './lib/resolve';
 import { describeUnit, loadSaved, remove, storeSaved, upsert } from './lib/saved';
 import { readHandoff } from './lib/handoff';
 import { readShared, replaceHash, shareLink } from './lib/share';
-import { flatTypeForSize, pricePerSqft, sqftOf } from './lib/unit';
+import { flatTypeForSize, pricePerSqft } from './lib/unit';
+import { areaSqft, areaSqm } from './lib/units';
 import type {
   BlockReport,
   Facing,
@@ -449,12 +450,12 @@ export function App() {
       const sqm = Math.round(details.floorAreaSqft / SQFT_PER_SQM);
       add(
         'Floor area',
-        `${details.floorAreaSqft.toLocaleString()} sqft · ${sqm} m²`,
+        `${details.floorAreaSqft.toLocaleString()} sqft · ${sqm} sqm`,
         // HDB's figure comes from the last comparable sale in the block, so
         // a flat that is a few square metres off its neighbours is worth
         // saying out loud rather than rounding away.
         shownSqm !== null && Math.abs(sqm - Math.round(shownSqm)) >= 2
-          ? `${Math.round(shownSqm)} m²`
+          ? `${Math.round(shownSqm)} sqm`
           : undefined,
       );
     }
@@ -705,15 +706,14 @@ export function App() {
                   knows, so it is the one thing typed. */}
               <div className="unit-figures">
                 <div className="unit-figure unit-figure--derived">
-                  <span className="unit-figure-label">Size</span>
+                  <span className="unit-figure-label">Floor area</span>
                   <span className="unit-figure-value">
-                    {shownSqm !== null ? `${Math.round(shownSqm)} m²` : '—'}
+                    {areaSqft(shownSqm) ?? '—'}
                   </span>
                   <span className="unit-figure-note">
                     {shownSqm === null
                       ? 'no sales to measure'
-                      : `${Math.round(sqftOf(shownSqm)!).toLocaleString()} sq ft · ` +
-                        `typical ${flatType.toLowerCase()} here`}
+                      : `${areaSqm(shownSqm)} · typical ${flatType.toLowerCase()} here`}
                   </span>
                 </div>
 
@@ -755,7 +755,7 @@ export function App() {
                 </label>
 
                 <div className="unit-figure unit-figure--derived">
-                  <span className="unit-figure-label">Per sq ft</span>
+                  <span className="unit-figure-label">Price/sqft</span>
                   <span className="unit-figure-value">
                     {shownPsf !== null
                       ? `$${Math.round(shownPsf).toLocaleString()}`

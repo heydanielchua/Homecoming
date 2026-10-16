@@ -21,6 +21,7 @@ import * as React from 'react';
 import { Collapsible } from '@base-ui/react/collapsible';
 
 import { metres, money, percent, titleCase } from '../lib/format';
+import { psfOf } from '../lib/units';
 import { exposure } from '../lib/sun';
 import { obstructionsFor, viewFrom } from '../lib/view';
 import type { BlockReport, Meta, SavedUnit, TownReport } from '../lib/types';
@@ -135,23 +136,24 @@ function buildGroups(units: LoadedUnit[], meta: Meta): Group[] {
           ),
         },
         {
-          label: 'Asking per m²',
+          label: 'Asking psf',
           better: 'low',
           cells: per.map((u) => {
             const sqm = u.section?.money.median_sqm?.v ?? null;
             if (!u.unit.asking || !sqm) return nothing;
             const psm = u.unit.asking / sqm;
-            return cell(`${money(psm)}/m²`, psm);
+            // Sorted on the metric figure and shown in feet: the ordering is
+            // the same either way and the conversion is exact, so there is
+            // nothing to be gained by rounding before comparing.
+            return cell(psfOf(psm), psm);
           }),
         },
         {
-          label: 'Block median per m²',
+          label: 'Block median psf',
           better: 'low',
           cells: per.map((u) =>
             cell(
-              u.section?.money.median_psm.v
-                ? `${money(u.section.money.median_psm.v)}/m²`
-                : null,
+              psfOf(u.section?.money.median_psm.v),
               u.section?.money.median_psm.v ?? null,
             ),
           ),
