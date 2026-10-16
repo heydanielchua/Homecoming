@@ -17,11 +17,13 @@
  * The block and street fields stay here, because they are not details about a
  * unit — they are the other way of saying which block, for a link that did
  * not resolve.
+ *
+ * Reading a pasted listing is not done here either. It is handled for the
+ * whole page in App, so that a paste which misses this box still counts.
  */
 
 import { Field } from '@base-ui/react/field';
 
-import { extractListing, isBareLink } from '../lib/listing';
 import type { Facing } from '../lib/types';
 
 export interface Inputs {
@@ -51,8 +53,6 @@ interface Props {
   inputs: Inputs;
   onChange: (next: Inputs) => void;
   onSubmit: () => void;
-  /** Figures read out of a pasted listing, when the paste carried any. */
-  onListing: (found: { price: number | null; flatType: string | null }) => void;
   busy: boolean;
   /** Set when the link could not be resolved, so the fallback fields show. */
   needsAddress: boolean;
@@ -67,7 +67,6 @@ export function UnitForm({
   inputs,
   onChange,
   onSubmit,
-  onListing,
   busy,
   needsAddress,
   onUseAddress,
@@ -100,24 +99,11 @@ export function UnitForm({
             placeholder="https://www.99.co/singapore/sale/property/…"
             value={inputs.link}
             onChange={(event) => onChange({ ...inputs, link: event.target.value })}
-            onPaste={(event) => {
-              // A link pasted on its own is the common case and goes through
-              // untouched. Anything longer is the listing itself, and the
-              // asking price is in it — which is the only way this page can
-              // ever know a price, since it cannot fetch the listing and the
-              // URL does not carry one.
-              const text = event.clipboardData.getData('text');
-              if (!text || isBareLink(text)) return;
-              const found = extractListing(text);
-              if (found.price === null && found.url === null) return;
-              event.preventDefault();
-              onChange({ ...inputs, link: found.url ?? inputs.link });
-              onListing({ price: found.price, flatType: found.flatType });
-            }}
           />
           <Field.Description className="hint">
-            Paste the link, or the whole listing to read its asking price off
-            it. The page is never fetched — only what you paste is read.
+            The link gives the block. Paste the whole listing instead — select
+            all of it on the portal and copy — and the asking price is read
+            off it too. The page itself is never fetched.
           </Field.Description>
         </Field.Root>
 

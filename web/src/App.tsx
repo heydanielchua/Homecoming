@@ -19,6 +19,7 @@ import { Tooltip } from '@base-ui/react/tooltip';
 
 import { ageInDays, fetchBlock, fetchManifest, fetchMeta, fetchShard, fetchTown } from './lib/data';
 import { titleCase } from './lib/format';
+import { extractListing, isBareLink } from './lib/listing';
 import { resolveAddress, resolveLink, type Resolution } from './lib/resolve';
 import { describeUnit, loadSaved, remove, storeSaved, upsert } from './lib/saved';
 import { readShared, replaceHash, shareLink } from './lib/share';
@@ -447,6 +448,35 @@ export function App() {
     }
   }
 
+  /**
+   * A listing pasted anywhere on the page.
+   *
+   * It sits here rather than on the link box because the link box is not
+   * where people aim. The instruction is "copy the listing and paste it in",
+   * and the answer to "in where?" should be anywhere at all — a paste that
+   * lands an inch off target and silently does nothing is the same failure
+   * as having no feature.
+   *
+   * A bare link is the common case and goes through untouched. Anything
+   * longer is searched for the figures the URL cannot carry.
+   */
+  const onPasteAnywhere = React.useCallback((event: React.ClipboardEvent) => {
+    const text = event.clipboardData.getData('text');
+    if (!text || isBareLink(text)) return;
+    const found = extractListing(text);
+    if (found.price === null && found.url === null) return;
+    event.preventDefault();
+    // Held until the block resolves, because the flat type can only be
+    // matched against the types this block has actually sold.
+    pastedListing.current = { price: found.price, flatType: found.flatType };
+    if (found.price !== null) setAskingFromListing(true);
+    setInputs((current) => ({
+      ...current,
+      link: found.url ?? current.link,
+      ...(found.price !== null ? { asking: String(found.price) } : null),
+    }));
+  }, []);
+
   if (loadError) {
     return (
       <main className="page">
@@ -467,23 +497,15 @@ export function App() {
     );
   }
 
+
   return (
-    <main className="page">
+    <main className="page" onPaste={onPasteAnywhere}>
       <Masthead manifest={manifest} />
 
       <UnitForm
         inputs={inputs}
         onChange={setInputs}
         onSubmit={check}
-        onListing={(found) => {
-          // Held until the block resolves, because the flat type can only be
-          // matched against the types this block has actually sold.
-          pastedListing.current = found;
-          if (found.price !== null) {
-            setAskingFromListing(true);
-            setInputs((current) => ({ ...current, asking: String(found.price) }));
-          }
-        }}
         busy={busy}
         needsAddress={
           addressOpen || (resolution !== null && resolution.status !== 'resolved')
@@ -612,6 +634,24 @@ export function App() {
                   </span>
                 </div>
               </div>
+
+              {/* Said once, where the gap is, and only while it is a gap.
+                  Neither portal puts the asking price in the URL — the whole
+                  of a 99.co link is an address and an opaque id — and the
+                  listing itself is never fetched, so a link alone leaves this
+                  one figure blank. The old copy admitted that in a hint under
+                  the link box, which is above where anyone is looking by the
+                  time they notice the blank, and left them to work out what
+                  to do about it. This says what to press. */}
+              {asking === null ? (
+                <p className="ask-paste">
+                  <strong>The asking price is not in the link.</strong> No
+                  portal puts it there. Go back to the listing, select the
+                  whole page — <kbd>⌘A</kbd> or <kbd>Ctrl</kbd>+<kbd>A</kbd>,
+                  then <kbd>⌘C</kbd> or <kbd>Ctrl</kbd>+<kbd>C</kbd> — and
+                  paste it anywhere on this page. The price gets read off it.
+                </p>
+              ) : null}
             </div>
             <div className="row">
               <button type="button" className="button" onClick={save}>

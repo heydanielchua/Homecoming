@@ -1809,6 +1809,37 @@ tbody tr:hover {
   color: var(--text-muted);
 }
 
+/* The one instruction the page has to give. It is quiet — this is not an
+   error, and the rest of the report is perfectly usable without a price —
+   but it sits directly under the blank it explains, because that is where
+   somebody is looking when they wonder why the blank is there. */
+.ask-paste {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-sunken);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  max-width: 62ch;
+}
+
+.ask-paste strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.ask-paste kbd {
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  font: inherit;
+  font-size: 0.95em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 @media (max-width: 560px) {
   .unit-figures {
     gap: 10px 14px;
