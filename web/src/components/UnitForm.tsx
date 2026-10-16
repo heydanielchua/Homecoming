@@ -103,7 +103,8 @@ export function UnitForm({
           <Field.Description className="hint">
             The link gives the block. Paste the whole listing instead — select
             all of it on the portal and copy — and the asking price is read
-            off it too. The page itself is never fetched.
+            off it too. The page itself is never fetched.{' '}
+            <a href="./one-click.html">Skip the copying</a>.
           </Field.Description>
         </Field.Root>
 

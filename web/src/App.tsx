@@ -29,6 +29,7 @@ import {
 } from './lib/listing';
 import { resolveAddress, resolveLink, type Resolution } from './lib/resolve';
 import { describeUnit, loadSaved, remove, storeSaved, upsert } from './lib/saved';
+import { readHandoff } from './lib/handoff';
 import { readShared, replaceHash, shareLink } from './lib/share';
 import { flatTypeForSize, pricePerSqft, sqftOf } from './lib/unit';
 import type {
@@ -256,9 +257,55 @@ export function App() {
     [],
   );
 
+  /**
+   * A listing handed over by the bookmarklet, in the fragment.
+   *
+   * Runs before the shared-link reader below, because a hand-off carries no
+   * block slug — the bookmarklet is reading a portal page and has no idea
+   * what this site calls the block — so the link has to be resolved first,
+   * exactly as if it had been pasted and checked.
+   */
+  React.useEffect(() => {
+    if (!meta) return;
+    const handed = readHandoff(window.location.hash);
+    if (!handed) return;
+    void (async () => {
+      setBusy(true);
+      try {
+        const found = extractListing(handed);
+        const table = extractDetails(handed);
+        if (found.url) setInputs((current) => ({ ...current, link: found.url! }));
+        pastedListing.current = {
+          price: found.price,
+          flatType: found.flatType,
+          details: table,
+        };
+        setDetails(table);
+        if (found.price !== null) setAskingFromListing(true);
+        if (!found.url) {
+          setResolution({
+            status: 'unresolved',
+            reason:
+              'That came from a listing page, but there was no link in it to ' +
+              'say which block. Paste the listing link here instead.',
+          });
+          return;
+        }
+        const result = await resolveLink(found.url, fetchShard);
+        setResolution(result);
+        if (result.status === 'resolved' && result.slug) {
+          await openSlug(result.slug);
+        }
+      } finally {
+        setBusy(false);
+      }
+    })();
+  }, [meta, openSlug]);
+
   // A shared link carries a unit's details in the fragment.
   React.useEffect(() => {
     if (!meta) return;
+    if (readHandoff(window.location.hash)) return;
     const shared = readShared(window.location.hash);
     if (!shared) return;
     void (async () => {

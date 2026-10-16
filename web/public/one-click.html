@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en-SG">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>One click from a listing · Listing Check</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f2f2f2;
+        --surface: #fff;
+        --ink: #111;
+        --muted: #656565;
+        --border: rgba(1, 1, 1, 0.1);
+        --accent: #d6f549;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #141414;
+          --surface: #1c1c1c;
+          --ink: #f2f2f2;
+          --muted: #a5a5a5;
+          --border: rgba(255, 255, 255, 0.12);
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 40px max(16px, env(safe-area-inset-right, 0px)) 80px
+          max(16px, env(safe-area-inset-left, 0px));
+        background: var(--bg);
+        color: var(--ink);
+        font: 15px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+          Roboto, sans-serif;
+      }
+      main { max-width: 640px; margin: 0 auto; }
+      h1 { font-size: 1.6rem; margin: 0 0 6px; letter-spacing: -0.02em; }
+      .lede { color: var(--muted); margin: 0 0 28px; }
+      .card {
+        background: var(--surface);
+        border-radius: 14px;
+        padding: 22px;
+        margin-bottom: 18px;
+      }
+      .drag {
+        display: inline-block;
+        padding: 11px 20px;
+        border-radius: 999px;
+        background: var(--accent);
+        color: #111;
+        font-weight: 600;
+        text-decoration: none;
+        cursor: grab;
+      }
+      ol { padding-left: 20px; margin: 0; }
+      li { margin-bottom: 10px; }
+      code, kbd {
+        padding: 1px 5px;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        font-size: 0.9em;
+        white-space: nowrap;
+      }
+      .note { color: var(--muted); font-size: 0.88rem; }
+      h2 { font-size: 1rem; margin: 0 0 10px; }
+      textarea {
+        width: 100%;
+        height: 120px;
+        margin-top: 10px;
+        padding: 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--bg);
+        color: var(--ink);
+        font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      a { color: inherit; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>One click from a listing</h1>
+      <p class="lede">
+        Instead of selecting the whole listing and pasting it, click one
+        button on the listing page and Listing Check opens with the asking
+        price, size and details already in.
+      </p>
+
+      <div class="card">
+        <h2>Put it on your bookmarks bar</h2>
+        <ol>
+          <li>
+            Show the bookmarks bar if it is hidden —
+            <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>, or
+            <kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> on a Mac.
+          </li>
+          <li>
+            Drag this button up onto it:
+            <br /><br />
+            <a class="drag" id="drag" href="#">Check this flat</a>
+          </li>
+          <li>
+            Open any 99.co or PropertyGuru listing and click it. This site
+            opens in a new tab with the flat filled in.
+          </li>
+        </ol>
+      </div>
+
+      <div class="card">
+        <h2>On a phone, or if dragging will not work</h2>
+        <p class="note">
+          Make a new bookmark of any page, edit it, name it
+          <em>Check this flat</em> and replace its address with the text
+          below. Then open a listing and pick that bookmark.
+        </p>
+        <textarea id="code" readonly spellcheck="false"></textarea>
+      </div>
+
+      <div class="card">
+        <h2>What it does, and does not do</h2>
+        <p class="note">
+          It runs in your browser, on a page you already have open, and keeps
+          only the lines that look like a listing's figures — the price, the
+          floor area, the details table — which it hands to this site in the
+          address. Nothing is sent anywhere else, no listing is ever fetched
+          by a server, and nothing is stored. It is the same thing as copying
+          the page yourself, with the keystrokes taken out.
+        </p>
+        <p class="note">
+          Some sites refuse to run bookmarklets at all, as part of their
+          security settings. If clicking it does nothing, that is why, and
+          copying the page by hand still works.
+        </p>
+      </div>
+
+      <p class="note"><a href="./">← back to Listing Check</a></p>
+    </main>
+
+    <script>
+      // The courier. It keeps the lines of the page that look like a
+      // listing's figures and hands them over in the fragment; every bit of
+      // reading them is done by the site, where that parser is tested.
+      // Written out here rather than minified by a build step so that what
+      // somebody is about to put in their bookmarks bar is readable.
+      function courier(site) {
+        var KEEP =
+          /S\$|\bpsf\b|\bsq\s?ft\b|\bsqft\b|\bsqm\b|m²|\bRooms?\b|Executive|Built|\bTOP\b|Tenure|Furnish|Floor Level|bedroom|bathroom|Property type|Model|Last updated|Lease/i;
+        var text = (document.body && document.body.innerText) || '';
+        var seen = {};
+        var lines = [];
+        text.split('\n').forEach(function (line) {
+          var l = line.trim();
+          if (!l || l.length > 200 || !KEEP.test(l) || seen[l]) return;
+          seen[l] = 1;
+          lines.push(l);
+        });
+        lines.push(location.href);
+        var url = site + '#x=' + encodeURIComponent(lines.join('\n').slice(0, 4000));
+        var tab = window.open(url, '_blank');
+        if (!tab) location.href = url;
+      }
+
+      var site = location.href.replace(/one-click\.html.*$/, '');
+      var source =
+        'javascript:(' +
+        courier.toString().replace(/\s*\n\s*/g, ' ') +
+        ')(' +
+        JSON.stringify(site) +
+        ');void 0';
+      document.getElementById('drag').setAttribute('href', source);
+      document.getElementById('code').value = source;
+    </script>
+  </body>
+</html>
