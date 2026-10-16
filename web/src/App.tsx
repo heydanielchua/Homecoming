@@ -18,7 +18,7 @@ import { Toast } from '@base-ui/react/toast';
 import { Tooltip } from '@base-ui/react/tooltip';
 
 import { ageInDays, fetchBlock, fetchManifest, fetchMeta, fetchShard, fetchTown } from './lib/data';
-import { titleCase } from './lib/format';
+import { month, titleCase } from './lib/format';
 import {
   NO_DETAILS,
   SQFT_PER_SQM,
@@ -420,15 +420,38 @@ export function App() {
    */
   const money = report && flatType ? report.flat_types[flatType]?.money : null;
   const medianSqm = money?.median_sqm?.v ?? null;
-  const medianPrice = money?.median_price?.v ?? null;
-  const nSales = money?.n_sales?.v ?? null;
-  const lastSale = money?.last_sale?.v ?? null;
+  /**
+   * The last flat of this type to change hands in this block.
+   *
+   * The header used to carry the median of two years of sales, which is the
+   * right number for working out what a flat is worth and the wrong one to
+   * put in front of somebody: a median is an average of a market, and what
+   * they want to know is what the last one actually went for. Here that is
+   * $670,000 in August against a $720,000 median — the median is the steadier
+   * figure and the transaction is the real one, and they are not the same
+   * thing.
+   *
+   * The sales arrive newest first, but the newest is taken by date rather
+   * than by position: nothing in the file promises that order, and a header
+   * quietly showing the oldest sale would look exactly like one showing the
+   * newest.
+   */
+  const lastTxn = React.useMemo(() => {
+    const sales = money?.sales ?? [];
+    let newest: (typeof sales)[number] | null = null;
+    for (const sale of sales) {
+      if (!sale?.month || sale.price == null) continue;
+      if (!newest || sale.month > newest.month) newest = sale;
+    }
+    return newest;
+  }, [money]);
 
   // A size typed into a shared link wins; otherwise the block's own median.
   const shownSqm = size ?? medianSqm;
   // The asking price if there is one, because that is the flat being judged;
-  // the block's median when there is not, so the row is never simply blank.
-  const shownPsf = pricePerSqft(asking ?? medianPrice, shownSqm);
+  // the last transaction when there is not, so the row is never simply blank
+  // and never quotes a figure the card no longer shows.
+  const shownPsf = pricePerSqft(asking ?? lastTxn?.price ?? null, shownSqm);
 
   /**
    * The listing's details table, as rows ready to draw.
@@ -718,16 +741,21 @@ export function App() {
                 </div>
 
                 <div className="unit-figure unit-figure--derived">
-                  <span className="unit-figure-label">Recent sales</span>
+                  <span className="unit-figure-label">Last transaction price</span>
                   <span className="unit-figure-value">
-                    {medianPrice !== null ? `$${medianPrice.toLocaleString()}` : '—'}
+                    {lastTxn ? `$${lastTxn.price.toLocaleString()}` : '—'}
                   </span>
                   <span className="unit-figure-note">
-                    {medianPrice === null
+                    {/* The date, and the floor it was on. One sale is not a
+                        market, and a price without the storey it sold at is
+                        the most misleading number on the page: in this block
+                        the same flat type runs $670,000 to $745,000 depending
+                        largely on how high up it is. */}
+                    {!lastTxn
                       ? 'nothing sold here lately'
-                      : `median of ${nSales ?? '?'} ` +
-                        `${nSales === 1 ? 'sale' : 'sales'}` +
-                        `${lastSale ? ` to ${lastSale}` : ''}`}
+                      : `${month(lastTxn.month)}${
+                          lastTxn.storey ? ` · floor ${lastTxn.storey.toLowerCase()}` : ''
+                        }`}
                   </span>
                 </div>
 
@@ -766,7 +794,7 @@ export function App() {
                       ? 'needs a size and a price'
                       : asking !== null
                         ? 'from the asking price'
-                        : 'from recent sales here'}
+                        : 'from the last transaction'}
                   </span>
                 </div>
               </div>
