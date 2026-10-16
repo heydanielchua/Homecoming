@@ -2022,6 +2022,54 @@ tbody tr:hover {
   padding-block: 7px;
 }
 
+/* The flat types a block has sold, as a choice rather than an assumption.
+   Sized to sit on the figures' own baseline so the row still reads as one
+   line of figures and not as a form that has wandered in. */
+.type-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-block: 4px;
+}
+
+.type-pills button {
+  height: 28px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.type-pills button[data-pressed] {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.type-pills button:hover:not([data-pressed]) {
+  background: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.type-pills button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (max-width: 560px) {
+  .type-pills button {
+    height: 44px;
+  }
+}
+
 .unit-figure-note {
   font-size: 0.74rem;
   color: var(--text-muted);

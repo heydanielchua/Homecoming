@@ -14,6 +14,8 @@
 
 import * as React from 'react';
 import { Tabs } from '@base-ui/react/tabs';
+import { Toggle } from '@base-ui/react/toggle';
+import { ToggleGroup } from '@base-ui/react/toggle-group';
 import { Toast } from '@base-ui/react/toast';
 import { Tooltip } from '@base-ui/react/tooltip';
 
@@ -124,6 +126,35 @@ function FigureInput({
   );
 }
 
+/**
+ * Which of a block's flat types to show when nothing has said which.
+ *
+ * A portal link carries an address and an opaque id. It does not carry the
+ * flat type, so for a block that has sold more than one the page has to
+ * choose, and it was choosing whichever came first in the file. For 107
+ * Potong Pasir Avenue 1 that is the 3-room, and the listing somebody had just
+ * pasted was a 4-room: a $592,500 median against a $755,000 one, under the
+ * right address, with nothing on the page saying which type it was about.
+ *
+ * The type with the most sales behind it is a better guess — it is the one
+ * whose figures mean the most and the one a block is mostly made of — but it
+ * is still a guess, which is why it is now shown and can be changed.
+ */
+export function defaultFlatType(
+  types: Record<string, { money: { n_sales: { v: number | null } } }>,
+): string {
+  let best = '';
+  let most = -1;
+  for (const [type, section] of Object.entries(types)) {
+    const sales = section.money?.n_sales?.v ?? 0;
+    if (sales > most) {
+      most = sales;
+      best = type;
+    }
+  }
+  return best;
+}
+
 export function App() {
   const [meta, setMeta] = React.useState<Meta | null>(null);
   const [manifest, setManifest] = React.useState<Manifest | null>(null);
@@ -214,6 +245,16 @@ export function App() {
    */
   const [askingFromListing, setAskingFromListing] = React.useState(false);
 
+  /**
+   * Whether the flat type on screen came from the listing or from us.
+   *
+   * It decides a line of copy and the line matters: every figure below is for
+   * one flat type, and a block that has sold three of them has three different
+   * answers. If the page picked the type, it has to say so and offer the
+   * others, because the reader is the only one here who can see the listing.
+   */
+  const [typeFromListing, setTypeFromListing] = React.useState(false);
+
   const openSlug = React.useCallback(
     async (slug: string) => {
       const payload = await fetchBlock(slug);
@@ -245,6 +286,9 @@ export function App() {
       else if (switching) setAskingFromListing(false);
       if (pasted) setDetails(pasted.details);
       else if (switching) setDetails(NO_DETAILS);
+      const toldType = Boolean(pasted?.flatType && payload.flat_types[pasted.flatType]);
+      if (toldType) setTypeFromListing(true);
+      else if (switching || !pasted) setTypeFromListing(false);
 
       setInputs((current) => ({
         ...current,
@@ -261,7 +305,7 @@ export function App() {
             ? pasted.flatType
             : !switching && current.flatType && payload.flat_types[current.flatType]
               ? current.flatType
-              : (Object.keys(payload.flat_types)[0] ?? ''),
+              : defaultFlatType(payload.flat_types),
       }));
       return payload;
     },
@@ -334,7 +378,7 @@ export function App() {
           flatType:
             shared.flatType && payload.flat_types[shared.flatType]
               ? shared.flatType
-              : (Object.keys(payload.flat_types)[0] ?? ''),
+              : defaultFlatType(payload.flat_types),
         });
       }
       setBusy(false);
@@ -404,7 +448,7 @@ export function App() {
       return { flatType: inputs.flatType, matchedFromSize: false };
     }
     return {
-      flatType: Object.keys(report.flat_types)[0] ?? '',
+      flatType: defaultFlatType(report.flat_types),
       matchedFromSize: false,
     };
   }, [report, size, inputs.flatType]);
@@ -419,6 +463,7 @@ export function App() {
    * they are rather than passing them off as this unit's.
    */
   const money = report && flatType ? report.flat_types[flatType]?.money : null;
+  const typeKeys = report ? Object.keys(report.flat_types) : [];
   const medianSqm = money?.median_sqm?.v ?? null;
   /**
    * The last flat of this type to change hands in this block.
@@ -728,6 +773,57 @@ export function App() {
                   are. The asking price is the one thing only the seller
                   knows, so it is the one thing typed. */}
               <div className="unit-figures">
+                {/* First, because every figure after it is for this type and
+                    only this type. A block that has sold a 3-room and a
+                    4-room has two different answers to every question on this
+                    page, and a portal link says nothing about which one you
+                    are holding. */}
+                {typeKeys.length > 0 ? (
+                  <div className="unit-figure">
+                    <span className="unit-figure-label" id="flat-type-label">
+                      Flat type
+                    </span>
+                    {typeKeys.length === 1 ? (
+                      <span className="unit-figure-value">
+                        {titleCase(flatType)}
+                      </span>
+                    ) : (
+                      <ToggleGroup
+                        className="type-pills"
+                        aria-labelledby="flat-type-label"
+                        value={[flatType]}
+                        multiple={false}
+                        onValueChange={(picked) => {
+                          const next = picked[picked.length - 1];
+                          if (!next || next === flatType) return;
+                          setTypeFromListing(false);
+                          setInputs((current) => ({
+                            ...current,
+                            flatType: next,
+                            // The size belonged to the old type's sales, not
+                            // to this one, and a 4-room's area under a 3-room
+                            // heading is how this went wrong to begin with.
+                            size: '',
+                          }));
+                        }}
+                      >
+                        {typeKeys.map((type) => (
+                          <Toggle key={type} value={type}>
+                            {titleCase(type)}
+                          </Toggle>
+                        ))}
+                      </ToggleGroup>
+                    )}
+                    <span className="unit-figure-note">
+                      {typeKeys.length === 1
+                        ? 'the only type sold in this block'
+                        : typeFromListing
+                          ? 'read off the listing you pasted'
+                          : 'our pick — check it against the listing'}
+                    </span>
+                  </div>
+                ) : null}
+
                 <div className="unit-figure unit-figure--derived">
                   <span className="unit-figure-label">Floor area</span>
                   <span className="unit-figure-value">
