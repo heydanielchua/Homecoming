@@ -653,6 +653,18 @@ async function build(
   // The Master Plan under the massing, so a volume can be read against the
   // land it would stand on. Drawn a hand's width above the ground plane
   // because two coplanar surfaces fight for the same depth and flicker.
+  /**
+   * How high the flat layers sit over the ground plane.
+   *
+   * Two coplanar surfaces fight for the same depth and flicker, so these are
+   * lifted clear of it and of each other — a road under the uses, because a
+   * road drawn over a park hides the park. The street names are laid against
+   * the road height rather than a number of their own, so that a name cannot
+   * drift off its surface when one of these is tuned.
+   */
+  const ROAD_SURFACE_Y = 0.08;
+  const USE_SURFACE_Y = 0.16;
+
   const groundOpacity = (group: ZoneGroup) =>
     ZONES[group].surface ? 0.9 : ZONES[group].ground ? 0.22 : 0.5;
 
@@ -685,7 +697,7 @@ async function build(
       // A hand's width above the ground plane, and the surfaces a touch
       // below the uses: two coplanar faces fight for the same depth and
       // flicker, and a road drawn over a park hides the park.
-      geom.translate(0, ZONES[group].surface ? 0.08 : 0.16, 0);
+      geom.translate(0, ZONES[group].surface ? ROAD_SURFACE_Y : USE_SURFACE_Y, 0);
       groupNode.add(new THREE.Mesh(geom, material));
     }
     zoning.add(groupNode);
@@ -704,9 +716,23 @@ async function build(
   // a frontage — the road surface has to be close enough to be that street's,
   // and only the few nearest the middle are drawn, because a dozen names over
   // an estate is a harder picture to read than none.
+  let streetLabels: InstanceType<typeof THREE.Group> | null = null;
   const STREET_MIN_BLOCKS = 2;
   const STREET_MAX_ROAD_M = 150;
   const STREET_MAX_LABELS = 7;
+  /** How far around the chosen spot to read the road's own direction. */
+  const ROAD_AXIS_M = 70;
+  /** How near asphalt each end of a name has to come down to count as on it. */
+  const ROAD_FIT_M = 16;
+  /**
+   * Sizes to try, largest first, in metres per canvas pixel.
+   *
+   * A label lying on the ground loses about half its height to the camera's
+   * tilt, so the largest is sized for that rather than for a plan view; the
+   * smallest is the point at which it stops being readable at all, and a name
+   * that will not fit by then is not drawn.
+   */
+  const LABEL_SCALES = [0.3, 0.24, 0.19];
 
   const ringCentroid = (geom: Geom): [number, number] | null => {
     const ring = polygons(geom)[0]?.[0];
@@ -721,11 +747,35 @@ async function build(
     return [sx / ring.length, sy / ring.length];
   };
 
+  /**
+   * The road surface, as points along its edges rather than its corners.
+   *
+   * A polygon only carries the corners, and a straight run of road has two of
+   * them a couple of hundred metres apart. Measuring "is this on the road?"
+   * against corners alone puts the middle of a long street further from the
+   * road than a car park is, which first pushed every name onto the junctions
+   * where the corners cluster, and then — once the names had to fit on the
+   * road to be drawn at all — left almost none of them drawn. So each edge is
+   * walked at a street's own scale.
+   */
+  const ROAD_STEP_M = 8;
   const roadPoints: [number, number][] = [];
   for (const p of parcels) {
     if (p.g !== 'road') continue;
     for (const rings of polygons(p.m as Geom)) {
-      for (const [lo, la] of rings[0] ?? []) roadPoints.push(project(lo, la));
+      const ring = rings[0] ?? [];
+      for (let i = 0; i < ring.length; i += 1) {
+        const [ax, ay] = project(ring[i]![0], ring[i]![1]);
+        const next = ring[(i + 1) % ring.length]!;
+        const [bx, by] = project(next[0], next[1]);
+        roadPoints.push([ax, ay]);
+        const run = Math.hypot(bx - ax, by - ay);
+        const steps = Math.floor(run / ROAD_STEP_M);
+        for (let step = 1; step < steps; step += 1) {
+          const t = step / steps;
+          roadPoints.push([ax + (bx - ax) * t, ay + (by - ay) * t]);
+        }
+      }
     }
   }
 
@@ -744,15 +794,34 @@ async function build(
     else streetBlocks.set(name, [centre]);
   }
 
+  /**
+   * How wide a name will be drawn, in canvas pixels, before anything is built.
+   *
+   * The placement below has to know the length to decide whether the name
+   * fits on the road, and it decides that before there is a mesh.
+   */
+  const LABEL_FONT = '600 64px ui-sans-serif, system-ui, -apple-system, sans-serif';
+  const LABEL_PAD = 56;
+
+  function labelWidthPx(text: string): number {
+    const probe = document.createElement('canvas').getContext('2d');
+    if (!probe) return 0;
+    probe.font = LABEL_FONT;
+    return Math.ceil(probe.measureText(text).width) + LABEL_PAD;
+  }
+
   /** A label drawn into a canvas, so no font has to be loaded to draw text. */
-  function streetLabel(text: string): InstanceType<typeof THREE.Mesh> | null {
+  function streetLabel(
+    text: string,
+    mPerPx: number,
+  ): InstanceType<typeof THREE.Mesh> | null {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
-    const FONT = '600 64px ui-sans-serif, system-ui, -apple-system, sans-serif';
+    const FONT = LABEL_FONT;
     ctx.font = FONT;
     const width = Math.ceil(ctx.measureText(text).width);
-    canvas.width = width + 56;
+    canvas.width = width + LABEL_PAD;
     canvas.height = 128;
     // Setting the size clears everything the context was told, the font
     // included, so it is set again here rather than above.
@@ -773,13 +842,9 @@ async function build(
     const texture = new THREE.CanvasTexture(canvas);
     texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
     texture.colorSpace = THREE.SRGBColorSpace;
-    // Big enough to survive the camera's tilt. A label lying on the ground is
-    // foreshortened to about half its height at the angle this view opens at,
-    // so type sized to look right from directly above is unreadable here.
-    const M_PER_PX = 0.3;
     const geom = new THREE.PlaneGeometry(
-      canvas.width * M_PER_PX,
-      canvas.height * M_PER_PX,
+      canvas.width * mPerPx,
+      canvas.height * mPerPx,
     );
     geom.rotateX(-Math.PI / 2);
     return new THREE.Mesh(
@@ -797,6 +862,7 @@ async function build(
       name: string;
       at: [number, number];
       angle: number;
+      scale: number;
       from: number;
     }[] = [];
 
@@ -804,20 +870,6 @@ async function build(
       if (blocks.length < STREET_MIN_BLOCKS) continue;
       const cx = blocks.reduce((sum, b) => sum + b[0], 0) / blocks.length;
       const cy = blocks.reduce((sum, b) => sum + b[1], 0) / blocks.length;
-
-      // The blocks on a street are strung along it, so the line through them
-      // is the line of the road. This is the major axis of their spread — the
-      // halved atan2 keeps it in a quarter turn either side of east, which
-      // also keeps the text the right way up.
-      let sxx = 0;
-      let syy = 0;
-      let sxy = 0;
-      for (const [x, y] of blocks) {
-        sxx += (x - cx) * (x - cx);
-        syy += (y - cy) * (y - cy);
-        sxy += (x - cx) * (y - cy);
-      }
-      const angle = 0.5 * Math.atan2(2 * sxy, sxx - syy);
 
       // Of the road near these blocks, the most open stretch of it. Taking
       // the nearest point put the name hard against the blocks that gave it,
@@ -842,25 +894,82 @@ async function build(
         }
       }
       if (!best || nearest > STREET_MAX_ROAD_M) continue;
+
+      // The angle comes from the asphalt around the chosen spot, not from the
+      // blocks. The line through a street's blocks is roughly the line of the
+      // road and roughly is not good enough: a few degrees out over a name a
+      // hundred metres long walks its far end off the carriageway and into
+      // somebody's car park. These are the road's own points, so the name
+      // lies the way the road lies.
+      const local: [number, number][] = [];
+      for (const [x, y] of roadPoints) {
+        if (Math.hypot(x - best[0], y - best[1]) <= ROAD_AXIS_M) local.push([x, y]);
+      }
+      if (local.length < 2) continue;
+      const lx = local.reduce((sum, q) => sum + q[0], 0) / local.length;
+      const ly = local.reduce((sum, q) => sum + q[1], 0) / local.length;
+      let sxx = 0;
+      let syy = 0;
+      let sxy = 0;
+      for (const [x, y] of local) {
+        sxx += (x - lx) * (x - lx);
+        syy += (y - ly) * (y - ly);
+        sxy += (x - lx) * (y - ly);
+      }
+      // The halved atan2 keeps the axis within a quarter turn of east, which
+      // is also what keeps the text the right way up.
+      const angle = 0.5 * Math.atan2(2 * sxy, sxx - syy);
+
+      // Then the name is sized to fit the road it is lying on. Both ends have
+      // to come down on asphalt, and a name that will not fit at the smallest
+      // size this stays readable at is left off rather than drawn across the
+      // ground beside the street.
+      const widthPx = labelWidthPx(name);
+      const onRoad = (x: number, y: number) =>
+        roadPoints.some(([rx, ry]) => Math.hypot(x - rx, y - ry) <= ROAD_FIT_M);
+      let scale: number | null = null;
+      for (const candidate of LABEL_SCALES) {
+        const reach = (widthPx * candidate) / 2;
+        const ex = Math.cos(angle) * reach;
+        const ey = Math.sin(angle) * reach;
+        if (
+          onRoad(best[0] + ex, best[1] + ey) &&
+          onRoad(best[0] - ex, best[1] - ey)
+        ) {
+          scale = candidate;
+          break;
+        }
+      }
+      if (scale === null) continue;
+
       placed.push({
         name,
         at: best,
         angle,
+        scale,
         from: Math.hypot(cx, cy),
       });
     }
 
     const labels = new THREE.Group();
     labels.name = 'streets';
+    streetLabels = labels;
     for (const label of placed
       .sort((a, b) => a.from - b.from)
       .slice(0, STREET_MAX_LABELS)) {
-      const mesh = streetLabel(label.name);
+      const mesh = streetLabel(label.name, label.scale);
       if (!mesh) continue;
       // The shapes were rotated so that a parcel's northward axis became
       // -z; a label laid the same way turns about y by the road's own angle.
-      mesh.position.set(label.at[0], 0.6, -label.at[1]);
+      //
+      // Four centimetres over the road surface, not half a metre. Higher up
+      // it read as a sign hovering above the street rather than paint on it:
+      // at this camera angle the gap shows as the name sitting off to one
+      // side of the road it belongs to, and it slides as the view turns. The
+      // render order is what keeps it drawn over the asphalt from so close.
+      mesh.position.set(label.at[0], ROAD_SURFACE_Y + 0.04, -label.at[1]);
       mesh.rotation.y = label.angle;
+      mesh.userData.angle = label.angle;
       mesh.renderOrder = 2;
       labels.add(mesh);
     }
@@ -1056,7 +1165,33 @@ async function build(
     camera.updateProjectionMatrix();
   }
 
-  const draw = () => renderer.render(world, camera);
+  /**
+   * Keep the street names readable whichever way the view is turned.
+   *
+   * A name painted along a road runs one way in the world, and once the
+   * camera orbits past it you are reading it from the far end: it comes out
+   * upside down, which looks like a rendering fault rather than a label. Map
+   * renderers flip the text instead, and so does this — whichever of the two
+   * directions along the road reads left to right on screen is the one it
+   * takes. A half turn about y, decided per frame, costs nothing.
+   */
+  function faceLabels() {
+    if (!streetLabels) return;
+    const ahead = new THREE.Vector3();
+    camera.getWorldDirection(ahead);
+    // The screen's rightward axis, flat on the ground.
+    const right = new THREE.Vector3(-ahead.z, 0, ahead.x).normalize();
+    for (const mesh of streetLabels.children) {
+      const base = mesh.userData.angle as number;
+      const along = new THREE.Vector3(Math.cos(base), 0, -Math.sin(base));
+      mesh.rotation.y = along.dot(right) < 0 ? base + Math.PI : base;
+    }
+  }
+
+  const draw = () => {
+    faceLabels();
+    renderer.render(world, camera);
+  };
 
   const zoom = (factor: number) => {
     orbit.radius = Math.min(980, Math.max(130, orbit.radius * factor));
