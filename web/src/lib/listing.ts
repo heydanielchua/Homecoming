@@ -186,3 +186,151 @@ export function isBareLink(text: string): boolean {
   if (!trimmed || /\s/.test(trimmed)) return false;
   return /^(?:https?:\/\/)?[\w.-]+\.[a-z]{2,}/i.test(trimmed);
 }
+
+/**
+ * The listing's own "Property details" table.
+ *
+ * The page works off HDB's figures — what sold in this block, at what size,
+ * on what floor — and those are facts about the building, not about the unit
+ * on sale. They disagree with the listing more often than you would think.
+ * HDB's completion year is the block's; the listing quotes the project's.
+ * HDB's floor area is the last comparable sale's; the listing quotes this
+ * flat's, which may be strata and may include a void. Neither is wrong, and
+ * silently showing one where somebody is reading the other is what makes the
+ * page look broken against the tab it was copied from.
+ *
+ * So the listing's own table is kept as the listing wrote it, down to the
+ * wording, and shown beside ours rather than folded into it.
+ */
+export interface ListingDetails {
+  /** The quoted per-square-foot, as written: `S$ 698.19 psf`. */
+  priceSqft: string | null;
+  /** `Low`, `Mid` or `High` — both portals use the same three. */
+  floorLevel: string | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  /** `Unfurnished`, `Partially Furnished`, `Fully Furnished`. */
+  furnishing: string | null;
+  /** 99.co's `Built year`; PropertyGuru writes the same thing as `TOP`. */
+  builtYear: number | null;
+  /** `99-year leasehold`, `Freehold`, and the rest, as written. */
+  tenure: string | null;
+  /** 99.co's `HDB 4 Rooms`; PropertyGuru's `HDB Flat`. */
+  propertyType: string | null;
+  /** The HDB flat model — `Model A`, `Improved`, `Premium Apartment`. */
+  model: string | null;
+  /** Floor area in square feet, which is the unit both portals quote in. */
+  floorAreaSqft: number | null;
+  /** `3 hrs ago`, `2 days ago` — how stale the listing says it is. */
+  lastUpdated: string | null;
+}
+
+export const NO_DETAILS: ListingDetails = {
+  priceSqft: null,
+  floorLevel: null,
+  bedrooms: null,
+  bathrooms: null,
+  furnishing: null,
+  builtYear: null,
+  tenure: null,
+  propertyType: null,
+  model: null,
+  floorAreaSqft: null,
+  lastUpdated: null,
+};
+
+/**
+ * The value a labelled row carries.
+ *
+ * A details table copies either as `Built year 2016` on one line or as the
+ * label and the value on two, depending on the browser and on how much of
+ * the page was selected, so both are read. The value stops at the next
+ * label, because a whole table copied onto a single line would otherwise
+ * swallow the rest of itself.
+ */
+function rowValue(text: string, labels: string[], stops: string[]): string | null {
+  for (const label of labels) {
+    const at = new RegExp(
+      `${label}\\s*:?\\s*(.*)`,
+      'i',
+    );
+    for (const line of text.split('\n')) {
+      const hit = line.match(at);
+      if (!hit) continue;
+      let value = hit[1]!.trim();
+      if (value) {
+        // Trim anything that is plainly the next label of the table.
+        for (const stop of stops) {
+          const cut = value.search(new RegExp(`\\s*\\b${stop}\\b`, 'i'));
+          if (cut > 0) value = value.slice(0, cut).trim();
+        }
+        if (value) return value;
+      }
+      // The label sat alone on its line, so the value is the next one.
+      const lines = text.split('\n');
+      const index = lines.indexOf(line);
+      const next = lines.slice(index + 1).find((l) => l.trim());
+      if (next) return next.trim();
+    }
+  }
+  return null;
+}
+
+/**
+ * The labels that end the row before them, so one row cannot eat the next.
+ *
+ * `PSF` and `TOP` are searched for as labels but never used as stops: they
+ * are also an ordinary unit and an ordinary word, and `S$ 698.19 psf` would
+ * lose its unit to the first and a `TOP` floor to the second.
+ */
+const DETAIL_STOPS = [
+  'Price/sqft',
+  'Price per sqft',
+  'Floor Level',
+  'Floor level',
+  'No\\. of bedrooms',
+  'Bedrooms',
+  'No\\. of bathrooms',
+  'Bathrooms',
+  'Furnishing',
+  'Built year',
+  'Completion year',
+  'Tenure',
+  'Property type',
+  'Property Type',
+  'Flat model',
+  'Floor area',
+  'Floor Area',
+  'Last updated',
+  'Listing ID',
+];
+
+const toInt = (value: string | null): number | null => {
+  if (value === null) return null;
+  const n = Number(value.replace(/[^\d]/g, ''));
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+
+/** Reads the listing's details table out of pasted text. */
+export function extractDetails(text: string): ListingDetails {
+  const source = text ?? '';
+  const row = (...labels: string[]) => rowValue(source, labels, DETAIL_STOPS);
+
+  const builtYear = toInt(row('Built year', 'Completion year', 'TOP'));
+  const area = extractSqm(source);
+
+  return {
+    priceSqft: row('Price/sqft', 'Price per sqft', 'PSF'),
+    floorLevel: row('Floor Level', 'Floor level'),
+    bedrooms: toInt(row('No\\. of bedrooms', 'Bedrooms')),
+    bathrooms: toInt(row('No\\. of bathrooms', 'Bathrooms')),
+    furnishing: row('Furnishing'),
+    // A year, not a lease length or a storey count.
+    builtYear: builtYear !== null && builtYear >= 1960 && builtYear <= 2040 ? builtYear : null,
+    tenure: row('Tenure'),
+    propertyType: row('Property type', 'Property Type'),
+    model: row('Model', 'Flat model'),
+    floorAreaSqft: area === null ? null : Math.round(area * SQFT_PER_SQM),
+    lastUpdated: row('Last updated'),
+  };
+}

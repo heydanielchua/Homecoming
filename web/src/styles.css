@@ -1809,6 +1809,51 @@ tbody tr:hover {
   color: var(--text-muted);
 }
 
+/* The listing's own details, in the listing's own words. A plain two-column
+   list rather than the figure tiles above it: these are the listing's claims
+   about the flat, not measurements this page made, and they should not wear
+   the same clothes as the ones that are. */
+.listing-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 2px 20px;
+  margin: 14px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--border);
+  max-width: 72ch;
+}
+
+.listing-detail {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 0;
+  font-size: 0.82rem;
+}
+
+.listing-detail dt {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.listing-detail dd {
+  margin: 0;
+  text-align: right;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Shown only where HDB's answer to the same question differs. The page does
+   not pick a winner: the listing describes the flat for sale and HDB
+   describes the block, and on a completion year or a floor area those are
+   different questions with different right answers. */
+.listing-detail-ours {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
 /* The one instruction the page has to give. It is quiet — this is not an
    error, and the rest of the report is perfectly usable without a price —
    but it sits directly under the blank it explains, because that is where

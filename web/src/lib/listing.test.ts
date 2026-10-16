@@ -14,6 +14,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  NO_DETAILS,
+  extractDetails,
   extractFlatType,
   extractListing,
   extractPrice,
@@ -200,5 +202,81 @@ describe('telling a bare link from a listing', () => {
   it('is not fooled by an empty paste', () => {
     expect(isBareLink('')).toBe(false);
     expect(isBareLink('   ')).toBe(false);
+  });
+});
+
+/**
+ * The listing's own details table.
+ *
+ * Transcribed from the 665C Punggol Drive page, which is the only real one
+ * seen so far — the labels here are that page's, not a guess at a schema.
+ */
+const DETAILS = `
+Property details
+Price/sqft S$ 698.19 psf
+Floor Level High
+No. of bedrooms 3
+Furnishing Unfurnished
+Built year 2016
+Tenure 99-year leasehold
+Property type HDB 4 Rooms
+Last updated 3 hrs ago
+`;
+
+describe('the listing\'s details table', () => {
+  it('reads every row 99.co writes', () => {
+    const got = extractDetails(DETAILS);
+    expect(got.priceSqft).toBe('S$ 698.19 psf');
+    expect(got.floorLevel).toBe('High');
+    expect(got.bedrooms).toBe(3);
+    expect(got.furnishing).toBe('Unfurnished');
+    expect(got.builtYear).toBe(2016);
+    expect(got.tenure).toBe('99-year leasehold');
+    expect(got.propertyType).toBe('HDB 4 Rooms');
+    expect(got.lastUpdated).toBe('3 hrs ago');
+  });
+
+  it('takes PropertyGuru\'s wording for the same rows', () => {
+    const pg = `
+      Property Type HDB Flat
+      TOP 2016
+      Floor Level Mid
+      Furnishing Partially Furnished
+      Bedrooms 3
+      Bathrooms 2
+    `;
+    const got = extractDetails(pg);
+    expect(got.propertyType).toBe('HDB Flat');
+    expect(got.builtYear).toBe(2016);
+    expect(got.floorLevel).toBe('Mid');
+    expect(got.furnishing).toBe('Partially Furnished');
+    expect(got.bathrooms).toBe(2);
+  });
+
+  it('reads a value sitting on the line below its label', () => {
+    expect(extractDetails('Tenure\n99-year leasehold\n').tenure)
+      .toBe('99-year leasehold');
+  });
+
+  it('does not let one row swallow the next', () => {
+    // A table copied onto a single line, which is what some browsers give.
+    const oneLine = 'Floor Level High No. of bedrooms 3 Furnishing Unfurnished';
+    const got = extractDetails(oneLine);
+    expect(got.floorLevel).toBe('High');
+    expect(got.bedrooms).toBe(3);
+  });
+
+  it('refuses a built year that is not a year', () => {
+    expect(extractDetails('Built year 99').builtYear).toBeNull();
+    expect(extractDetails('Tenure 99-year leasehold').builtYear).toBeNull();
+  });
+
+  it('gives the floor area in the square feet both portals quote', () => {
+    expect(extractDetails('3 Beds · 1,001 sqft').floorAreaSqft).toBe(1001);
+  });
+
+  it('is all nulls when the text holds no table', () => {
+    expect(extractDetails('665C Punggol Drive')).toEqual(NO_DETAILS);
+    expect(extractDetails('')).toEqual(NO_DETAILS);
   });
 });

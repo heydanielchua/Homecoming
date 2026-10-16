@@ -19,7 +19,14 @@ import { Tooltip } from '@base-ui/react/tooltip';
 
 import { ageInDays, fetchBlock, fetchManifest, fetchMeta, fetchShard, fetchTown } from './lib/data';
 import { titleCase } from './lib/format';
-import { extractListing, isBareLink } from './lib/listing';
+import {
+  NO_DETAILS,
+  SQFT_PER_SQM,
+  extractDetails,
+  extractListing,
+  isBareLink,
+  type ListingDetails,
+} from './lib/listing';
 import { resolveAddress, resolveLink, type Resolution } from './lib/resolve';
 import { describeUnit, loadSaved, remove, storeSaved, upsert } from './lib/saved';
 import { readShared, replaceHash, shareLink } from './lib/share';
@@ -169,7 +176,20 @@ export function App() {
   const pastedListing = React.useRef<{
     price: number | null;
     flatType: string | null;
+    details: ListingDetails;
   } | null>(null);
+
+  /**
+   * The listing's own details table, as it wrote it.
+   *
+   * Kept separate from everything the report holds, because the two
+   * genuinely disagree: HDB's completion year is the block's and the
+   * listing's is the project's, HDB's floor area comes from the last
+   * comparable sale and the listing's is this flat's. Showing ours where
+   * somebody is reading theirs is what makes the page look out of step with
+   * the tab it was copied from.
+   */
+  const [details, setDetails] = React.useState<ListingDetails>(NO_DETAILS);
 
   /**
    * Whether the asking price in the header was read off a pasted listing.
@@ -211,6 +231,8 @@ export function App() {
       pastedListing.current = null;
       if (pasted?.price != null) setAskingFromListing(true);
       else if (switching) setAskingFromListing(false);
+      if (pasted) setDetails(pasted.details);
+      else if (switching) setDetails(NO_DETAILS);
 
       setInputs((current) => ({
         ...current,
@@ -350,6 +372,56 @@ export function App() {
   // the block's median when there is not, so the row is never simply blank.
   const shownPsf = pricePerSqft(asking ?? medianPrice, shownSqm);
 
+  /**
+   * The listing's details table, as rows ready to draw.
+   *
+   * `ours` is filled only where HDB's answer to the same question differs,
+   * so a row carries the disagreement rather than the page quietly picking
+   * a side. The labels are the portals' own.
+   */
+  const detailRows = React.useMemo(() => {
+    const rows: { label: string; value: string; ours?: string }[] = [];
+    const add = (label: string, value: string | number | null, ours?: string) => {
+      if (value === null || value === '') return;
+      rows.push({ label, value: String(value), ours });
+    };
+
+    add('Property type', details.propertyType);
+    add('Model', details.model);
+    if (details.floorAreaSqft !== null) {
+      const sqm = Math.round(details.floorAreaSqft / SQFT_PER_SQM);
+      add(
+        'Floor area',
+        `${details.floorAreaSqft.toLocaleString()} sqft · ${sqm} m²`,
+        // HDB's figure comes from the last comparable sale in the block, so
+        // a flat that is a few square metres off its neighbours is worth
+        // saying out loud rather than rounding away.
+        shownSqm !== null && Math.abs(sqm - Math.round(shownSqm)) >= 2
+          ? `${Math.round(shownSqm)} m²`
+          : undefined,
+      );
+    }
+    add('Price/sqft', details.priceSqft);
+    add('Floor Level', details.floorLevel);
+    add('No. of bedrooms', details.bedrooms);
+    add('No. of bathrooms', details.bathrooms);
+    add('Furnishing', details.furnishing);
+    add(
+      'Built year',
+      details.builtYear,
+      details.builtYear !== null &&
+        report?.year_completed &&
+        report.year_completed !== details.builtYear
+        ? String(report.year_completed)
+        : undefined,
+    );
+    add('Tenure', details.tenure);
+    add('Last updated', details.lastUpdated);
+    return rows;
+  }, [details, report, shownSqm]);
+
+  const hasDetails = detailRows.length > 0;
+
   // Keep the carried value in step, so a share link and a saved unit record
   // the type the page is actually showing.
   React.useEffect(() => {
@@ -468,7 +540,13 @@ export function App() {
     event.preventDefault();
     // Held until the block resolves, because the flat type can only be
     // matched against the types this block has actually sold.
-    pastedListing.current = { price: found.price, flatType: found.flatType };
+    const table = extractDetails(text);
+    pastedListing.current = {
+      price: found.price,
+      flatType: found.flatType,
+      details: table,
+    };
+    setDetails(table);
     if (found.price !== null) setAskingFromListing(true);
     setInputs((current) => ({
       ...current,
@@ -643,6 +721,31 @@ export function App() {
                   the link box, which is above where anyone is looking by the
                   time they notice the blank, and left them to work out what
                   to do about it. This says what to press. */}
+              {/* The listing's own details table, in the listing's own
+                  words. Every label here is the one 99.co or PropertyGuru
+                  prints, so that reading this card against the tab it came
+                  from is a matter of matching rows, not translating. Where
+                  the listing and HDB disagree — and on the completion year
+                  they often do, HDB recording the block and the portal the
+                  project — both are shown and neither is corrected. */}
+              {hasDetails ? (
+                <dl className="listing-details">
+                  {detailRows.map((row) => (
+                    <div className="listing-detail" key={row.label}>
+                      <dt>{row.label}</dt>
+                      <dd>
+                        {row.value}
+                        {row.ours ? (
+                          <span className="listing-detail-ours">
+                            HDB says {row.ours}
+                          </span>
+                        ) : null}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : null}
+
               {asking === null ? (
                 <p className="ask-paste">
                   <strong>The asking price is not in the link.</strong> No
