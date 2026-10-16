@@ -674,9 +674,69 @@ async function build(
   sun.shadow.camera.updateProjectionMatrix();
   world.add(sun);
 
+  /**
+   * A height of its own for every group, so no two of these ever contend for
+   * the same depth, and the road on top because a road is the top surface.
+   * The street names are laid against the road's height rather than a number
+   * of their own, so a name cannot drift off its surface when this is tuned.
+   */
+  const ZONE_Y: Record<ZoneGroup, number> = {
+    residential: 0.08,
+    commercial: 0.16,
+    business: 0.24,
+    park: 0.32,
+    reserve: 0.40,
+    civic: 0.48,
+    water: 0.56,
+    road: 0.64,
+  };
+  const ROAD_SURFACE_Y = ZONE_Y.road;
+
+  /** How much of its own colour a group carries over the ground beneath it. */
+  const groundOpacity = (group: ZoneGroup) =>
+    ZONES[group].surface ? 0.9 : ZONES[group].ground ? 0.22 : 0.5;
+
+  /**
+   * The colour a group is drawn in, mixed against the ground once here rather
+   * than blended against it by the renderer on every parcel.
+   *
+   * These used to be translucent, and a translucent sheet made of a hundred
+   * pieces is not one sheet. Where two parcels of a use abut — which in the
+   * Master Plan they do constantly, often with a metre of overlap along the
+   * shared edge — the alpha stacked and left a patch darker than the land
+   * around it; where they parted, a sliver of bare ground showed through
+   * lighter. Mottling either way, worst in the roads, which are both the
+   * most intricate shapes and the most strongly coloured.
+   *
+   * Mixed up front there is no alpha to stack, and an overlap is just the same
+   * colour drawn twice.
+   */
+  function overGround(css: string, alpha: number) {
+    const ground = colour('--massing-ground', '#d8d6d2');
+    return colour(css, '#b9b2a6').clone().lerp(ground, 1 - alpha);
+  }
+
+  /**
+   * The plane under everything, painted as residential land.
+   *
+   * It used to be its own paler tone, and every hairline the zoning left
+   * showed as a bright thread of it. The threads are real: the shipped
+   * coordinates are rounded to five decimal places, which is 1.1 m here, and
+   * each parcel is rounded on its own — so two that share an edge in the
+   * Master Plan can end up a metre apart, open along the join. Over a 900 m
+   * view that is a pixel and a half of bare ground drawn between every
+   * neighbouring pair, which is what reads as patches and holes.
+   *
+   * Painting the plane as residential does not close the gaps. It stops seven
+   * parcels in ten from having anything to show through them, which is the
+   * part that can be fixed from here; closing them needs the coordinates
+   * shipped at six places, and that needs the data rebuilt.
+   */
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(1800, 1800),
-    new THREE.MeshLambertMaterial({ color: colour('--massing-ground', '#d8d6d2') }),
+    new THREE.MeshLambertMaterial({
+      color: overGround(ZONES.residential.css, groundOpacity('residential')),
+    }),
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
@@ -695,12 +755,6 @@ async function build(
    * the road height rather than a number of their own, so that a name cannot
    * drift off its surface when one of these is tuned.
    */
-  const ROAD_SURFACE_Y = 0.08;
-  const USE_SURFACE_Y = 0.16;
-
-  const groundOpacity = (group: ZoneGroup) =>
-    ZONES[group].surface ? 0.9 : ZONES[group].ground ? 0.22 : 0.5;
-
   const zoning = new THREE.Group();
   world.add(zoning);
   const byZone = new Map<ZoneGroup, ZoningParcel[]>();
@@ -711,14 +765,12 @@ async function build(
     else byZone.set(p.g, [p]);
   }
   for (const [group, list] of byZone) {
-    const material = new THREE.MeshBasicMaterial({
-      color: colour(ZONES[group].css, '#b9b2a6'),
-      transparent: true,
-      // Seven parcels in ten are residential. At the weight the others carry
-      // it stops being a ground and becomes a sheet over the streets.
-      opacity: groundOpacity(group),
-      depthWrite: false,
-      side: THREE.DoubleSide,
+    // Lambert rather than Basic, and it receives shadows: opaque zoning hides
+    // the ground plane under it, and the ground plane was the only thing the
+    // towers were casting their shadows onto. Without this the estate loses
+    // every shadow it has the moment the land stops being see-through.
+    const material = new THREE.MeshLambertMaterial({
+      color: overGround(ZONES[group].css, groundOpacity(group)),
     });
     const groupNode = new THREE.Group();
     groupNode.name = group;
@@ -727,11 +779,10 @@ async function build(
       if (!shapes.length) continue;
       const geom = new THREE.ShapeGeometry(shapes);
       geom.rotateX(-Math.PI / 2);
-      // A hand's width above the ground plane, and the surfaces a touch
-      // below the uses: two coplanar faces fight for the same depth and
-      // flicker, and a road drawn over a park hides the park.
-      geom.translate(0, ZONES[group].surface ? ROAD_SURFACE_Y : USE_SURFACE_Y, 0);
-      groupNode.add(new THREE.Mesh(geom, material));
+      geom.translate(0, ZONE_Y[group], 0);
+      const mesh = new THREE.Mesh(geom, material);
+      mesh.receiveShadow = true;
+      groupNode.add(mesh);
     }
     zoning.add(groupNode);
   }
