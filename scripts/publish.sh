@@ -148,6 +148,14 @@ MISSING
 fi
 
 # A fresh orphan each time: one commit, no history, see the note at the top.
+# A stamp unique to this publish, so the wait at the end can tell this
+# deployment from the one before it. Without it the wait polls for the hashed
+# bundle name, which only changes when the page's code does — so a re-publish
+# of the same page, or any `--data` publish, would match the bundle already
+# live and report success on the first poll without waiting for anything.
+PUBLISH_ID="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+printf '%s\n' "$PUBLISH_ID" > "$GIT_WORK_TREE/build-id.txt"
+
 git checkout -q --orphan "publish-$$" 2>/dev/null || git checkout -q --orphan publish-tmp
 git add -A
 
@@ -170,11 +178,8 @@ if [ "$DRY_RUN" = 1 ]; then
     exit 0
 fi
 
-# What the live page must be serving once this publish has landed. Pages
-# builds and deploys on its own schedule after the push, so the push
-# succeeding says nothing about what a visitor is getting — and the hashed
-# bundle name is the one thing that distinguishes this build from the last.
-WANT="$(grep -o 'assets/index-[A-Za-z0-9_-]*\.js' "$GIT_WORK_TREE/index.html" | head -1 || true)"
+# Pages builds and deploys on its own schedule after the push, so the push
+# succeeding says nothing about what a visitor is getting.
 
 echo "==> pushing to $(git remote get-url public) ($BRANCH)"
 PUSHED=0
@@ -192,28 +197,31 @@ fi
 # A push is not a deployment. Wait for the live page to serve this build
 # before saying it is published, because saying so early is the one failure
 # here that cannot be seen from the terminal.
-if [ -z "$SITE_URL" ] || [ -z "$WANT" ]; then
+if [ -z "$SITE_URL" ]; then
     echo
-    if [ -z "$SITE_URL" ]; then
-        echo "pushed. Not waiting for the deployment: no SITE_URL to poll."
-    else
-        echo "pushed. Not waiting for the deployment: no bundle name in index.html."
-    fi
+    echo "pushed. Not waiting for the deployment: no SITE_URL to poll."
     echo "Enable Pages on the public repository from branch $BRANCH, / (root),"
     echo "if it is not on already."
     exit 0
 fi
 
-echo "==> waiting for $SITE_URL to serve ${WANT##*/}"
+echo "==> waiting for $SITE_URL to serve publish $PUBLISH_ID"
 BODY="$(mktemp)"
 trap 'rm -f "$BODY"' EXIT
 reached=0
 got=""
 for i in $(seq 1 45); do
-    if curl -fsS --max-time 20 -o "$BODY" "$SITE_URL?cb=$i" 2>/dev/null; then
+    # No -f: a 404 is the site answering, and it is the expected answer
+    # until this publish's own stamp has been deployed. Only a request that
+    # never got a reply at all — 000 — means the host cannot be reached, and
+    # confusing the two reports a deployment still in progress as a network
+    # failure.
+    code="$(curl -sS --max-time 20 -o "$BODY" -w '%{http_code}' \
+        "${SITE_URL%/}/build-id.txt?cb=$i" 2>/dev/null || true)"
+    if [ "$code" != "000" ] && [ -n "$code" ]; then
         reached=1
-        got="$(grep -o 'assets/index-[A-Za-z0-9_-]*\.js' "$BODY" | head -1 || true)"
-        if [ "$got" = "$WANT" ]; then
+        got="$(tr -d '[:space:]' < "$BODY")"
+        if [ "$code" = "200" ] && [ "$got" = "$PUBLISH_ID" ]; then
             echo
             echo "published and live at $SITE_URL"
             exit 0
@@ -239,8 +247,7 @@ if [ "$reached" = 0 ]; then
     echo "checked. The push itself succeeded." >&2
     exit 0
 fi
-echo "pushed, but $SITE_URL is still serving ${got:-no recognisable build}" >&2
-echo "after 15 minutes, not ${WANT##*/}. The push landed; the deployment" >&2
-echo "did not. Check the pages build and deployment run on the public" >&2
-echo "repository." >&2
+echo "pushed, but $SITE_URL is still answering $code after 15" >&2
+echo "minutes, not $PUBLISH_ID. The push landed; the deployment did not." >&2
+echo "Check the pages build and deployment run on the public repository." >&2
 exit 1
