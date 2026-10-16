@@ -642,6 +642,9 @@ async function build(
 
   const renderer = new THREE.WebGLRenderer({ canvas: canvasEl, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  // The eye line is drawn through the neighbours rather than over them: see
+  // the two planes below.
+  renderer.localClippingEnabled = true;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -815,6 +818,10 @@ async function build(
    * that will not fit by then is not drawn.
    */
   const LABEL_SCALES = [0.3, 0.26, 0.22, 0.19, 0.16];
+  /** How many stretches of a street's road to try before giving up on it. */
+  const SPOTS_TRIED = 60;
+  /** Clear ground between the ends of two names, on top of their own lengths. */
+  const LABEL_GAP_M = 25;
   /** The type size the canvas is drawn at, which the width has to hold. */
   const LABEL_FONT_PX = 64;
   /**
@@ -997,21 +1004,31 @@ async function build(
       at: [number, number];
       angle: number;
       scale: number;
-      from: number;
+      /** Half the name's length on the ground, for keeping names apart. */
+      half: number;
     }[] = [];
 
-    for (const [name, blocks] of streetBlocks) {
-      if (blocks.length < STREET_MIN_BLOCKS) continue;
-      const cx = blocks.reduce((sum, b) => sum + b[0], 0) / blocks.length;
-      const cy = blocks.reduce((sum, b) => sum + b[1], 0) / blocks.length;
+    // Nearest street first, so that when two of them want the same stretch of
+    // road the one belonging to the block you came here to look at gets it.
+    const streets = [...streetBlocks]
+      .filter(([, blocks]) => blocks.length >= STREET_MIN_BLOCKS)
+      .map(([name, blocks]) => {
+        const cx = blocks.reduce((sum, b) => sum + b[0], 0) / blocks.length;
+        const cy = blocks.reduce((sum, b) => sum + b[1], 0) / blocks.length;
+        return { name, cx, cy, from: Math.hypot(cx, cy) };
+      })
+      .sort((a, b) => a.from - b.from);
 
-      // Of the road near these blocks, the most open stretch of it. Taking
-      // the nearest point put the name hard against the blocks that gave it,
-      // where from any angle but straight down a tower stands over the middle
-      // of the word. Clearance from the nearest building is what decides it,
-      // out of everything close enough to still be this street.
-      let best: [number, number] | null = null;
-      let bestClearance = -1;
+    for (const { name, cx, cy } of streets) {
+      // Every stretch of road near these blocks, most open first, rather than
+      // the single most open one. Taking only the best spot put the name hard
+      // against the blocks that gave it — where from any angle but straight
+      // down a tower stands over the middle of the word — and, worse, gave
+      // neighbouring streets the same answer: around Potong Pasir, Avenue 1
+      // and Avenue 3 both ended up on the one open stretch between them,
+      // printed on top of each other. A list means a street that finds its
+      // first choice taken can take its second.
+      const spots: { point: [number, number]; clearance: number }[] = [];
       let nearest = Infinity;
       for (const point of roadPoints) {
         const [x, y] = point;
@@ -1022,12 +1039,14 @@ async function build(
         for (const [bx, by] of blockCentres) {
           clearance = Math.min(clearance, Math.hypot(x - bx, y - by));
         }
-        if (clearance > bestClearance) {
-          bestClearance = clearance;
-          best = point;
-        }
+        spots.push({ point, clearance });
       }
-      if (!best || nearest > STREET_MAX_ROAD_M) continue;
+      if (!spots.length || nearest > STREET_MAX_ROAD_M) continue;
+      spots.sort((a, b) => b.clearance - a.clearance);
+
+      let drew = false;
+      for (const spot of spots.slice(0, SPOTS_TRIED)) {
+        const best = spot.point;
 
       // The angle comes from the asphalt around the chosen spot, not from the
       // blocks. The line through a street's blocks is roughly the line of the
@@ -1071,8 +1090,8 @@ async function build(
       // where the middle of it lies. Whichever way is into the asphalt is the
       // way it goes, a metre at a time, until it comes out the other side.
       const step = (sign: number, metres: number): [number, number] => [
-        best![0] + across[0] * sign * metres,
-        best![1] + across[1] * sign * metres,
+        best[0] + across[0] * sign * metres,
+        best[1] + across[1] * sign * metres,
       ];
       const sign = onCarriageway(...step(1, 1)) ? 1 : -1;
       if (!onCarriageway(...step(sign, 1))) continue;
@@ -1106,23 +1125,33 @@ async function build(
           break;
         }
       }
-      if (scale === null) continue;
+        if (scale === null) continue;
 
-      placed.push({
-        name,
-        at: centre,
-        angle,
-        scale,
-        from: Math.hypot(cx, cy),
-      });
+        // And it must not land on a name already written. Two streets that
+        // run beside each other have their open stretches in the same place,
+        // and the first version of this gave both of them that place.
+        // Half-lengths rather than a fixed gap, because what counts as too
+        // close depends on how long the two names are.
+        const half = (widthPx * scale) / 2;
+        const clash = placed.some(
+          (other) =>
+            Math.hypot(centre[0] - other.at[0], centre[1] - other.at[1]) <
+            (half + other.half) * 0.95 + LABEL_GAP_M,
+        );
+        if (clash) continue;
+
+        placed.push({ name, at: centre, angle, scale, half });
+        drew = true;
+        break;
+      }
+      if (!drew) continue;
     }
 
     const labels = new THREE.Group();
     labels.name = 'streets';
     streetLabels = labels;
-    for (const label of placed
-      .sort((a, b) => a.from - b.from)
-      .slice(0, STREET_MAX_LABELS)) {
+    // Already in nearest-first order, because the streets were.
+    for (const label of placed.slice(0, STREET_MAX_LABELS)) {
       const mesh = streetLabel(label.name, label.scale);
       if (!mesh) continue;
       // The shapes were rotated so that a parcel's northward axis became
@@ -1146,9 +1175,28 @@ async function build(
   const mineTone = colour('--massing-mine', '#d6ff4e');
   const plainTone = colour('--massing-built', '#f4f3f1');
   const overTone = colour('--massing-over', '#e4ded1');
+  /**
+   * Your eye line, as a cut through everything around you.
+   *
+   * A tinted block told you *that* a neighbour rises past your floor. It did
+   * not show you *where* on that neighbour your eye lands, which is the thing
+   * somebody standing at a window actually wants to gauge: how much of the
+   * block opposite is above me, and how much of it am I looking over.
+   *
+   * So each neighbour is drawn twice against a pair of clipping planes at the
+   * eye line — plain below it, in the heavier tone above — and the join is a
+   * line straight across the estate at the height of your floor. No extra
+   * geometry: both draws share one mesh's vertices.
+   */
+  const clipBelow = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0);
+  const clipAbove = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
   const matMine = new THREE.MeshLambertMaterial({ color: mineTone });
   const matPlain = new THREE.MeshLambertMaterial({ color: plainTone });
-  const matOver = new THREE.MeshLambertMaterial({ color: overTone });
+  const matOver = new THREE.MeshLambertMaterial({
+    color: overTone,
+    clippingPlanes: [clipAbove],
+  });
   const matEdge = new THREE.LineBasicMaterial({
     color: colour('--massing-line', '#b4b0a8'),
     transparent: true,
@@ -1158,7 +1206,13 @@ async function build(
   const standing = new THREE.Group();
   world.add(standing);
   const pickable: InstanceType<typeof THREE.Mesh>[] = [];
-  const towers: { mesh: InstanceType<typeof THREE.Mesh>; top: number; mine: boolean }[] = [];
+  const towers: {
+    mesh: InstanceType<typeof THREE.Mesh>;
+    /** The same volume again, drawn in the heavier tone above the eye line. */
+    over: InstanceType<typeof THREE.Mesh> | null;
+    top: number;
+    mine: boolean;
+  }[] = [];
   let mine: Building | null = null;
   let tallest = 0;
 
@@ -1180,7 +1234,18 @@ async function build(
     pickable.push(mesh);
     // A block's top *floor* is a storey below its roof, and what blocks a
     // view is somebody's floor above your eye line, not their roof.
-    towers.push({ mesh, top: (storeys - 1) * storeyM, mine: isMine });
+    let over: InstanceType<typeof THREE.Mesh> | null = null;
+    if (!isMine) {
+      // Same geometry, second material, clipped to above the line. Our own
+      // block is left whole: it is the thing being looked out of, not one of
+      // the things in the way.
+      over = new THREE.Mesh(geom, matOver);
+      over.castShadow = false;
+      over.receiveShadow = true;
+      over.visible = false;
+      standing.add(over);
+    }
+    towers.push({ mesh, over, top: (storeys - 1) * storeyM, mine: isMine });
     if (isMine) mine = b;
     if (storeys > tallest) tallest = storeys;
   }
@@ -1503,10 +1568,16 @@ async function build(
       }
 
       // Anything that reaches above your eye line is what the table above
-      // calls a block above you; everything else is skyline.
+      // calls a block above you; everything else is skyline. The cut itself
+      // is what shows you where on each of them your eye lands.
+      if (eye !== null) {
+        clipBelow.constant = eye;
+        clipAbove.constant = -eye;
+      }
+      matPlain.clippingPlanes = eye !== null ? [clipBelow] : [];
       for (const t of towers) {
-        if (t.mine) continue;
-        t.mesh.material = eye !== null && t.top > eye + 0.5 ? matOver : matPlain;
+        if (t.mine || !t.over) continue;
+        t.over.visible = eye !== null && t.top > eye + 0.5;
       }
       for (const v of volumes) {
         // Drawing only what breaks the eye line was the obvious way to thin
