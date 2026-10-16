@@ -100,3 +100,49 @@ class TestOutline:
     def test_nothing_in_nothing_out(self):
         assert outline({}) is None
         assert outline({"type": "Polygon", "coordinates": []}) is None
+
+
+def test_a_bend_keeps_more_points_at_the_surface_tolerance():
+    """Roads and water curve; parcel boundaries mostly do not.
+
+    Five metres of licence is six pixels in the 3D view, and a simplifier
+    given six pixels turns a sweeping bend into a few straight chords — which
+    is exactly what the roads looked like. A metre is about a pixel.
+    """
+    import math
+
+    from nhf.geo import OUTLINE_TOLERANCE_M, SURFACE_TOLERANCE_M, outline
+
+    # A 40 m radius bend drawn with 120 points, as a kerb line comes.
+    ring = [
+        [103.9 + 0.00036 * math.cos(t * math.pi / 60),
+         1.4 + 0.00036 * math.sin(t * math.pi / 60)]
+        for t in range(121)
+    ]
+    geometry = {"type": "Polygon", "coordinates": [ring]}
+
+    coarse = outline(geometry, tolerance_m=OUTLINE_TOLERANCE_M)
+    fine = outline(geometry, tolerance_m=SURFACE_TOLERANCE_M)
+    assert coarse and fine
+    kept_coarse = len(coarse["coordinates"][0])
+    kept_fine = len(fine["coordinates"][0])
+    # Not a precise count — the point is that the finer one follows the curve.
+    assert kept_fine > kept_coarse * 1.5, (kept_coarse, kept_fine)
+
+
+def test_published_coordinates_are_rounded_to_a_tenth_of_a_metre():
+    """Six places, because five let two parcels sharing an edge part by a metre.
+
+    Each parcel is rounded on its own, so a shared boundary rounded to 1.1 m
+    can open along the join — which showed as a pale thread of bare ground
+    between neighbouring parcels.
+    """
+    from nhf.geo import OUTLINE_DECIMALS, outline
+
+    assert OUTLINE_DECIMALS == 6
+    square = [[103.900001234, 1.400001234], [103.9001, 1.4],
+              [103.9001, 1.4001], [103.9, 1.4001], [103.900001234, 1.400001234]]
+    got = outline({"type": "Polygon", "coordinates": [square]})
+    assert got
+    for x, y in got["coordinates"][0]:
+        assert round(x, 6) == x and round(y, 6) == y

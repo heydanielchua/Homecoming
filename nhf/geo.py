@@ -113,16 +113,27 @@ def _ring_centroid(ring: list) -> tuple[float, float, float]:
 
 # How far a simplified outline may stray from the real one, in metres.
 #
-# Five metres is about two pixels at the zoom this is drawn at, and it halves
-# the point count: the Master Plan draws parcel edges to fourteen decimal
-# places, which is a tenth of a millimetre, and a boundary is not surveyed to
-# anything like that. Going to ten saves another six per cent and starts
-# clipping the corners off small parcels.
+# Five metres was chosen as "about two pixels at the zoom this is drawn at",
+# and that was true of the flat map it was written for. The 3D model draws the
+# same parcels about 900 m across a 1000-pixel canvas — nine-tenths of a metre
+# to the pixel — where five metres of licence is six pixels, and a simplifier
+# given six pixels turns a sweeping bend into three straight chords. Road
+# outlines came out of it with a median of eleven points and sixty metres
+# between them, which is why the roads looked faceted.
+#
+# A parcel boundary is mostly straight and loses nothing to five metres. A
+# road and a river are the two things here read as shapes rather than as
+# areas, and they are the two that curve, so they are simplified at a metre —
+# about a pixel — and everything else is left as it was.
 OUTLINE_TOLERANCE_M = 5.0
+SURFACE_TOLERANCE_M = 1.0
 
-# Rounding on what is published. Five places is a bit over a metre here, which
-# is finer than the tolerance above, so it costs nothing and halves the bytes.
-OUTLINE_DECIMALS = 5
+# Rounding on what is published. Six places is 0.11 m here. Five was a bit
+# over a metre, and since every parcel is rounded on its own, two that share
+# an edge could land a metre apart — open along the join, which showed as a
+# pale thread of bare ground between them wherever the eye followed a
+# boundary. A tenth of a metre is under a pixel at any zoom this is drawn at.
+OUTLINE_DECIMALS = 6
 
 # Metres per degree at Singapore's latitude. The island spans a third of a
 # degree, so treating these as constant is good to a few centimetres.

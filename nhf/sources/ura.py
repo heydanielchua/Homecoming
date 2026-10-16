@@ -43,7 +43,12 @@ import time
 from dataclasses import dataclass
 from typing import Any, Iterator
 
-from ..geo import geometry_summary, outline
+from ..geo import (
+    OUTLINE_TOLERANCE_M,
+    SURFACE_TOLERANCE_M,
+    geometry_summary,
+    outline,
+)
 
 log = logging.getLogger(__name__)
 
@@ -204,7 +209,18 @@ def _row(buf: list[str], source: str, stats: ParcelStats) -> tuple | None:
 
     lat, lon, min_lat, max_lat, min_lon, max_lon = summary
     gpr_numeric, gpr_note = parse_gpr(props.get("GPR"))
-    shape = outline(feature.get("geometry") or {})
+    # Roads and water are simplified finer than the rest: they are the two
+    # layers a reader follows as a shape rather than reads as an area, and the
+    # two that actually curve. See the tolerances in geo.py.
+    use = (props.get("LU_DESC") or "").strip().upper()
+    shape = outline(
+        feature.get("geometry") or {},
+        tolerance_m=(
+            SURFACE_TOLERANCE_M
+            if use in {"ROAD", "WATERBODY"}
+            else OUTLINE_TOLERANCE_M
+        ),
+    )
     if shape is None:
         stats.no_outline += 1
     stats.kept += 1
