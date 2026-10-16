@@ -162,6 +162,35 @@ export function Massing({
   const [sunOn, setSunOn] = React.useState(true);
   const [hour, setHour] = React.useState(16);
   const [month, setMonth] = React.useState(12);
+
+  /**
+   * Keep this panel still when a control in it changes the page.
+   *
+   * Setting a floor fills in the view results, and those sit above the model —
+   * about 1,250px of them on a typical block. Chrome hides that: scroll
+   * anchoring adjusts the scroll position by the same amount in the same
+   * frame, so nothing appears to move. Safari implements no scroll anchoring
+   * at all, so on a Mac or an iPhone the model and the slider under your
+   * finger are thrown a thousand pixels down the page the moment you choose a
+   * floor.
+   *
+   * So the panel's position is noted before the change and restored after it.
+   * Where the browser has already compensated the difference measures zero and
+   * nothing happens, which is why this does not fight scroll anchoring where
+   * there is some.
+   */
+  const anchor = React.useRef<number | null>(null);
+  const hold = React.useCallback(() => {
+    anchor.current = host.current?.getBoundingClientRect().top ?? null;
+  }, []);
+
+  React.useLayoutEffect(() => {
+    const was = anchor.current;
+    anchor.current = null;
+    if (was === null || !host.current) return;
+    const drift = host.current.getBoundingClientRect().top - was;
+    if (Math.abs(drift) > 1) window.scrollBy(0, drift);
+  }, [storey, facing]);
   const [hiddenZones, setHiddenZones] = React.useState<Partial<Record<ZoneGroup, boolean>>>({});
   const [readout, setReadout] = React.useState<Readout | null>(null);
   const [summary, setSummary] = React.useState<string | null>(null);
@@ -360,7 +389,10 @@ export function Massing({
               value={storey ?? restingFloor}
               min={1}
               max={top}
-              onValueChange={(value) => onStorey(Number(value))}
+              onValueChange={(value) => {
+                hold();
+                onStorey(Number(value));
+              }}
             >
               <Slider.Control className="slider-control">
                 <Slider.Track className="slider-track">
@@ -388,6 +420,7 @@ export function Massing({
               aria-labelledby="massing-facing"
               value={facing ? [facing] : []}
               onValueChange={(groupValue) => {
+                hold();
                 const next = groupValue[groupValue.length - 1];
                 onFacing((next as Facing | undefined) ?? null);
               }}
@@ -722,8 +755,6 @@ async function build(
   const STREET_MAX_LABELS = 7;
   /** How far around the chosen spot to read the road's own direction. */
   const ROAD_AXIS_M = 70;
-  /** How near asphalt each end of a name has to come down to count as on it. */
-  const ROAD_FIT_M = 16;
   /**
    * Sizes to try, largest first, in metres per canvas pixel.
    *
@@ -732,7 +763,23 @@ async function build(
    * smallest is the point at which it stops being readable at all, and a name
    * that will not fit by then is not drawn.
    */
-  const LABEL_SCALES = [0.3, 0.24, 0.19];
+  const LABEL_SCALES = [0.3, 0.26, 0.22, 0.19, 0.16];
+  /** The type size the canvas is drawn at, which the width has to hold. */
+  const LABEL_FONT_PX = 64;
+  /**
+   * How much of the road's width the type may take.
+   *
+   * Tight against the kerbs rather than politely inside them. A name held to
+   * two thirds of a twenty-metre street is twelve metres of type seen at four
+   * hundred metres through a tilted camera, which is to say barely there. Most
+   * of the width, with a margin that still reads as a margin, is the most this
+   * can be given while staying on the road — and on the road is the point.
+   */
+  const LABEL_IN_ROAD = 0.84;
+  /** Narrower than this is a path or a slip, not a street to write a name on. */
+  const ROAD_MIN_WIDTH_M = 9;
+  /** Wider than this and the walk has wandered into a junction, not a road. */
+  const ROAD_MAX_WIDTH_M = 60;
 
   const ringCentroid = (geom: Geom): [number, number] | null => {
     const ring = polygons(geom)[0]?.[0];
@@ -760,10 +807,14 @@ async function build(
    */
   const ROAD_STEP_M = 8;
   const roadPoints: [number, number][] = [];
+  const roadRings: [number, number][][] = [];
   for (const p of parcels) {
     if (p.g !== 'road') continue;
     for (const rings of polygons(p.m as Geom)) {
       const ring = rings[0] ?? [];
+      if (ring.length > 2) {
+        roadRings.push(ring.map(([lo, la]) => project(lo, la)));
+      }
       for (let i = 0; i < ring.length; i += 1) {
         const [ax, ay] = project(ring[i]![0], ring[i]![1]);
         const next = ring[(i + 1) % ring.length]!;
@@ -780,6 +831,36 @@ async function build(
   }
 
   const blockCentres: [number, number][] = [];
+  /**
+   * Whether a point is on the carriageway, by the polygon rather than by how
+   * near it is to a kerb.
+   *
+   * Proximity was the obvious test and it is not good enough in either
+   * direction. Sixteen metres of slack calls the verge a road; and measuring
+   * the width as the distance to the nearest kerb point across the way reads
+   * two points on the *same* kerb — which a junction flare provides in
+   * quantity — as a seven-metre street, so every name was judged too big for
+   * the road it was on and none were drawn at all. Ray casting costs a few
+   * lines and answers the question that was being asked.
+   */
+  function onCarriageway(x: number, y: number): boolean {
+    for (const ring of roadRings) {
+      let inside = false;
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
+        const [xi, yi] = ring[i]!;
+        const [xj, yj] = ring[j]!;
+        if (
+          yi > y !== yj > y &&
+          x < ((xj - xi) * (y - yi)) / (yj - yi) + xi
+        ) {
+          inside = !inside;
+        }
+      }
+      if (inside) return true;
+    }
+    return false;
+  }
+
   const streetBlocks = new Map<string, [number, number][]>();
   for (const b of buildings) {
     const centre = ringCentroid(b.m as Geom);
@@ -822,7 +903,9 @@ async function build(
     ctx.font = FONT;
     const width = Math.ceil(ctx.measureText(text).width);
     canvas.width = width + LABEL_PAD;
-    canvas.height = 128;
+    // Only enough room around the type for its halo. The plane is sized from
+    // this, so slack here is plane hanging over the kerbs for no reason.
+    canvas.height = 92;
     // Setting the size clears everything the context was told, the font
     // included, so it is set again here rather than above.
     ctx.font = FONT;
@@ -920,21 +1003,53 @@ async function build(
       // is also what keeps the text the right way up.
       const angle = 0.5 * Math.atan2(2 * sxy, sxx - syy);
 
-      // Then the name is sized to fit the road it is lying on. Both ends have
-      // to come down on asphalt, and a name that will not fit at the smallest
-      // size this stays readable at is left off rather than drawn across the
-      // ground beside the street.
+      // How wide the carriageway is here, and where the middle of it is.
+      //
+      // The spot chosen above is a point on the road's edge, because the edge
+      // is all a polygon gives. A name written from the kerb runs half on the
+      // road and half on the verge, and if it is taller than the road is wide
+      // it covers both kerbs whatever else is done with it. So the far side is
+      // found by looking straight across: of the edge points that lie roughly
+      // perpendicular to the way the road runs, the nearest one opposite is
+      // the other kerb. That distance is the width, and halfway is the
+      // centreline the name is written along.
+      const along = [Math.cos(angle), Math.sin(angle)] as const;
+      const across = [-Math.sin(angle), Math.cos(angle)] as const;
+
+      // Walk straight across from the kerb to find how wide the road is and
+      // where the middle of it lies. Whichever way is into the asphalt is the
+      // way it goes, a metre at a time, until it comes out the other side.
+      const step = (sign: number, metres: number): [number, number] => [
+        best![0] + across[0] * sign * metres,
+        best![1] + across[1] * sign * metres,
+      ];
+      const sign = onCarriageway(...step(1, 1)) ? 1 : -1;
+      if (!onCarriageway(...step(sign, 1))) continue;
+      let span = 1;
+      while (span < ROAD_MAX_WIDTH_M && onCarriageway(...step(sign, span + 1))) {
+        span += 1;
+      }
+      if (span < ROAD_MIN_WIDTH_M) continue;
+      const width = span;
+      const centre = step(sign, width / 2);
+
+      // Then the size, held to both of the road's dimensions. Across: the type
+      // has to sit inside the carriageway with a margin, which is what stops a
+      // name from spilling over the kerbs. Along: both ends have to come down
+      // on asphalt. A name that cannot do both at a size still worth reading
+      // is left off rather than written across the ground beside the street.
       const widthPx = labelWidthPx(name);
-      const onRoad = (x: number, y: number) =>
-        roadPoints.some(([rx, ry]) => Math.hypot(x - rx, y - ry) <= ROAD_FIT_M);
+      const onRoad = onCarriageway;
+      const fitsAcross = (width * LABEL_IN_ROAD) / LABEL_FONT_PX;
       let scale: number | null = null;
       for (const candidate of LABEL_SCALES) {
+        if (candidate > fitsAcross) continue;
         const reach = (widthPx * candidate) / 2;
-        const ex = Math.cos(angle) * reach;
-        const ey = Math.sin(angle) * reach;
+        const ex = along[0] * reach;
+        const ey = along[1] * reach;
         if (
-          onRoad(best[0] + ex, best[1] + ey) &&
-          onRoad(best[0] - ex, best[1] - ey)
+          onRoad(centre[0] + ex, centre[1] + ey) &&
+          onRoad(centre[0] - ex, centre[1] - ey)
         ) {
           scale = candidate;
           break;
@@ -944,7 +1059,7 @@ async function build(
 
       placed.push({
         name,
-        at: best,
+        at: centre,
         angle,
         scale,
         from: Math.hypot(cx, cy),
